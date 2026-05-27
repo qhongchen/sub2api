@@ -66,7 +66,8 @@
     class="table-wrapper cch-data-table-wrapper"
     :class="{
       'actions-expanded': actionsExpanded,
-      'is-scrollable': isScrollable
+      'is-scrollable': isScrollable,
+      'is-natural-flow': !shouldVirtualizeRows
     }"
   >
     <table class="cch-data-table w-full min-w-max divide-y divide-gray-200/70 dark:divide-white/[0.08]">
@@ -150,7 +151,7 @@
         </tr>
 
         <!-- Data rows (virtual scroll) -->
-        <template v-else>
+        <template v-else-if="shouldVirtualizeRows">
           <tr v-if="virtualPaddingTop > 0" aria-hidden="true">
             <td :colspan="columns.length"
                 :style="{ height: virtualPaddingTop + 'px', padding: 0, border: 'none' }">
@@ -187,6 +188,35 @@
           <tr v-if="virtualPaddingBottom > 0" aria-hidden="true">
             <td :colspan="columns.length"
                 :style="{ height: virtualPaddingBottom + 'px', padding: 0, border: 'none' }">
+            </td>
+          </tr>
+        </template>
+
+        <!-- Data rows (natural flow) -->
+        <template v-else>
+          <tr
+            v-for="(row, index) in sortedData"
+            :key="resolveRowKey(row, index)"
+            :data-row-id="resolveRowKey(row, index)"
+            :data-index="index"
+            class="transition-colors duration-150 hover:bg-primary-50/40 dark:hover:bg-white/[0.035]"
+          >
+            <td
+              v-for="(column, colIndex) in columns"
+              :key="column.key"
+              :class="[
+                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                getAdaptivePaddingClass(),
+                getStickyColumnClass(column, colIndex),
+                column.class
+              ]"
+            >
+              <slot :name="`cell-${column.key}`"
+                    :row="row"
+                    :value="row[column.key]"
+                    :expanded="actionsExpanded">
+                {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
+              </slot>
             </td>
           </tr>
         </template>
@@ -361,6 +391,8 @@ interface Props {
   estimateRowHeight?: number
   /** Number of rows to render beyond the visible area (default 5) */
   overscan?: number
+  /** Disable when the table should render all rows in natural page flow */
+  virtualized?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -369,7 +401,8 @@ const props = withDefaults(defineProps<Props>(), {
   stickyActionsColumn: true,
   expandableActions: true,
   defaultSortOrder: 'asc',
-  serverSideSort: false
+  serverSideSort: false,
+  virtualized: true
 })
 
 const sortKey = ref<string>('')
@@ -572,9 +605,11 @@ const sortedData = computed(() => {
     .map(item => item.row)
 })
 
+const shouldVirtualizeRows = computed(() => props.virtualized && isDesktopViewport.value)
+
 // --- Virtual scrolling ---
 const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: isDesktopViewport.value ? (sortedData.value?.length ?? 0) : 0,
+  count: shouldVirtualizeRows.value ? (sortedData.value?.length ?? 0) : 0,
   getScrollElement: () => tableWrapperRef.value,
   estimateSize: () => props.estimateRowHeight ?? 56,
   overscan: props.overscan ?? 5,
@@ -594,7 +629,7 @@ const virtualPaddingBottom = computed(() => {
 })
 
 const measureElement = (el: any) => {
-  if (el) {
+  if (el && shouldVirtualizeRows.value) {
     rowVirtualizer.value.measureElement(el as Element)
   }
 }
@@ -723,6 +758,13 @@ defineExpose({
   flex: 1;
   min-height: 0;
   isolation: isolate;
+}
+
+.table-wrapper.is-natural-flow {
+  overflow-x: auto;
+  overflow-y: visible;
+  flex: none;
+  min-height: auto;
 }
 
 /* 表头容器，确保在滚动时覆盖表体内容 */

@@ -800,6 +800,15 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
+  if (authStore.isAdmin && to.path === '/usage') {
+    next({
+      path: '/admin/usage',
+      query: to.query,
+      hash: to.hash,
+    })
+    return
+  }
+
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard

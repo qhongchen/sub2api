@@ -1,10 +1,10 @@
 <template>
-  <div class="mb-4 flex items-center justify-between rounded-lg bg-primary-50 p-3 dark:bg-primary-900/20">
+  <div class="flex flex-col gap-3 rounded-2xl border border-gray-200/70 bg-gray-50/80 p-3.5 dark:border-white/[0.08] dark:bg-white/[0.03]">
     <div class="flex flex-wrap items-center gap-2">
       <span v-if="selectedIds.length > 0" class="text-sm font-medium text-primary-900 dark:text-primary-100">
         {{ t('admin.accounts.bulkActions.selected', { count: selectedIds.length }) }}
       </span>
-      <span v-else class="text-sm font-medium text-primary-900 dark:text-primary-100">
+      <span v-else class="text-sm font-medium text-gray-800 dark:text-gray-100">
         {{ t('admin.accounts.bulkEdit.title') }}
       </span>
       <template v-if="selectedIds.length > 0">
@@ -23,7 +23,8 @@
       </button>
       </template>
     </div>
-    <div class="flex gap-2">
+
+    <div class="flex flex-wrap gap-2">
       <template v-if="selectedIds.length > 0">
         <button @click="$emit('delete')" class="btn btn-danger btn-sm">{{ t('admin.accounts.bulkActions.delete') }}</button>
         <button @click="$emit('reset-status')" class="btn btn-secondary btn-sm">{{ t('admin.accounts.bulkActions.resetStatus') }}</button>

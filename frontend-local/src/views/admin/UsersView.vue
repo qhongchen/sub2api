@@ -1,9 +1,9 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #actions>
-        <section class="cch-panel-card overflow-hidden">
-          <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+    <TablePageLayout class="users-page-layout">
+      <template #table>
+        <section class="users-management-card cch-panel-card overflow-visible">
+          <div class="users-card-header flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
             <div class="min-w-0 space-y-2">
               <div class="flex flex-wrap items-center gap-2">
                 <h1 class="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
@@ -11,12 +11,6 @@
                 </h1>
                 <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
                   {{ pagination.total }} {{ t('nav.users') }}
-                </span>
-                <span
-                  v-if="visibleFilters.size > 0"
-                  class="rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-200"
-                >
-                  {{ visibleFilters.size }} {{ t('admin.users.filterSettings') }}
                 </span>
               </div>
               <p class="max-w-2xl text-sm text-gray-500 dark:text-dark-300">
@@ -29,32 +23,29 @@
               {{ t('admin.users.createUser') }}
             </button>
           </div>
-        </section>
-      </template>
 
-      <!-- Single Row: Search, Filters, and Actions -->
-      <template #filters>
-        <div class="cch-toolbar-card flex flex-wrap items-center gap-3">
-          <!-- Left: Search + Active Filters -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <!-- Search Box -->
-            <div class="relative w-full md:w-64">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('admin.users.searchUsers')"
-                class="input pl-10"
-                @input="handleSearch"
-              />
-            </div>
+          <!-- Single Row: Search, Filters, and Actions -->
+          <div class="users-card-toolbar flex flex-wrap items-center gap-3 px-6 py-4">
+            <!-- Left: Search + Active Filters -->
+            <div class="flex flex-1 flex-wrap items-center gap-3">
+              <!-- Search Box -->
+              <div class="relative w-full md:w-64">
+                <Icon
+                  name="search"
+                  size="md"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  :placeholder="t('admin.users.searchUsers')"
+                  class="input pl-10"
+                  @input="handleSearch"
+                />
+              </div>
 
             <!-- Role Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
+            <div class="w-full sm:w-32">
               <Select
                 v-model="filters.role"
                 :options="[
@@ -67,7 +58,7 @@
             </div>
 
             <!-- Status Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('status')" class="w-full sm:w-32">
+            <div class="w-full sm:w-32">
               <Select
                 v-model="filters.status"
                 :options="[
@@ -80,7 +71,7 @@
             </div>
 
             <!-- Group Filter (visible when enabled) -->
-            <div v-if="visibleFilters.has('group')" class="w-full sm:w-44">
+            <div class="w-full sm:w-44">
               <Select
                 v-model="filters.group"
                 :options="groupFilterOptions"
@@ -93,50 +84,47 @@
             </div>
 
             <!-- Dynamic Attribute Filters -->
-            <template v-for="(value, attrId) in activeAttributeFilters" :key="attrId">
-              <div
-                v-if="visibleFilters.has(`attr_${attrId}`)"
-                class="relative w-full sm:w-36"
-              >
+            <template v-for="attr in filterableAttributes" :key="attr.id">
+              <div class="relative w-full sm:w-36">
                 <!-- Text/Email/URL/Textarea/Date type: styled input -->
                 <input
-                  v-if="['text', 'textarea', 'email', 'url', 'date'].includes(getAttributeDefinition(Number(attrId))?.type || 'text')"
-                  :value="value"
-                  @input="(e) => updateAttributeFilter(Number(attrId), (e.target as HTMLInputElement).value)"
+                  v-if="['text', 'textarea', 'email', 'url', 'date'].includes(attr.type || 'text')"
+                  :value="activeAttributeFilters[attr.id] ?? ''"
+                  @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
                   @keyup.enter="applyFilter"
-                  :placeholder="getAttributeDefinitionName(Number(attrId))"
+                  :placeholder="attr.name"
                   class="input w-full"
                 />
                 <!-- Number type: number input -->
                 <input
-                  v-else-if="getAttributeDefinition(Number(attrId))?.type === 'number'"
-                  :value="value"
+                  v-else-if="attr.type === 'number'"
+                  :value="activeAttributeFilters[attr.id] ?? ''"
                   type="number"
-                  @input="(e) => updateAttributeFilter(Number(attrId), (e.target as HTMLInputElement).value)"
+                  @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
                   @keyup.enter="applyFilter"
-                  :placeholder="getAttributeDefinitionName(Number(attrId))"
+                  :placeholder="attr.name"
                   class="input w-full"
                 />
                 <!-- Select/Multi-select type -->
-                <template v-else-if="['select', 'multi_select'].includes(getAttributeDefinition(Number(attrId))?.type || '')">
+                <template v-else-if="['select', 'multi_select'].includes(attr.type || '')">
                   <div class="w-full">
                     <Select
-                      :model-value="value"
+                      :model-value="activeAttributeFilters[attr.id] ?? ''"
                       :options="[
-                        { value: '', label: getAttributeDefinitionName(Number(attrId)) },
-                        ...(getAttributeDefinition(Number(attrId))?.options || [])
+                        { value: '', label: attr.name },
+                        ...(attr.options || [])
                       ]"
-                      @update:model-value="(val) => { updateAttributeFilter(Number(attrId), String(val ?? '')); applyFilter() }"
+                      @update:model-value="(val) => { updateAttributeFilter(attr.id, String(val ?? '')); applyFilter() }"
                     />
                   </div>
                 </template>
                 <!-- Fallback -->
                 <input
                   v-else
-                  :value="value"
-                  @input="(e) => updateAttributeFilter(Number(attrId), (e.target as HTMLInputElement).value)"
+                  :value="activeAttributeFilters[attr.id] ?? ''"
+                  @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
                   @keyup.enter="applyFilter"
-                  :placeholder="getAttributeDefinitionName(Number(attrId))"
+                  :placeholder="attr.name"
                   class="input w-full"
                 />
               </div>
@@ -156,60 +144,6 @@
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
               </button>
-              <!-- Filter Settings Dropdown -->
-              <div class="relative" ref="filterDropdownRef">
-                <button
-                  @click="showFilterDropdown = !showFilterDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.users.filterSettings')"
-                >
-                  <Icon name="filter" size="sm" class="md:mr-1.5" />
-                  <span class="hidden md:inline">{{ t('admin.users.filterSettings') }}</span>
-                </button>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showFilterDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                >
-                  <!-- Built-in filters -->
-                  <button
-                    v-for="filter in builtInFilters"
-                    :key="filter.key"
-                    @click="toggleBuiltInFilter(filter.key)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ filter.name }}</span>
-                    <Icon
-                      v-if="visibleFilters.has(filter.key)"
-                      name="check"
-                      size="sm"
-                      class="text-primary-500"
-                      :stroke-width="2"
-                    />
-                  </button>
-                  <!-- Divider if custom attributes exist -->
-                  <div
-                    v-if="filterableAttributes.length > 0"
-                    class="my-1 border-t border-gray-100 dark:border-dark-700"
-                  ></div>
-                  <!-- Custom attribute filters -->
-                  <button
-                    v-for="attr in filterableAttributes"
-                    :key="attr.id"
-                    @click="toggleAttributeFilter(attr)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ attr.name }}</span>
-                    <Icon
-                      v-if="visibleFilters.has(`attr_${attr.id}`)"
-                      name="check"
-                      size="sm"
-                      class="text-primary-500"
-                      :stroke-width="2"
-                    />
-                  </button>
-                </div>
-              </div>
               <!-- Column Settings Dropdown -->
               <div class="relative" ref="columnDropdownRef">
                 <button
@@ -263,37 +197,38 @@
             </div>
 
           </div>
-        </div>
-      </template>
+          </div>
 
-      <!-- Users Table -->
-      <template #table>
-        <DataTable
-          :columns="columns"
-          :data="sortedUsers"
-          :loading="loading"
-          :actions-count="7"
-          :server-side-sort="true"
-          default-sort-key="created_at"
-          default-sort-order="desc"
-          :sort-storage-key="USER_SORT_STORAGE_KEY"
-          @sort="handleSort"
-        >
-          <template #cell-email="{ value }">
+          <!-- Users Table -->
+          <div class="users-table">
+            <DataTable
+              :columns="columns"
+              :data="sortedUsers"
+              :loading="loading"
+              :actions-count="7"
+              :server-side-sort="true"
+              :virtualized="false"
+              default-sort-key="created_at"
+              default-sort-order="desc"
+              :sort-storage-key="USER_SORT_STORAGE_KEY"
+              @sort="handleSort"
+            >
+          <template #cell-email="{ value, row }">
             <div class="flex items-center gap-2">
               <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
+                class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
               >
                 <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
                   {{ value.charAt(0).toUpperCase() }}
                 </span>
               </div>
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+              <div class="min-w-0">
+                <div class="truncate font-medium text-gray-900 dark:text-white">{{ value }}</div>
+                <div class="mt-0.5 truncate text-xs text-gray-500 dark:text-dark-400">
+                  {{ row.username || '-' }}
+                </div>
+              </div>
             </div>
-          </template>
-
-          <template #cell-username="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ value || '-' }}</span>
           </template>
 
           <template #cell-notes="{ value }">
@@ -633,19 +568,20 @@
               @action="showCreateModal = true"
             />
           </template>
-        </DataTable>
-      </template>
+          </DataTable>
+          </div>
 
-      <!-- Pagination -->
-      <template #pagination>
-      <Pagination
-        v-if="pagination.total > 0"
-        :page="pagination.page"
-        :total="pagination.total"
-        :page-size="pagination.page_size"
-        @update:page="handlePageChange"
-        @update:pageSize="handlePageSizeChange"
-      />
+          <!-- Pagination -->
+          <div v-if="pagination.total > 0" class="users-card-pagination">
+            <Pagination
+              :page="pagination.page"
+              :total="pagination.total"
+              :page-size="pagination.page_size"
+              @update:page="handlePageChange"
+              @update:pageSize="handlePageSizeChange"
+            />
+          </div>
+        </section>
       </template>
     </TablePageLayout>
 
@@ -822,7 +758,6 @@ const getAttributeValue = (userId: number, attrId: number): string => {
 const allColumns = computed<Column[]>(() => [
   { key: 'email', label: t('admin.users.columns.user'), sortable: true },
   { key: 'id', label: t('admin.users.columns.id'), sortable: true },
-  { key: 'username', label: t('admin.users.columns.username'), sortable: true },
   { key: 'notes', label: t('admin.users.columns.notes'), sortable: false },
   // Dynamic attribute columns
   ...attributeColumns.value,
@@ -852,11 +787,19 @@ const toggleableColumns = computed(() =>
 // This way, new columns are visible by default
 const hiddenColumns = reactive<Set<string>>(new Set())
 
-// Default hidden columns (columns hidden by default on first load)
-const DEFAULT_HIDDEN_COLUMNS = [
-  'notes', 'groups', 'subscriptions', 'usage', 'concurrency',
-  'usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity'
-]
+// 用户管理页默认只展示高频判断字段，其余列仍可在"列设置"里手动打开。
+const DEFAULT_VISIBLE_COLUMNS = new Set([
+  'email',
+  'role',
+  'usage',
+  'concurrency',
+  'status',
+  'actions'
+])
+const getDefaultHiddenColumns = () =>
+  allColumns.value
+    .map((col) => col.key)
+    .filter((key) => !DEFAULT_VISIBLE_COLUMNS.has(key))
 const REMOVED_COLUMNS = new Set(['last_login_at'])
 // 强制可见列：加载时会被强制移出 hiddenColumns，并在列设置 UI 上 disabled。
 // 当前没有列需要强制可见 —— last_active_at 已改为可被用户隐藏。
@@ -868,9 +811,11 @@ const HIDDEN_COLUMNS_KEY = 'user-hidden-columns'
 // 并在 VERSION_NEW_HIDDEN_COLUMNS 中登记该版本新增的 key。
 // 这样老用户升级后这些新列会被自动隐藏一次，而不会影响他们对其它老列的偏好。
 const COLUMN_SETTINGS_VERSION_KEY = 'user-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 2
-const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
-  2: ['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity']
+const COLUMN_SETTINGS_VERSION = 3
+const getVersionNewHiddenColumns = (version: number): string[] => {
+  if (version === 2) return ['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity']
+  if (version === 3) return getDefaultHiddenColumns()
+  return []
 }
 
 // Load saved column settings
@@ -888,7 +833,7 @@ const loadSavedColumns = () => {
       if (storedVersion < COLUMN_SETTINGS_VERSION) {
         let mutated = false
         for (let v = storedVersion + 1; v <= COLUMN_SETTINGS_VERSION; v++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[v] ?? []) {
+          for (const key of getVersionNewHiddenColumns(v)) {
             if (REMOVED_COLUMNS.has(key) || FORCED_VISIBLE_COLUMNS.has(key)) continue
             if (!hiddenColumns.has(key)) {
               hiddenColumns.add(key)
@@ -901,12 +846,12 @@ const loadSavedColumns = () => {
       }
     } else {
       // Use default hidden columns on first load
-      DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
+      getDefaultHiddenColumns().forEach(key => hiddenColumns.add(key))
       localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
     }
   } catch (e) {
     console.error('Failed to load saved columns:', e)
-    DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
+    getDefaultHiddenColumns().forEach(key => hiddenColumns.add(key))
   }
 }
 
@@ -963,7 +908,6 @@ const hasVisibleUsageColumn = computed(
   () => !hiddenColumns.has('usage') || PLATFORM_USAGE_COLUMNS.some((k) => !hiddenColumns.has(k))
 )
 const hasVisibleSubscriptionsColumn = computed(() => !hiddenColumns.has('subscriptions'))
-const hasVisibleGroupsColumn = computed(() => !hiddenColumns.has('groups'))
 const hasVisibleAttributeColumns = computed(() =>
   attributeDefinitions.value.some((def) => def.enabled && !hiddenColumns.has(`attr_${def.id}`))
 )
@@ -981,7 +925,7 @@ const searchQuery = ref('')
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
   const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
-  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
+  const sortable = new Set(['email', 'id', 'role', 'balance', 'concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
   try {
     const raw = localStorage.getItem(USER_SORT_STORAGE_KEY)
     if (!raw) return fallback
@@ -1045,43 +989,23 @@ const filters = reactive({
 })
 const activeAttributeFilters = reactive<Record<number, string>>({})
 
-// Visible filters tracking (which filters are shown in the UI)
-// Keys: 'role', 'status', 'attr_${id}'
-const visibleFilters = reactive<Set<string>>(new Set())
-
 // Dropdown states
-const showFilterDropdown = ref(false)
 const showColumnDropdown = ref(false)
 
 // Dropdown refs for click outside detection
-const filterDropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 
 // localStorage keys
 const FILTER_VALUES_KEY = 'user-filter-values'
-const VISIBLE_FILTERS_KEY = 'user-visible-filters'
 
 // All filterable attribute definitions (enabled attributes)
 const filterableAttributes = computed(() =>
   attributeDefinitions.value.filter(def => def.enabled)
 )
 
-// Built-in filter definitions
-const builtInFilters = computed(() => [
-  { key: 'role', name: t('admin.users.columns.role'), type: 'select' as const },
-  { key: 'status', name: t('admin.users.columns.status'), type: 'select' as const },
-  { key: 'group', name: t('admin.users.columns.groups'), type: 'select' as const }
-])
-
 // Load saved filters from localStorage
 const loadSavedFilters = () => {
   try {
-    // Load visible filters
-    const savedVisible = localStorage.getItem(VISIBLE_FILTERS_KEY)
-    if (savedVisible) {
-      const parsed = JSON.parse(savedVisible) as string[]
-      parsed.forEach(key => visibleFilters.add(key))
-    }
     // Load filter values
     const savedValues = localStorage.getItem(FILTER_VALUES_KEY)
     if (savedValues) {
@@ -1101,8 +1025,6 @@ const loadSavedFilters = () => {
 // Save filters to localStorage
 const saveFiltersToStorage = () => {
   try {
-    // Save visible filters
-    localStorage.setItem(VISIBLE_FILTERS_KEY, JSON.stringify([...visibleFilters]))
     // Save filter values
     const values = {
       role: filters.role,
@@ -1116,10 +1038,6 @@ const saveFiltersToStorage = () => {
   }
 }
 
-// Get attribute definition by ID
-const getAttributeDefinition = (attrId: number): UserAttributeDefinition | undefined => {
-  return attributeDefinitions.value.find(d => d.id === attrId)
-}
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
 
 const getPlatformUsage = (userId: number, platform: string) =>
@@ -1354,10 +1272,6 @@ const handleClickOutside = (event: MouseEvent) => {
   if (!target.closest('.action-menu-trigger') && !target.closest('.action-menu-content')) {
     closeActionMenu()
   }
-  // Close filter dropdown when clicking outside
-  if (filterDropdownRef.value && !filterDropdownRef.value.contains(target)) {
-    showFilterDropdown.value = false
-  }
   // Close column dropdown when clicking outside
   if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
     showColumnDropdown.value = false
@@ -1511,43 +1425,6 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadUsers()
 }
 
-// Filter helpers
-const getAttributeDefinitionName = (attrId: number): string => {
-  const def = attributeDefinitions.value.find(d => d.id === attrId)
-  return def?.name || String(attrId)
-}
-
-// Toggle a built-in filter (role/status)
-const toggleBuiltInFilter = (key: string) => {
-  if (visibleFilters.has(key)) {
-    visibleFilters.delete(key)
-    if (key === 'role') filters.role = ''
-    if (key === 'status') filters.status = ''
-    if (key === 'group') filters.group = ''
-  } else {
-    visibleFilters.add(key)
-    if (key === 'group') loadAllGroups()
-  }
-  saveFiltersToStorage()
-  pagination.page = 1
-  loadUsers()
-}
-
-// Toggle a custom attribute filter
-const toggleAttributeFilter = (attr: UserAttributeDefinition) => {
-  const key = `attr_${attr.id}`
-  if (visibleFilters.has(key)) {
-    visibleFilters.delete(key)
-    delete activeAttributeFilters[attr.id]
-  } else {
-    visibleFilters.add(key)
-    activeAttributeFilters[attr.id] = ''
-  }
-  saveFiltersToStorage()
-  pagination.page = 1
-  loadUsers()
-}
-
 const updateAttributeFilter = (attrId: number, value: string) => {
   activeAttributeFilters[attrId] = value
 }
@@ -1685,9 +1562,7 @@ onMounted(async () => {
   loadSavedFilters()
   loadSavedColumns()
   loadUsers()
-  if (hasVisibleGroupsColumn.value || visibleFilters.has('group')) {
-    loadAllGroups()
-  }
+  loadAllGroups()
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('scroll', handleScroll, true)
 })
@@ -1699,3 +1574,134 @@ onUnmounted(() => {
   abortController?.abort()
 })
 </script>
+
+<style scoped>
+.users-page-layout {
+  --users-management-height: calc(var(--cch-viewport-height, 100vh) - 6rem);
+  height: var(--users-management-height);
+  min-height: var(--users-management-height);
+  max-height: var(--users-management-height);
+  gap: 0;
+  overflow: hidden;
+}
+
+.users-page-layout.mobile-mode {
+  height: var(--users-management-height);
+  min-height: var(--users-management-height);
+  max-height: var(--users-management-height);
+}
+
+.users-page-layout.table-page-layout.mobile-mode :deep(.layout-section-scrollable) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.users-page-layout.table-page-layout.mobile-mode :deep(.table-scroll-container) {
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.users-page-layout :deep(.layout-section-scrollable),
+.users-page-layout :deep(.table-scroll-container) {
+  display: flex;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.users-management-card {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.users-card-toolbar {
+  background: rgb(255 255 255 / 0.52);
+}
+
+.dark .users-card-toolbar {
+  background: rgb(15 23 42 / 0.28);
+}
+
+.users-table {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.users-page-layout :deep(.users-table .table-wrapper),
+.users-page-layout :deep(.users-table .table-wrapper.is-natural-flow) {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.users-page-layout :deep(.users-table .cch-mobile-table-list) {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.users-page-layout :deep(.users-table .cch-data-table-wrapper) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.users-page-layout :deep(.users-table .cch-data-table) {
+  min-width: 100%;
+}
+
+.users-page-layout :deep(.users-table .table-header) {
+  border-bottom: 1px solid rgb(226 232 240 / 0.9);
+}
+
+.users-page-layout :deep(.users-table tbody tr + tr) {
+  border-top: 1px solid rgb(226 232 240 / 0.8);
+}
+
+.users-page-layout :deep(.users-table tbody td) {
+  border-top: 0;
+}
+
+.users-page-layout :deep(.users-table th),
+.users-page-layout :deep(.users-table td) {
+  padding-right: 1.5rem;
+  padding-left: 1.5rem;
+  padding-top: 0.875rem;
+  padding-bottom: 0.875rem;
+  vertical-align: middle;
+}
+
+.users-page-layout :deep(.users-table .sticky-col-left),
+.users-page-layout :deep(.users-table .sticky-col-right) {
+  position: static;
+}
+
+.users-page-layout :deep(.users-table .sticky-col-left::after),
+.users-page-layout :deep(.users-table .sticky-col-right::before) {
+  display: none;
+}
+
+.dark .users-page-layout :deep(.users-table .table-header) {
+  border-bottom-color: rgb(51 65 85 / 0.9);
+}
+
+.dark .users-page-layout :deep(.users-table tbody tr + tr) {
+  border-top-color: rgb(51 65 85 / 0.75);
+}
+
+.users-page-layout :deep(.users-card-pagination > div) {
+  padding-right: 1.5rem;
+  padding-left: 1.5rem;
+  border-top: 0;
+  background: transparent;
+}
+</style>

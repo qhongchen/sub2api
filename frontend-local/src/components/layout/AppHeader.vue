@@ -121,9 +121,9 @@
                   {{ t('nav.profile') }}
                 </router-link>
 
-                <router-link to="/keys" @click="closeDropdown" class="dropdown-item">
-                  <Icon name="key" size="sm" />
-                  {{ t('nav.apiKeys') }}
+                <router-link :to="authStore.isAdmin ? '/admin/users' : '/keys'" @click="closeDropdown" class="dropdown-item">
+                  <Icon :name="authStore.isAdmin ? 'users' : 'key'" size="sm" />
+                  {{ authStore.isAdmin ? t('nav.users') : t('nav.apiKeys') }}
                 </router-link>
 
                 <a

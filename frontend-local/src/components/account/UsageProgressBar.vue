@@ -1,8 +1,8 @@
 <template>
-  <div>
+  <div class="relative">
     <!-- Window stats row (above progress bar) -->
     <div
-      v-if="windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
+      v-if="!compact && windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
       class="mb-0.5 flex items-center"
     >
       <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -52,6 +52,13 @@
         {{ formatResetTime }}
       </span>
     </div>
+
+    <span
+      v-if="compact && windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
+      class="usage-progress-popover"
+    >
+      {{ formatRequests }} req · {{ formatTokens }} · A ${{ formatAccountCost }}<template v-if="windowStats.user_cost != null"> · U ${{ formatUserCost }}</template>
+    </span>
   </div>
 </template>
 
@@ -69,6 +76,7 @@ const props = defineProps<{
   color: 'indigo' | 'emerald' | 'purple' | 'amber'
   windowStats?: WindowStats | null
   showNowWhenIdle?: boolean
+  compact?: boolean
 }>()
 
 const { t } = useI18n()
@@ -194,3 +202,14 @@ const formatUserCost = computed(() => {
 })
 
 </script>
+
+<style scoped>
+.usage-progress-popover {
+  @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[220px] -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
+}
+
+div:hover > .usage-progress-popover,
+div:focus-within > .usage-progress-popover {
+  @apply block;
+}
+</style>

@@ -48,6 +48,7 @@
           :resets-at="usageInfo.five_hour.resets_at"
           :window-stats="usageInfo.five_hour.window_stats"
           color="indigo"
+          :compact="compact"
         />
 
         <!-- 7d Window (OAuth only) -->
@@ -57,6 +58,7 @@
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
           color="emerald"
+          :compact="compact"
         />
 
         <!-- 7d Sonnet Window (OAuth only) -->
@@ -66,10 +68,11 @@
           :utilization="usageInfo.seven_day_sonnet.utilization"
           :resets-at="usageInfo.seven_day_sonnet.resets_at"
           color="purple"
+          :compact="compact"
         />
 
         <!-- Passive sampling label + active query button -->
-        <div class="flex items-center gap-1.5 mt-0.5">
+        <div v-if="!compact" class="flex items-center gap-1.5 mt-0.5">
           <span
             v-if="usageInfo.source === 'passive'"
             class="text-[9px] text-gray-400 dark:text-gray-500 italic"
@@ -116,6 +119,7 @@
           :window-stats="usageInfo.five_hour.window_stats"
           :show-now-when-idle="true"
           color="indigo"
+          :compact="compact"
         />
         <UsageProgressBar
           v-if="usageInfo?.seven_day"
@@ -125,8 +129,9 @@
           :window-stats="usageInfo.seven_day.window_stats"
           :show-now-when-idle="true"
           color="emerald"
+          :compact="compact"
         />
-        <div class="flex items-center gap-1.5 mt-0.5">
+        <div v-if="!compact" class="flex items-center gap-1.5 mt-0.5">
           <button
             type="button"
             class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
@@ -270,6 +275,7 @@
           :utilization="antigravity3ProUsageFromAPI.utilization"
           :resets-at="antigravity3ProUsageFromAPI.resetTime"
           color="indigo"
+          :compact="compact"
         />
 
         <!-- Gemini 3 Flash -->
@@ -279,6 +285,7 @@
           :utilization="antigravity3FlashUsageFromAPI.utilization"
           :resets-at="antigravity3FlashUsageFromAPI.resetTime"
           color="emerald"
+          :compact="compact"
         />
 
         <!-- Gemini 3 Image -->
@@ -288,6 +295,7 @@
           :utilization="antigravity3ImageUsageFromAPI.utilization"
           :resets-at="antigravity3ImageUsageFromAPI.resetTime"
           color="purple"
+          :compact="compact"
         />
 
         <!-- Claude -->
@@ -297,13 +305,14 @@
           :utilization="antigravityClaudeUsageFromAPI.utilization"
           :resets-at="antigravityClaudeUsageFromAPI.resetTime"
           color="amber"
+          :compact="compact"
         />
 
-        <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+        <div v-if="aiCreditsDisplay && !compact" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
           💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
         </div>
       </div>
-      <div v-else-if="aiCreditsDisplay" class="text-[10px] text-gray-500 dark:text-gray-400">
+      <div v-else-if="aiCreditsDisplay && !compact" class="text-[10px] text-gray-500 dark:text-gray-400">
         💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
       </div>
       <div v-else class="text-xs text-gray-400">-</div>
@@ -357,7 +366,7 @@
       <!-- Usage data or unlimited flow -->
       <div class="space-y-1">
         <div
-          v-if="showGeminiTodayStats && todayStats"
+          v-if="showGeminiTodayStats && todayStats && !compact"
           class="mb-0.5 flex items-center"
         >
           <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -407,8 +416,9 @@
             :resets-at="bar.resetsAt"
             :window-stats="bar.windowStats"
             :color="bar.color"
+            :compact="compact"
           />
-          <p class="mt-1 text-[9px] leading-tight text-gray-400 dark:text-gray-500 italic">
+          <p v-if="!compact" class="mt-1 text-[9px] leading-tight text-gray-400 dark:text-gray-500 italic">
             * {{ t('admin.accounts.gemini.quotaPolicy.simulatedNote') || 'Simulated quota' }}
           </p>
         </div>
@@ -428,19 +438,44 @@
   <!-- Non-OAuth/Setup-Token accounts -->
   <div ref="rootRef" v-else>
     <!-- Gemini API Key accounts: show quota info -->
-    <AccountQuotaInfo v-if="account.platform === 'gemini'" :account="account" />
+    <AccountQuotaInfo v-if="account.platform === 'gemini' && !compact" :account="account" />
+    <div
+      v-else-if="account.platform === 'gemini' && todayStats"
+      class="account-usage-key-summary"
+      tabindex="0"
+    >
+      <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
+        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+          {{ formatKeyRequests }} req
+        </span>
+        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
+          A ${{ formatKeyCost }}
+        </span>
+        <span
+          v-if="todayStats.user_cost != null"
+          class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+          :title="t('usage.userBilled')"
+        >
+          U ${{ formatKeyUserCost }}
+        </span>
+      </div>
+      <span class="account-usage-key-popover">
+        {{ formatKeyTokens }}
+      </span>
+    </div>
     <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
     <div v-else class="space-y-1">
       <!-- Today stats row (requests, tokens, cost, user_cost) -->
       <div
         v-if="todayStats"
-        class="mb-0.5 flex items-center"
+        class="account-usage-key-summary"
+        tabindex="0"
       >
         <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
           <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
             {{ formatKeyRequests }} req
           </span>
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+          <span v-if="!compact" class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
             {{ formatKeyTokens }}
           </span>
           <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
@@ -454,6 +489,9 @@
             U ${{ formatKeyUserCost }}
           </span>
         </div>
+        <span v-if="compact" class="account-usage-key-popover">
+          {{ formatKeyTokens }}
+        </span>
       </div>
       <!-- Loading skeleton for today stats -->
       <div
@@ -467,24 +505,27 @@
 
       <!-- API Key accounts with quota limits: show progress bars -->
       <UsageProgressBar
-        v-if="quotaDailyBar"
+        v-if="quotaDailyBar && !compact"
         label="1d"
         :utilization="quotaDailyBar.utilization"
         :resets-at="quotaDailyBar.resetsAt"
         color="indigo"
+        :compact="compact"
       />
       <UsageProgressBar
-        v-if="quotaWeeklyBar"
+        v-if="quotaWeeklyBar && !compact"
         label="7d"
         :utilization="quotaWeeklyBar.utilization"
         :resets-at="quotaWeeklyBar.resetsAt"
         color="emerald"
+        :compact="compact"
       />
       <UsageProgressBar
-        v-if="quotaTotalBar"
+        v-if="quotaTotalBar && !compact"
         label="total"
         :utilization="quotaTotalBar.utilization"
         color="purple"
+        :compact="compact"
       />
 
       <!-- No data at all -->
@@ -514,11 +555,13 @@ const props = withDefaults(
     todayStats?: WindowStats | null
     todayStatsLoading?: boolean
     manualRefreshToken?: number
+    compact?: boolean
   }>(),
   {
     todayStats: null,
     todayStatsLoading: false,
-    manualRefreshToken: 0
+    manualRefreshToken: 0,
+    compact: false
   }
 )
 
@@ -1265,3 +1308,19 @@ onUnmounted(() => {
   desktopViewportMediaQuery = null
 })
 </script>
+
+<style scoped>
+.account-usage-key-summary {
+  @apply relative mb-0.5 flex items-center outline-none;
+}
+
+.account-usage-key-popover {
+  @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[180px] -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
+}
+
+.account-usage-key-summary:hover .account-usage-key-popover,
+.account-usage-key-summary:focus .account-usage-key-popover,
+.account-usage-key-summary:focus-visible .account-usage-key-popover {
+  @apply block;
+}
+</style>

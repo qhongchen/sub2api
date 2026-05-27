@@ -56,12 +56,20 @@
     <div class="relative min-h-[42px] px-4 pb-4">
       <div class="flex flex-wrap justify-center gap-2">
         <button
+          v-for="item in legendItems"
+          :key="item.id"
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-dark-200"
+          class="inline-flex max-w-full items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm transition hover:border-gray-300 hover:bg-white data-[disabled=true]:opacity-45 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-dark-200 dark:hover:border-white/[0.16] dark:hover:bg-white/[0.07]"
+          :data-disabled="item.disabled"
+          @click="emit('toggleSeries', item.id)"
         >
-          <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: activeMetricConfig.color }" />
-          <span>{{ activeMetricConfig.label }}</span>
-          <span class="text-gray-500 dark:text-dark-400">{{ activeMetricConfig.value }}</span>
+          <span
+            class="h-2 w-2 flex-shrink-0 rounded-full"
+            :class="{ 'ring-2 ring-gray-300 ring-offset-1 ring-offset-white dark:ring-dark-400 dark:ring-offset-[#0a0a0c]': item.disabled }"
+            :style="{ backgroundColor: item.disabled ? 'transparent' : item.color, border: `1px solid ${item.color}` }"
+          />
+          <span class="max-w-[132px] truncate">{{ item.label }}</span>
+          <span class="tabular-nums text-gray-500 dark:text-dark-400">{{ item.value }}</span>
         </button>
       </div>
     </div>
@@ -87,6 +95,7 @@ import type {
   ActiveUsageMetricConfig,
   DashboardTimeRange,
   DashboardTimeRangeOption,
+  DashboardUsageLegendItem,
   UsageMetricKey,
   UsageMetricOption
 } from './types'
@@ -107,6 +116,7 @@ defineProps<{
   metricOptions: UsageMetricOption[]
   activeMetric: UsageMetricKey
   activeMetricConfig: ActiveUsageMetricConfig
+  legendItems: DashboardUsageLegendItem[]
   loading: boolean
   chartData: ChartData<'line', number[], string> | null
   chartOptions: ChartOptions<'line'>
@@ -115,6 +125,7 @@ defineProps<{
 const emit = defineEmits<{
   (event: 'timeRangeChange', value: DashboardTimeRange): void
   (event: 'update:activeMetric', value: UsageMetricKey): void
+  (event: 'toggleSeries', value: string): void
 }>()
 
 const { t } = useI18n()

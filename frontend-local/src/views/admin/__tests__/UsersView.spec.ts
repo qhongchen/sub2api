@@ -76,14 +76,16 @@ const createAdminUser = (): AdminUser => ({
 })
 
 const DataTableStub = {
-  props: ['columns', 'data'],
+  props: ['columns', 'data', 'virtualized'],
   emits: ['sort'],
   template: `
     <div>
       <div data-test="columns">{{ columns.map(col => col.key).join(',') }}</div>
-      <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
+      <div data-test="virtualized">{{ String(virtualized) }}</div>
+      <button data-test="sort-status" @click="$emit('sort', 'status', 'desc')">sort</button>
       <div v-for="row in data" :key="row.id">
-        <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
+        <slot name="cell-email" :value="row.email" :row="row" />
+        <slot name="cell-status" :value="row.status" :row="row" />
       </div>
     </div>
   `
@@ -112,13 +114,13 @@ describe('admin UsersView', () => {
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
 
-  it('shows active, used, and created activity columns in order and requests last_used_at sort', async () => {
+  it('shows compact default columns and requests visible-column sort', async () => {
     const wrapper = mount(UsersView, {
       global: {
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+            template: '<div><slot name="table" /></div>'
           },
           DataTable: DataTableStub,
           Pagination: true,
@@ -143,19 +145,34 @@ describe('admin UsersView', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('.users-management-card').exists()).toBe(true)
     const columns = wrapper.get('[data-test="columns"]').text()
     const visibleColumns = columns.split(',')
-    expect(visibleColumns.slice(-4, -1)).toEqual(['last_active_at', 'last_used_at', 'created_at'])
+    expect(visibleColumns).toEqual([
+      'email',
+      'role',
+      'usage',
+      'concurrency',
+      'status',
+      'actions'
+    ])
+    expect(visibleColumns).not.toContain('username')
     expect(visibleColumns).not.toContain('last_login_at')
+    expect(visibleColumns).not.toContain('id')
+    expect(visibleColumns).not.toContain('created_at')
+    expect(visibleColumns).not.toContain('last_used_at')
+    expect(wrapper.text()).toContain('scoped@example.com')
+    expect(wrapper.text()).toContain('scoped-user')
+    expect(wrapper.get('[data-test="virtualized"]').text()).toBe('false')
 
-    await wrapper.get('[data-test="sort-last-used"]').trigger('click')
+    await wrapper.get('[data-test="sort-status"]').trigger('click')
     await flushPromises()
 
     expect(listUsers).toHaveBeenLastCalledWith(
       1,
       20,
       expect.objectContaining({
-        sort_by: 'last_used_at',
+        sort_by: 'status',
         sort_order: 'desc'
       }),
       expect.any(Object)

@@ -1,14 +1,15 @@
-import type { UsageLog } from '@/types'
-
 type Translate = (key: string) => string
 
 const knownImageSizeSources = new Set(['output', 'input', 'default', 'legacy'])
 const knownImageBillingSizes = new Set(['1K', '2K', '4K', 'mixed'])
 
-type ImageUsageRow = Pick<
-  UsageLog,
-  'image_size' | 'image_input_size' | 'image_output_size' | 'image_size_source' | 'image_size_breakdown'
->
+type ImageUsageRow = {
+  image_size?: string | null
+  image_input_size?: string | null
+  image_output_size?: string | null
+  image_size_source?: string | null
+  image_size_breakdown?: Record<string, number> | null
+}
 
 const trimmed = (value: string | null | undefined): string => value?.trim() ?? ''
 

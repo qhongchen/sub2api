@@ -1,5 +1,5 @@
 <template>
-  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile }">
+  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile, 'flow-mode': flow }">
     <!-- 固定区域：操作按钮 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
@@ -26,6 +26,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+
+withDefaults(defineProps<{
+  flow?: boolean
+}>(), {
+  flow: false
+})
 
 const isMobile = ref(false)
 
@@ -108,5 +114,23 @@ onUnmounted(() => {
   @apply flex-none;
   display: table;
   min-width: 100%;
+}
+
+/* 自然流模式：表格跟随页面向下展开，不锁在内部滚动容器里 */
+.table-page-layout.flow-mode {
+  height: auto;
+  min-height: calc(var(--cch-viewport-height, 100vh) - 64px - 4rem);
+}
+
+.table-page-layout.flow-mode .layout-section-scrollable {
+  @apply flex-none min-h-fit;
+}
+
+.table-page-layout.flow-mode .table-scroll-container {
+  @apply h-auto overflow-visible;
+}
+
+.table-page-layout.flow-mode .table-scroll-container :deep(.table-wrapper) {
+  @apply flex-none overflow-x-auto overflow-y-visible;
 }
 </style>

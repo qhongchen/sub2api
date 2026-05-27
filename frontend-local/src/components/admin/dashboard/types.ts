@@ -54,6 +54,14 @@ export interface ActiveUsageMetricConfig extends UsageMetricOption {
   color: string
 }
 
+export interface DashboardUsageLegendItem {
+  id: string
+  label: string
+  value: string
+  color: string
+  disabled?: boolean
+}
+
 export interface DashboardRankingEntry {
   id: string
   rawId: number

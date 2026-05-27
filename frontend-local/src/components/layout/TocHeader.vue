@@ -50,7 +50,7 @@
               :class="{ 'consumer-nav-link-active': isAdminSettingsActive }"
               @click="adminSettingsOpen = !adminSettingsOpen"
             >
-              {{ t('nav.settings') }}
+              {{ t('common.more') }}
               <Icon
                 name="chevronDown"
                 size="xs"
@@ -61,29 +61,36 @@
 
             <transition name="dropdown">
               <div v-if="adminSettingsOpen" class="consumer-dropdown consumer-system-dropdown left-0 mt-2">
-                <div class="consumer-settings-list">
-                  <router-link
-                    v-for="item in adminSettingsItems"
-                    :key="item.path"
-                    :to="item.path"
-                    class="consumer-system-item"
-                    :class="{
-                      'consumer-system-item-active': isActive(item.path),
-                      'consumer-settings-separator': item.separatorBefore
-                    }"
-                    :id="tourIdForPath(item.path)"
-                    @click="closeAdminSettings"
+                <div class="space-y-3 p-1">
+                  <div
+                    v-for="group in adminSettingsGroups"
+                    :key="group.label"
+                    class="consumer-system-group"
                   >
-                    <Icon :name="item.icon" size="sm" />
-                    <span class="min-w-0 truncate">{{ item.label }}</span>
-                  </router-link>
+                    <div class="consumer-system-group-title">{{ group.label }}</div>
+                    <router-link
+                      v-for="item in group.items"
+                      :key="item.path"
+                      :to="item.path"
+                      class="consumer-system-item"
+                      :class="{
+                        'consumer-system-item-active': isActive(item.path),
+                        'consumer-settings-separator': item.separatorBefore
+                      }"
+                      :id="tourIdForPath(item.path)"
+                      @click="closeAdminSettings"
+                    >
+                      <Icon :name="item.icon" size="sm" />
+                      <span class="min-w-0 truncate">{{ item.label }}</span>
+                    </router-link>
+                  </div>
                 </div>
               </div>
             </transition>
           </div>
 
           <div
-            v-if="secondaryNavItems.length"
+            v-if="!isAdmin && secondaryNavItems.length"
             ref="moreRef"
             class="relative overflow-visible"
             @pointerenter="openMoreDelayed"
@@ -140,14 +147,6 @@
         <LocaleSwitcher class="hidden sm:block" />
         <SubscriptionProgressMini v-if="user" class="hidden lg:flex" />
 
-        <div
-          v-if="user"
-          class="hidden items-center gap-2 rounded-full border border-orange-200/80 bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-200 sm:flex"
-        >
-          <Icon name="dollar" size="sm" />
-          <span>${{ user.balance?.toFixed(2) || '0.00' }}</span>
-        </div>
-
         <button
           type="button"
           class="consumer-icon-btn"
@@ -202,9 +201,9 @@
                 <Icon name="user" size="sm" />
                 {{ t('nav.profile') }}
               </router-link>
-              <router-link to="/keys" class="consumer-dropdown-item" @click="closeUserMenu">
-                <Icon name="key" size="sm" />
-                {{ t('nav.apiKeys') }}
+              <router-link :to="isAdmin ? '/admin/users' : '/keys'" class="consumer-dropdown-item" @click="closeUserMenu">
+                <Icon :name="isAdmin ? 'users' : 'key'" size="sm" />
+                {{ isAdmin ? t('nav.users') : t('nav.apiKeys') }}
               </router-link>
 
               <button
@@ -259,7 +258,7 @@
           </router-link>
 
           <template v-if="isAdmin && adminSettingsGroups.length">
-            <div class="consumer-mobile-section-title">{{ t('nav.settings') }}</div>
+            <div class="consumer-mobile-section-title">{{ t('common.more') }}</div>
             <template
               v-for="group in adminSettingsGroups"
               :key="group.label"
@@ -428,9 +427,9 @@ const userPrimaryNavItems = computed(() => finalizeNav([
 
 const adminPrimaryNavItems = computed(() => finalizeNav([
   { path: '/admin/dashboard', label: t('nav.dashboard'), icon: 'grid' },
-  { path: '/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
-  { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
-  { path: '/monitor', label: t('nav.channelStatus'), icon: 'server', featureFlag: flagChannelMonitor }
+  { path: '/admin/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
+  { path: '/admin/accounts', label: t('nav.accounts'), icon: 'globe' },
+  { path: '/admin/users', label: t('nav.users'), icon: 'users' }
 ]))
 
 const primaryNavItems = computed(() => (isAdmin.value ? adminPrimaryNavItems.value : userPrimaryNavItems.value))
@@ -450,16 +449,8 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
 
   const groups: TocNavGroup[] = [
     {
-      label: t('nav.systemOverview'),
-      items: [
-        { path: '/admin/ops', label: t('nav.ops'), icon: 'chart', featureFlag: flagOpsMonitoring },
-        { path: '/admin/usage', label: t('nav.usage'), icon: 'chart' }
-      ]
-    },
-    {
       label: t('nav.usersAndGroups'),
       items: [
-        { path: '/admin/users', label: t('nav.users'), icon: 'users', hideInSimpleMode: true },
         { path: '/admin/groups', label: t('nav.groups'), icon: 'users', hideInSimpleMode: true }
       ]
     },
@@ -474,7 +465,6 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
           hideInSimpleMode: true,
           featureFlag: flagChannelMonitor
         },
-        { path: '/admin/accounts', label: t('nav.accounts'), icon: 'globe' },
         { path: '/admin/proxies', label: t('nav.proxies'), icon: 'server' }
       ]
     },
@@ -539,6 +529,7 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
     {
       label: t('nav.systemConfiguration'),
       items: [
+        { path: '/admin/ops', label: t('nav.ops'), icon: 'chart', featureFlag: flagOpsMonitoring },
         { path: '/admin/settings', label: t('nav.settings'), icon: 'cog' },
         ...customAdminMenuItems.value
       ]
@@ -548,15 +539,6 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
   return groups
     .map((group) => ({ ...group, items: finalizeNav(group.items) }))
     .filter((group) => group.items.length > 0)
-})
-
-const adminSettingsItems = computed(() => {
-  return adminSettingsGroups.value.flatMap((group, groupIndex) => (
-    group.items.map((item, itemIndex) => ({
-      ...item,
-      separatorBefore: groupIndex > 0 && itemIndex === 0
-    }))
-  ))
 })
 
 const mobileNavItems = computed(() => [

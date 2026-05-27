@@ -18,10 +18,12 @@
           :selected-time-range="selectedTimeRange"
           :metric-options="usageMetricOptions"
           :active-metric-config="activeUsageMetricConfig"
+          :legend-items="usageLegendItems"
           :loading="chartsLoading"
           :chart-data="usageChartData"
           :chart-options="usageChartOptions"
           @time-range-change="applyTimeRange"
+          @toggle-series="toggleUsageSeries"
         />
 
         <DashboardRankingGrid
@@ -56,7 +58,7 @@ import type {
   AdminUsageLog,
   DashboardStats,
   ModelStat,
-  TrendDataPoint,
+  UserUsageTrendPoint,
   UserSpendingRankingItem
 } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -69,6 +71,7 @@ import type {
   DashboardMetricCard,
   DashboardRankingEntry,
   DashboardTimeRange,
+  DashboardUsageLegendItem,
   UsageMetricKey
 } from '@/components/admin/dashboard/types'
 
@@ -84,13 +87,14 @@ const accountRuntimeLoading = ref(false)
 const accountRankingLoading = ref(false)
 const showMoreMetrics = ref(false)
 
-const trendData = ref<TrendDataPoint[]>([])
+const userTrend = ref<UserUsageTrendPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const rankingItems = ref<UserSpendingRankingItem[]>([])
 const accounts = ref<Account[]>([])
 const accountRankingLogs = ref<AdminUsageLog[]>([])
 
-let chartLoadSeq = 0
+let snapshotLoadSeq = 0
+let userTrendLoadSeq = 0
 let rankingLoadSeq = 0
 let accountRuntimeLoadSeq = 0
 let accountRankingLoadSeq = 0
@@ -155,7 +159,8 @@ const defaultRange = resolveTimeRange(selectedTimeRange.value)
 const granularity = ref<'day' | 'hour'>(defaultRange.granularity)
 const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
-const activeUsageMetric = ref<UsageMetricKey>('cost')
+const activeUsageMetric = ref<UsageMetricKey>('tokens')
+const hiddenUsageSeries = ref<Set<string>>(new Set())
 
 const timeRangeOptions = computed(() => [
   { key: 'today' as const, label: t('admin.dashboard.rangeToday') },
@@ -400,12 +405,279 @@ const chartColors = computed(() => ({
   tokens: '#10b981'
 }))
 
+const usageSeriesPalette = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'hsl(15, 85%, 60%)',
+  'hsl(195, 85%, 60%)',
+  'hsl(285, 85%, 60%)',
+  'hsl(135, 85%, 50%)',
+  'hsl(45, 85%, 55%)',
+  'hsl(315, 85%, 65%)',
+  'hsl(165, 85%, 55%)',
+  'hsl(35, 85%, 65%)',
+  'hsl(255, 85%, 65%)',
+  'hsl(75, 85%, 50%)',
+  'hsl(345, 85%, 65%)',
+  'hsl(105, 85%, 55%)',
+  'hsl(225, 85%, 65%)',
+  'hsl(55, 85%, 60%)',
+  'hsl(275, 85%, 60%)',
+  'hsl(25, 85%, 65%)',
+  'hsl(185, 85%, 60%)',
+  'hsl(125, 85%, 55%)',
+  'hsl(295, 85%, 70%)'
+] as const
+
+const getUsageSeriesColor = (index: number): string => usageSeriesPalette[index % usageSeriesPalette.length]
+
+const getCssVariableName = (color: string): string | null => {
+  return color.match(/^var\((--[^),\s]+)\)$/)?.[1] || null
+}
+
+const resolveCssColor = (color: string): string => {
+  const cssVariableName = getCssVariableName(color)
+  if (!cssVariableName || typeof window === 'undefined') return color
+
+  const resolved = window.getComputedStyle(document.documentElement).getPropertyValue(cssVariableName).trim()
+  return resolved || color
+}
+
+const withColorAlpha = (color: string, alpha: number): string => {
+  const normalized = color.trim()
+  const safeAlpha = Math.max(0, Math.min(1, alpha))
+  const alphaHex = Math.round(safeAlpha * 255).toString(16).padStart(2, '0')
+
+  if (/^#[\da-f]{3}$/i.test(normalized)) {
+    const [, r, g, b] = normalized
+    return `#${r}${r}${g}${g}${b}${b}${alphaHex}`
+  }
+
+  if (/^#[\da-f]{6}$/i.test(normalized)) {
+    return `${normalized}${alphaHex}`
+  }
+
+  if (/^rgb\(/i.test(normalized)) {
+    return normalized.replace(/^rgb\((.*)\)$/i, `rgba($1, ${safeAlpha})`)
+  }
+
+  if (/^rgba\(/i.test(normalized)) return normalized
+
+  if (/^hsl\(/i.test(normalized)) {
+    const inner = normalized.slice(4, -1)
+    if (inner.includes('/')) return normalized
+    if (inner.includes(',')) return `hsla(${inner}, ${safeAlpha})`
+    return `hsl(${inner} / ${safeAlpha})`
+  }
+
+  if (/^oklch\(/i.test(normalized)) {
+    const inner = normalized.slice(6, -1)
+    if (inner.includes('/')) return normalized
+    return `oklch(${inner} / ${safeAlpha})`
+  }
+
+  return normalized
+}
+
+type UsageBucket = {
+  key: string
+  label: string
+}
+
+type UsageSeries = {
+  id: number
+  label: string
+  color: string
+  order: number
+  values: number[]
+  total: number
+}
+
+const cloneDate = (date: Date): Date => new Date(date.getTime())
+
+const parseDateValue = (value: string): Date | null => {
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const toBucketDate = (value: string, bucketGranularity: 'day' | 'hour'): Date | null => {
+  const parsed = parseDateValue(value)
+  if (parsed) {
+    const next = cloneDate(parsed)
+    next.setMinutes(0, 0, 0)
+    if (bucketGranularity === 'day') {
+      next.setHours(0, 0, 0, 0)
+    }
+    return next
+  }
+
+  const dayMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dayMatch) {
+    const [, year, month, day] = dayMatch
+    return new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0)
+  }
+
+  const hourMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2})/)
+  if (hourMatch) {
+    const [, year, month, day, hour] = hourMatch
+    return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), 0, 0, 0)
+  }
+
+  return null
+}
+
+const normalizeBucketKey = (date: Date, bucketGranularity: 'day' | 'hour'): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  if (bucketGranularity === 'hour') {
+    return `${year}-${month}-${day} ${String(date.getHours()).padStart(2, '0')}:00`
+  }
+  return `${year}-${month}-${day}`
+}
+
+const formatUsageBucketLabel = (date: Date, bucketGranularity: 'day' | 'hour'): string => {
+  if (bucketGranularity === 'hour') {
+    return `${String(date.getHours()).padStart(2, '0')}:00`
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
+const buildUsageBuckets = (
+  range: DashboardTimeRange,
+  start: string,
+  end: string,
+  bucketGranularity: 'day' | 'hour'
+): UsageBucket[] => {
+  const startAt = parseDateValue(`${start}T00:00:00`)
+  const endAt = parseDateValue(`${end}T00:00:00`)
+  if (!startAt || !endAt) return []
+
+  if (bucketGranularity === 'hour' && (range === 'today' || range === 'yesterday')) {
+    const base = cloneDate(startAt)
+    base.setHours(0, 0, 0, 0)
+    return Array.from({ length: 24 }, (_, hour) => {
+      const item = cloneDate(base)
+      item.setHours(hour, 0, 0, 0)
+      return {
+        key: normalizeBucketKey(item, 'hour'),
+        label: formatUsageBucketLabel(item, 'hour')
+      }
+    })
+  }
+
+  const cursor = cloneDate(startAt)
+  cursor.setHours(0, 0, 0, 0)
+  const limit = cloneDate(endAt)
+  limit.setHours(0, 0, 0, 0)
+
+  const buckets: UsageBucket[] = []
+  while (cursor.getTime() <= limit.getTime()) {
+    buckets.push({
+      key: normalizeBucketKey(cursor, 'day'),
+      label: formatUsageBucketLabel(cursor, 'day')
+    })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return buckets
+}
+
+const resolveUsageSeriesLabel = (item: UserUsageTrendPoint): string => {
+  const username = item.username?.trim()
+  if (username) return username
+  const email = item.email?.trim()
+  if (email) return email
+  return t('admin.dashboard.unknownUser', { id: item.user_id })
+}
+
+const usageBuckets = computed(() => (
+  buildUsageBuckets(selectedTimeRange.value, startDate.value, endDate.value, granularity.value)
+))
+
+const usageSeriesColorMap = computed(() => {
+  const colorMap = new Map<number, { color: string; order: number }>()
+
+  userTrend.value.forEach((item) => {
+    if (colorMap.has(item.user_id)) return
+
+    const order = colorMap.size
+    colorMap.set(item.user_id, {
+      color: getUsageSeriesColor(order),
+      order
+    })
+  })
+
+  return colorMap
+})
+
+const usageSeries = computed<UsageSeries[]>(() => {
+  if (!usageBuckets.value.length || !userTrend.value.length) return []
+
+  const bucketIndex = new Map(usageBuckets.value.map((bucket, index) => [bucket.key, index]))
+  const seriesMap = new Map<number, UsageSeries>()
+
+  userTrend.value.forEach((item) => {
+    const bucketDate = toBucketDate(item.date, granularity.value)
+    if (!bucketDate) return
+
+    const index = bucketIndex.get(normalizeBucketKey(bucketDate, granularity.value))
+    if (index === undefined) return
+
+    let series = seriesMap.get(item.user_id)
+    if (!series) {
+      const userColor = usageSeriesColorMap.value.get(item.user_id) || {
+        color: getUsageSeriesColor(seriesMap.size),
+        order: seriesMap.size
+      }
+
+      series = {
+        id: item.user_id,
+        label: resolveUsageSeriesLabel(item),
+        color: userColor.color,
+        order: userColor.order,
+        values: Array.from({ length: usageBuckets.value.length }, () => 0),
+        total: 0
+      }
+      seriesMap.set(item.user_id, series)
+    }
+
+    const metricValue = activeUsageMetric.value === 'requests'
+      ? item.requests || 0
+      : activeUsageMetric.value === 'tokens'
+        ? item.tokens || 0
+        : item.actual_cost || 0
+
+    series.values[index] += metricValue
+    series.total += metricValue
+  })
+
+  return Array.from(seriesMap.values())
+    .sort((a, b) => b.total - a.total || a.order - b.order)
+    .slice(0, rankingLimit)
+})
+
+const userDisplayNameMap = computed(() => {
+  const displayNames = new Map<number, string>()
+  userTrend.value.forEach((item) => {
+    const username = item.username?.trim()
+    if (username) {
+      displayNames.set(item.user_id, username)
+    }
+  })
+  return displayNames
+})
+
 const usageTotals = computed(() => {
-  return trendData.value.reduce(
+  return userTrend.value.reduce(
     (acc, item) => {
       acc.cost += item.actual_cost || 0
       acc.requests += item.requests || 0
-      acc.tokens += item.total_tokens || 0
+      acc.tokens += item.tokens || 0
       return acc
     },
     { cost: 0, requests: 0, tokens: 0 }
@@ -414,14 +686,14 @@ const usageTotals = computed(() => {
 
 const usageMetricOptions = computed(() => [
   {
-    key: 'cost' as const,
-    label: t('admin.dashboard.metricAmount'),
-    value: `$${formatCost(usageTotals.value.cost)}`
-  },
-  {
     key: 'requests' as const,
     label: t('admin.dashboard.metricApiCalls'),
     value: formatNumber(usageTotals.value.requests)
+  },
+  {
+    key: 'cost' as const,
+    label: t('admin.dashboard.metricAmount'),
+    value: `$${formatCost(usageTotals.value.cost)}`
   },
   {
     key: 'tokens' as const,
@@ -443,33 +715,48 @@ const activeUsageMetricConfig = computed(() => {
   }
 })
 
-const usageChartData = computed<ChartData<'line', number[], string> | null>(() => {
-  if (!trendData.value?.length) return null
+const formatUsageMetricValue = (value: number): string => {
+  if (activeUsageMetric.value === 'cost') return `$${formatCost(value)}`
+  if (activeUsageMetric.value === 'tokens') return formatTokens(value)
+  return formatNumber(value)
+}
 
-  const metric = activeUsageMetric.value
-  const color = activeUsageMetricConfig.value.color
-  const values = trendData.value.map((item) => {
-    if (metric === 'requests') return item.requests || 0
-    if (metric === 'tokens') return item.total_tokens || 0
-    return item.actual_cost || 0
-  })
+const usageLegendItems = computed<DashboardUsageLegendItem[]>(() => {
+  return usageSeries.value.map((series) => ({
+    id: `usage-series-${series.id}`,
+    label: series.label,
+    value: formatUsageMetricValue(series.total),
+    color: series.color,
+    disabled: hiddenUsageSeries.value.has(`usage-series-${series.id}`)
+  }))
+})
+
+const usageChartData = computed<ChartData<'line', number[], string> | null>(() => {
+  if (!usageBuckets.value.length || !usageSeries.value.length) return null
+  const visibleSeries = usageSeries.value.filter((series) => !hiddenUsageSeries.value.has(`usage-series-${series.id}`))
+  if (!visibleSeries.length) return null
 
   return {
-    labels: trendData.value.map((item) => formatTrendLabel(item.date)),
-    datasets: [
-      {
-        label: activeUsageMetricConfig.value.label,
-        data: values,
-        borderColor: color,
-        backgroundColor: `${color}30`,
+    labels: usageBuckets.value.map((bucket) => bucket.label),
+    datasets: visibleSeries.map((series) => {
+      const lineColor = resolveCssColor(series.color)
+
+      return {
+        label: series.label,
+        data: series.values,
+        borderColor: lineColor,
+        backgroundColor: withColorAlpha(lineColor, 0.14),
         fill: true,
         tension: 0.42,
         pointRadius: 0,
         pointHoverRadius: 4,
         pointHitRadius: 16,
+        pointBackgroundColor: lineColor,
+        pointBorderColor: isDarkMode.value ? '#0b0f1a' : '#ffffff',
+        pointBorderWidth: 1.5,
         borderWidth: 2.5
       }
-    ]
+    })
   }
 })
 
@@ -495,12 +782,12 @@ const usageChartOptions = computed<ChartOptions<'line'>>(() => ({
         label: (context: TooltipItem<'line'>) => {
           const value = Number(context.raw || 0)
           if (activeUsageMetric.value === 'cost') {
-            return `${activeUsageMetricConfig.value.label}: $${formatCost(value)}`
+            return `${context.dataset.label}: $${formatCost(value)}`
           }
           if (activeUsageMetric.value === 'tokens') {
-            return `${activeUsageMetricConfig.value.label}: ${formatTokens(value)}`
+            return `${context.dataset.label}: ${formatTokens(value)}`
           }
-          return `${activeUsageMetricConfig.value.label}: ${formatNumber(value)}`
+          return `${context.dataset.label}: ${formatNumber(value)}`
         }
       }
     }
@@ -540,18 +827,25 @@ const usageChartOptions = computed<ChartOptions<'line'>>(() => ({
           const numeric = Number(value)
           if (activeUsageMetric.value === 'cost') return `$${formatCost(numeric)}`
           if (activeUsageMetric.value === 'tokens') return formatTokens(numeric)
-          return formatTokens(numeric)
+          return formatNumber(numeric)
         }
       }
     }
   }
 }))
 
+const resolveRankingUserName = (item: UserSpendingRankingItem): string => {
+  return userDisplayNameMap.value.get(item.user_id)
+    || item.username?.trim()
+    || item.email?.trim()
+    || t('admin.dashboard.unknownUser', { id: item.user_id })
+}
+
 const userRankingEntries = computed<DashboardRankingEntry[]>(() => {
   return rankingItems.value.slice(0, 3).map((item) => ({
     id: `user-${item.user_id}`,
     rawId: item.user_id,
-    name: item.email || t('admin.dashboard.unknownUser', { id: item.user_id }),
+    name: resolveRankingUserName(item),
     requests: item.requests || 0,
     tokens: item.tokens || 0,
     cost: item.actual_cost || 0
@@ -629,20 +923,6 @@ const activeSessionItems = computed<DashboardActiveSessionEntry[]>(() => {
     }))
 })
 
-const formatTrendLabel = (value: string): string => {
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
-  const date = new Date(normalized)
-  if (!Number.isNaN(date.getTime())) {
-    if (granularity.value === 'hour') {
-      return `${String(date.getHours()).padStart(2, '0')}:00`
-    }
-    return `${date.getMonth() + 1}/${date.getDate()}`
-  }
-
-  const hourMatch = value.match(/(\d{2}):\d{2}/)
-  if (hourMatch) return `${hourMatch[1]}:00`
-  return value
-}
 const formatTokens = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0'
   if (value >= 1_000_000_000) {
@@ -663,12 +943,8 @@ const formatCost = (value?: number | null): string => {
   const safeValue = Number.isFinite(value) ? Number(value) : 0
   if (safeValue >= 1000) {
     return (safeValue / 1000).toFixed(2) + 'K'
-  } else if (safeValue >= 1) {
-    return safeValue.toFixed(2)
-  } else if (safeValue >= 0.01) {
-    return safeValue.toFixed(3)
   }
-  return safeValue.toFixed(4)
+  return safeValue.toFixed(2)
 }
 
 const formatDuration = (ms: number): string => {
@@ -679,13 +955,23 @@ const formatDuration = (ms: number): string => {
 }
 
 const applyTimeRange = (range: DashboardTimeRange) => {
-  if (selectedTimeRange.value === range && trendData.value.length > 0) return
+  if (selectedTimeRange.value === range && userTrend.value.length > 0) return
   const next = resolveTimeRange(range)
   selectedTimeRange.value = range
   startDate.value = next.start
   endDate.value = next.end
   granularity.value = next.granularity
   void loadChartData()
+}
+
+const toggleUsageSeries = (seriesId: string) => {
+  const next = new Set(hiddenUsageSeries.value)
+  if (next.has(seriesId)) {
+    next.delete(seriesId)
+  } else {
+    next.add(seriesId)
+  }
+  hiddenUsageSeries.value = next
 }
 
 const goToUsageList = () => {
@@ -736,7 +1022,7 @@ const goToModelUsage = (model: string) => {
 }
 
 const loadDashboardSnapshot = async (includeStats: boolean) => {
-  const currentSeq = ++chartLoadSeq
+  const currentSeq = ++snapshotLoadSeq
   if (includeStats && !stats.value) {
     loading.value = true
   }
@@ -752,19 +1038,41 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
       include_group_stats: false,
       include_users_trend: false
     })
-    if (currentSeq !== chartLoadSeq) return
+    if (currentSeq !== snapshotLoadSeq) return
     if (includeStats && response.stats) {
       stats.value = response.stats
     }
-    trendData.value = response.trend || []
     modelStats.value = response.models || []
   } catch (error) {
-    if (currentSeq !== chartLoadSeq) return
+    if (currentSeq !== snapshotLoadSeq) return
     appStore.showError(t('admin.dashboard.failedToLoad'))
     console.error('Error loading dashboard snapshot:', error)
   } finally {
-    if (currentSeq === chartLoadSeq) {
+    if (currentSeq === snapshotLoadSeq) {
       loading.value = false
+      chartsLoading.value = false
+    }
+  }
+}
+
+const loadUserTrend = async () => {
+  const currentSeq = ++userTrendLoadSeq
+  chartsLoading.value = true
+  try {
+    const response = await adminAPI.dashboard.getUserUsageTrend({
+      start_date: startDate.value,
+      end_date: endDate.value,
+      granularity: granularity.value,
+      limit: rankingLimit
+    })
+    if (currentSeq !== userTrendLoadSeq) return
+    userTrend.value = response.trend || []
+  } catch (error) {
+    if (currentSeq !== userTrendLoadSeq) return
+    console.error('Error loading user trend:', error)
+    userTrend.value = []
+  } finally {
+    if (currentSeq === userTrendLoadSeq) {
       chartsLoading.value = false
     }
   }
@@ -842,6 +1150,7 @@ const loadAccountRanking = async () => {
 const loadDashboardStats = async () => {
   await Promise.all([
     loadDashboardSnapshot(true),
+    loadUserTrend(),
     loadUserSpendingRanking(),
     loadAccountRuntime(),
     loadAccountRanking()
@@ -851,6 +1160,7 @@ const loadDashboardStats = async () => {
 const loadChartData = async () => {
   await Promise.all([
     loadDashboardSnapshot(false),
+    loadUserTrend(),
     loadUserSpendingRanking(),
     loadAccountRanking()
   ])
