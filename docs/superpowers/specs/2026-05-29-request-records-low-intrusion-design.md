@@ -68,6 +68,8 @@
 
 阶段二和阶段三建议在同一次功能迭代内完成。只有阶段二会出现有表无数据；只有阶段三则缺少承接模块，两者拆开上线价值有限。
 
+阶段一聚合后端只作为阶段二/三上线期间的临时回退，不作为长期双轨架构。`request_records` 验证稳定后，应删除阶段一专用的聚合查询和前端 fallback，避免 `request-logs` 与 `request-records` 两套请求流水代码长期并存。
+
 ## 架构方案
 
 新增 `request_records` 作为请求事实源。`usage_logs` 和 `ops_error_logs` 仍保留各自语义。
@@ -428,7 +430,19 @@ GET /api/v1/admin/request-logs
 
 - `/admin/request-logs` 是阶段一聚合接口，可作为回退。
 - `/admin/request-records` 是阶段二/三 durable ledger 接口。
-- 两者并存便于灰度、验证和回滚。
+- 两者只在灰度、验证和回滚窗口内并存。
+
+阶段二/三完成并稳定后，推荐将管理员请求记录页统一到 `request_records` 数据源，并退场阶段一聚合接口。退场对象包括：
+
+```text
+backend/internal/service/admin_request_logs.go
+backend/internal/repository/ops_repo_admin_request_logs.go
+backend/internal/handler/admin/request_log_handler.go
+routes 中的 /api/v1/admin/request-logs 注册
+frontend-local 中 aggregate 数据源和 fallback 逻辑
+```
+
+如果最终希望保留 `/api/v1/admin/request-logs` 这个 URL，也应只保留 URL 兼容层，让它转调 `request_records` 查询服务，而不是继续维护 `usage_logs + ops_error_logs` 聚合实现。
 
 查询参数：
 
@@ -498,6 +512,8 @@ records    新 request_records 接口
 接口不可用或配置关闭时，可回退 aggregate。
 ```
 
+`aggregate` fallback 是上线保护，不是长期产品能力。完成验证后应删除前端 fallback 分支，页面只保留 `records` 数据源，避免后续字段、筛选和状态展示在两套数据源之间分叉。
+
 页面新增能力：
 
 - Session 列。
@@ -536,7 +552,7 @@ records    新 request_records 接口
 上线后：
 
 - 新请求进入 `request_records`。
-- 老请求仍可通过阶段一聚合接口查看。
+- 老请求在回退窗口内仍可通过阶段一聚合接口查看。
 - 前端可以根据接口可用性选择 `records` 或 `aggregate`。
 
 如果需要回滚：
@@ -544,6 +560,78 @@ records    新 request_records 接口
 - 停用 requestrecord hook。
 - 前端切回 aggregate 数据源。
 - `usage_logs` 和 `ops_error_logs` 不受影响。
+
+## 阶段一退场策略
+
+为避免冗余代码，阶段一聚合实现需要有明确退场条件。
+
+### 保留窗口
+
+阶段二/三上线后，阶段一聚合接口只保留一个观察窗口。观察窗口用于：
+
+- 验证 `request_records` 写入完整性。
+- 对比 records 与 aggregate 的成功/失败请求数量。
+- 确认 Session 筛选、状态筛选和 cost 展示符合预期。
+- 支持异常时快速回退。
+
+观察窗口结束后，不再同时维护两套请求流水后端。
+
+### 退场条件
+
+满足以下条件后可以删除阶段一聚合代码：
+
+- 新请求都能稳定写入 `request_records`。
+- 管理员请求记录页已默认使用 `records`。
+- 常用筛选项在 `records` 数据源下可用。
+- 成功计费请求可通过 `request_id` 关联 `usage_logs`。
+- 失败请求可通过 `request_id` 或 `client_request_id` 关联 `ops_error_logs`。
+- 回退窗口内未发现必须依赖 aggregate 的缺口。
+
+### 删除范围
+
+退场时删除：
+
+```text
+阶段一 service DTO 和 ListAdminRequestLogs 聚合服务
+阶段一 repository CTE 查询
+阶段一 handler 和路由注册
+阶段一前端 aggregate API 方法
+阶段一 RequestLogsView fallback 分支
+阶段一相关单测
+```
+
+保留：
+
+```text
+usage_logs
+ops_error_logs
+OpsRequestDetail 运维详情能力
+request_id / client_request_id 关联能力
+```
+
+`usage_logs` 和 `ops_error_logs` 仍是计费与错误事实源，不属于阶段一退场范围。
+
+### URL 兼容策略
+
+如果需要避免前端路由或外部书签变化，可以保留页面 URL：
+
+```text
+/admin/request-logs
+```
+
+但后端数据源应切换到：
+
+```text
+/api/v1/admin/request-records
+```
+
+如果必须保留旧 API URL：
+
+```text
+/api/v1/admin/request-logs
+```
+
+旧 API 只能作为 thin wrapper 转调 `request_records` 查询服务，不继续保留 `usage_logs + ops_error_logs` 聚合查询。
 
 ## 风险和应对
 
