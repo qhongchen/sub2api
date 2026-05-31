@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -109,6 +110,26 @@ func TestRequestLogger_KeepIncomingRequestID(t *testing.T) {
 	}
 	if got := w.Header().Get(requestIDHeader); got != "rid-fixed" {
 		t.Fatalf("header=%q, want rid-fixed", got)
+	}
+}
+
+func TestRequestLogger_SetsRequestStartedAt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestLogger())
+	r.GET("/t", func(c *gin.Context) {
+		startedAt, ok := c.Request.Context().Value(ctxkey.RequestStartedAt).(time.Time)
+		if !ok || startedAt.IsZero() {
+			t.Fatalf("request_started_at missing in context")
+		}
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d", w.Code)
 	}
 }
 

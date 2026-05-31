@@ -402,6 +402,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/request-logs',
+    name: 'AdminRequestLogs',
+    component: () => import('@/views/admin/RequestLogsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Request Logs',
+      titleKey: 'admin.requestLogs.title',
+      descriptionKey: 'admin.requestLogs.description'
+    }
+  },
+  {
     path: '/admin/users',
     name: 'AdminUsers',
     component: () => import('@/views/admin/UsersView.vue'),
@@ -796,15 +808,6 @@ router.beforeEach(async (to, _from, next) => {
     next({
       path: '/login',
       query: { redirect: to.fullPath } // Save intended destination
-    })
-    return
-  }
-
-  if (authStore.isAdmin && to.path === '/usage') {
-    next({
-      path: '/admin/usage',
-      query: to.query,
-      hash: to.hash,
     })
     return
   }

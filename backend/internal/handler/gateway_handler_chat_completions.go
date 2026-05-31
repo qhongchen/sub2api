@@ -9,6 +9,7 @@ import (
 
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/requestrecord"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -22,6 +23,7 @@ import (
 // forwards to Anthropic upstream, and converts responses back to Chat Completions format.
 func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	streamStarted := false
+	defer completePendingRequestRecord(c, h.requestRecordService)
 
 	requestStart := time.Now()
 
@@ -240,6 +242,24 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		if channelMapping.Mapped {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 		}
+		upstreamModel := ""
+		if channelMapping.Mapped {
+			upstreamModel = channelMapping.MappedModel
+		}
+		recordHandle := startOpenAIRequestRecord(
+			c,
+			h.requestRecordService,
+			subject,
+			apiKey,
+			account,
+			body,
+			reqModel,
+			reqModel,
+			upstreamModel,
+			service.RequestTypeFromLegacy(reqStream, false),
+			reqStream,
+			GetUpstreamEndpoint(c, account.Platform),
+		)
 		var result *service.ForwardResult
 		if account.Platform == service.PlatformGemini {
 			if h.geminiCompatService == nil {
@@ -247,6 +267,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				if accountReleaseFunc != nil {
 					accountReleaseFunc()
 				}
+				completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+					RequestID:    recordRequestID(recordHandle, c),
+					Outcome:      requestrecord.OutcomeError,
+					StatusCode:   intPtr(http.StatusBadGateway),
+					ErrorMessage: "Gemini compatibility service is not configured",
+				})
 				return
 			}
 			result, err = h.geminiCompatService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody)
@@ -262,6 +288,14 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				if c.Writer.Size() != writerSizeBeforeForward {
+					completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+						RequestID:    recordRequestID(recordHandle, c),
+						Outcome:      requestrecord.OutcomeError,
+						StatusCode:   &failoverErr.StatusCode,
+						DurationMs:   forwardResultDurationMs(result),
+						FirstTokenMs: forwardResultFirstTokenMs(result),
+						ErrorMessage: string(failoverErr.ResponseBody),
+					})
 					h.handleCCFailoverExhausted(c, failoverErr, true)
 					return
 				}
@@ -270,6 +304,14 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				case FailoverContinue:
 					continue
 				case FailoverExhausted:
+					completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+						RequestID:    recordRequestID(recordHandle, c),
+						Outcome:      requestrecord.OutcomeError,
+						StatusCode:   &fs.LastFailoverErr.StatusCode,
+						DurationMs:   forwardResultDurationMs(result),
+						FirstTokenMs: forwardResultFirstTokenMs(result),
+						ErrorMessage: string(fs.LastFailoverErr.ResponseBody),
+					})
 					h.handleCCFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
 					return
 				case FailoverCanceled:
@@ -281,6 +323,14 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				zap.Int64("account_id", account.ID),
 				zap.Error(err),
 			)
+			completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+				RequestID:    recordRequestID(recordHandle, c),
+				Outcome:      requestrecord.OutcomeError,
+				StatusCode:   statusCodePtr(c.Writer.Status()),
+				DurationMs:   forwardResultDurationMs(result),
+				FirstTokenMs: forwardResultFirstTokenMs(result),
+				ErrorMessage: err.Error(),
+			})
 			return
 		}
 
@@ -290,9 +340,22 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		usageRequestID := getRequestID(c)
+		usageClientRequestID := getClientRequestID(c)
+		completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+			RequestID:    recordRequestID(recordHandle, c),
+			Outcome:      requestrecord.OutcomeSuccess,
+			StatusCode:   intPtr(http.StatusOK),
+			DurationMs:   intPtrFromDuration(result.Duration),
+			FirstTokenMs: forwardResultFirstTokenMs(result),
+			Billable:     true,
+			InputTokens:  intPtr(result.Usage.InputTokens),
+			OutputTokens: intPtr(result.Usage.OutputTokens),
+		})
 
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 		h.submitUsageRecordTask(func(ctx context.Context) {
+			ctx = withUsageRecordContext(c, ctx, usageRequestID, usageClientRequestID)
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 				Result:             result,
 				QuotaPlatform:      quotaPlatform,

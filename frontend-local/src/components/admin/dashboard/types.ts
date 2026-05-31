@@ -70,10 +70,3 @@ export interface DashboardRankingEntry {
   tokens: number
   cost: number
 }
-
-export interface DashboardActiveSessionEntry {
-  id: string
-  shortId: string
-  name: string
-  activeSessions: number
-}

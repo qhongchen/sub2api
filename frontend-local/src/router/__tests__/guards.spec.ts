@@ -109,10 +109,6 @@ function simulateGuard(
     return '/login'
   }
 
-  if (authState.isAdmin && toPath === '/usage') {
-    return '/admin/usage'
-  }
-
   // 需要管理员但不是管理员
   if (requiresAdmin && !authState.isAdmin) {
     return '/dashboard'
@@ -230,6 +226,11 @@ describe('路由守卫逻辑', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
       expect(redirect).toBe('/dashboard')
     })
+
+    it('访问后台请求记录页 /admin/request-logs 被拒绝', () => {
+      const redirect = simulateGuard('/admin/request-logs', { requiresAdmin: true }, authState)
+      expect(redirect).toBe('/dashboard')
+    })
   })
 
   // --- 已认证管理员 ---
@@ -258,9 +259,19 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('访问 /usage 优先重定向到 /admin/usage', () => {
+    it('访问个人使用记录页 /usage 允许通过', () => {
       const redirect = simulateGuard('/usage', {}, authState)
-      expect(redirect).toBe('/admin/usage')
+      expect(redirect).toBeNull()
+    })
+
+    it('访问后台使用记录页 /admin/usage 允许通过', () => {
+      const redirect = simulateGuard('/admin/usage', { requiresAdmin: true }, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('访问后台请求记录页 /admin/request-logs 允许通过', () => {
+      const redirect = simulateGuard('/admin/request-logs', { requiresAdmin: true }, authState)
+      expect(redirect).toBeNull()
     })
   })
 

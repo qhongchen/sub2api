@@ -1,443 +1,614 @@
 <template>
   <AppLayout>
-    <div class="space-y-5">
-      <section class="cch-panel-card overflow-hidden">
-        <div class="flex items-center justify-between gap-3 border-b border-gray-200/70 px-4 py-3 dark:border-white/[0.06]">
-          <div class="flex min-w-0 items-center gap-2">
-            <Icon name="bolt" size="sm" class="text-orange-500" :stroke-width="2" />
-            <h2 class="text-base font-semibold text-gray-950 dark:text-white">
-              {{ t('usage.activeSessions') }}
-            </h2>
-            <span class="truncate text-sm text-gray-500 dark:text-dark-400">
-              {{ t('usage.activeSessionsSummary', { count: activeSessionRows.length, minutes: 5 }) }}
-            </span>
-          </div>
-          <button
-            type="button"
-            class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-950 dark:text-dark-300 dark:hover:text-white"
-            @click="filtersOpen = true"
-          >
-            {{ t('usage.viewAll') }}
-            <Icon name="arrowRight" size="xs" :stroke-width="2" />
-          </button>
-        </div>
-
-        <div v-if="loading && usageLogs.length === 0" class="divide-y divide-gray-100 dark:divide-white/[0.06]">
-          <div v-for="idx in 2" :key="idx" class="flex items-center gap-3 px-4 py-3">
-            <div class="h-4 w-4 animate-pulse rounded-full bg-gray-200 dark:bg-white/[0.08]" />
-            <div class="h-4 flex-1 animate-pulse rounded bg-gray-200 dark:bg-white/[0.08]" />
-            <div class="h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-white/[0.08]" />
-          </div>
-        </div>
-        <div v-else-if="activeSessionRows.length" class="divide-y divide-gray-100 dark:divide-white/[0.06]">
-          <div
-            v-for="row in activeSessionRows"
-            :key="row.id"
-            class="flex items-center gap-3 px-4 py-3 text-sm"
-          >
-            <Icon name="checkCircle" size="sm" class="flex-shrink-0 text-emerald-500" :stroke-width="2" />
-            <Icon name="user" size="xs" class="hidden flex-shrink-0 text-gray-500 dark:text-dark-400 sm:block" />
-            <span class="min-w-0 flex-1 truncate font-semibold text-gray-950 dark:text-white">
-              {{ row.api_key?.name || t('usage.unknownKey') }}
-            </span>
-            <span class="hidden items-center gap-1 text-gray-500 dark:text-dark-400 sm:inline-flex">
-              <Icon name="key" size="xs" />
-              {{ row.model || '-' }}
-            </span>
-            <span class="hidden max-w-[220px] truncate text-gray-500 dark:text-dark-400 md:inline">
-              @ {{ formatUsageEndpoints(row) }}
-            </span>
-            <span class="ml-auto inline-flex items-center gap-1 text-gray-500 dark:text-dark-400">
-              <Icon name="clock" size="xs" />
-              {{ formatRelativeTime(row.created_at) }}
-            </span>
-          </div>
-        </div>
-        <div v-else class="flex min-h-[88px] items-center justify-center px-4 py-6 text-sm text-gray-500 dark:text-dark-400">
-          {{ t('usage.noActiveSessions') }}
-        </div>
-      </section>
-
-      <section class="space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <button
-            type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-950 dark:border-white/[0.08] dark:bg-dark-900/60 dark:text-dark-300 dark:hover:text-white"
-            @click="filtersOpen = !filtersOpen"
-          >
-            <Icon name="filter" size="sm" :stroke-width="2" />
-            <span>{{ t('usage.filterCriteria') }}</span>
-            <span
-              v-if="activeFilterCount > 0"
-              class="rounded-full bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary-600 dark:bg-primary-500/10 dark:text-primary-300"
-            >
-              {{ activeFilterCount }}
-            </span>
-            <Icon
-              name="chevronDown"
-              size="xs"
-              class="transition-transform"
-              :class="{ 'rotate-180': filtersOpen }"
-            />
-          </button>
-
-          <div class="ml-auto flex items-center gap-1">
-            <div class="relative">
-              <button
-                type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]"
-                :title="t('usage.columnSettings')"
-                @click="columnDropdownOpen = !columnDropdownOpen"
-              >
-                <Icon name="grid" size="sm" />
-                <span>{{ visibleLogColumnCount }}/{{ logColumnOptions.length }}</span>
-              </button>
-              <div
-                v-if="columnDropdownOpen"
-                class="absolute right-0 top-full z-50 mt-2 w-52 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-dark-700 dark:bg-dark-800"
-              >
-                <button
-                  v-for="column in logColumnOptions"
-                  :key="column.key"
-                  type="button"
-                  class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
-                  @click="toggleLogColumn(column.key)"
-                >
-                  <span>{{ column.label }}</span>
-                  <Icon v-if="isLogColumnVisible(column.key)" name="check" size="sm" class="text-primary-500" :stroke-width="2" />
-                </button>
-              </div>
+    <TablePageLayout>
+      <template #actions>
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <!-- Total Requests -->
+          <div class="card p-4">
+          <div class="flex items-center gap-3">
+            <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
+              <Icon name="document" size="md" class="text-blue-600 dark:text-blue-400" />
             </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('usage.totalRequests') }}
+              </p>
+              <p class="text-xl font-bold text-gray-900 dark:text-white">
+                {{ usageStats?.total_requests?.toLocaleString() || '0' }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('usage.inSelectedRange') }}
+              </p>
+            </div>
+          </div>
+        </div>
 
-            <button
-              type="button"
-              class="consumer-icon-btn"
-              :title="t('common.refresh')"
-              :disabled="loading"
-              @click="refreshData"
-            >
-              <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
-            </button>
+        <!-- Total Tokens -->
+        <div class="card p-4">
+          <div class="flex items-center gap-3">
+            <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
+              <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('usage.totalTokens') }}
+              </p>
+              <p class="text-xl font-bold text-gray-900 dark:text-white">
+                {{ formatTokens(usageStats?.total_tokens || 0) }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('usage.in') }}: {{ formatTokens(usageStats?.total_input_tokens || 0) }} /
+                {{ t('usage.out') }}: {{ formatTokens(usageStats?.total_output_tokens || 0) }}
+              </p>
+            </div>
+          </div>
+        </div>
 
-            <button
-              type="button"
-              class="inline-flex h-9 items-center gap-2 rounded-full px-2 text-sm text-gray-500 transition-colors hover:text-gray-950 dark:text-dark-300 dark:hover:text-white"
-              :title="t('usage.autoRefresh')"
-              @click="toggleAutoRefresh"
-            >
-              <span
-                class="h-1.5 w-1.5 rounded-full"
-                :class="autoRefreshEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-600'"
+        <!-- Total Cost -->
+        <div class="card p-4">
+          <div class="flex items-center gap-3">
+            <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
+              <Icon name="dollar" size="md" class="text-green-600 dark:text-green-400" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('usage.totalCost') }}
+              </p>
+              <p class="text-xl font-bold text-green-600 dark:text-green-400">
+                ${{ (usageStats?.total_actual_cost || 0).toFixed(4) }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('usage.actualCost') }} /
+                <span class="line-through">${{ (usageStats?.total_cost || 0).toFixed(4) }}</span>
+                {{ t('usage.standardCost') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Average Duration -->
+        <div class="card p-4">
+          <div class="flex items-center gap-3">
+            <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
+              <Icon name="clock" size="md" class="text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('usage.avgDuration') }}
+              </p>
+              <p class="text-xl font-bold text-gray-900 dark:text-white">
+                {{ formatDuration(usageStats?.average_duration_ms || 0) }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('usage.perRequest') }}</p>
+            </div>
+          </div>
+        </div>
+        </div>
+      </template>
+
+      <template #filters>
+        <div class="card">
+          <div class="px-6 py-4">
+          <div class="flex flex-wrap items-end gap-4">
+            <!-- API Key Filter -->
+            <div class="min-w-[180px]">
+              <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
+              <Select
+                v-model="filters.api_key_id"
+                :options="apiKeyOptions"
+                :placeholder="t('usage.allApiKeys')"
+                @change="applyFilters"
               />
-              <span
-                class="relative inline-flex h-6 w-10 items-center rounded-full transition-colors"
-                :class="autoRefreshEnabled ? 'bg-orange-500' : 'bg-gray-200 dark:bg-dark-700'"
-              >
-                <span
-                  class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-                  :class="autoRefreshEnabled ? 'translate-x-4' : 'translate-x-0.5'"
-                />
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <Transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="-translate-y-1 opacity-0"
-          enter-to-class="translate-y-0 opacity-100"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="translate-y-0 opacity-100"
-          leave-to-class="-translate-y-1 opacity-0"
-        >
-          <div v-if="filtersOpen" class="cch-panel-card p-4 md:p-5">
-            <div class="mb-5 flex flex-wrap items-center gap-2">
-              <button
-                v-for="preset in quickDatePresets"
-                :key="preset.key"
-                type="button"
-                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold shadow-sm transition-colors"
-                :class="activePreset === preset.key
-                  ? 'border-orange-500 bg-orange-500 text-white'
-                  : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]'"
-                @click="applyDatePreset(preset.key)"
-              >
-                <Icon :name="preset.icon" size="sm" />
-                {{ preset.label }}
-              </button>
             </div>
 
-            <div class="grid gap-4 lg:grid-cols-2">
-              <div class="rounded-xl border border-gray-200/70 bg-white/50 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  @click="timeFiltersOpen = !timeFiltersOpen"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-dark-300">
-                      <Icon name="clock" size="sm" />
-                    </span>
-                    <span>
-                      <span class="block text-sm font-semibold text-gray-950 dark:text-white">{{ t('usage.timeRange') }}</span>
-                      <span class="block text-xs text-gray-500 dark:text-dark-400">{{ t('usage.timeRangeDescription') }}</span>
-                    </span>
-                  </span>
-                  <Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="{ 'rotate-180': timeFiltersOpen }" />
-                </button>
-                <div v-if="timeFiltersOpen" class="space-y-3 px-4 pb-4">
-                  <div class="grid gap-3 sm:grid-cols-2">
-                    <label class="block">
-                      <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.startDate') }}</span>
-                      <input v-model="startDate" type="date" class="input" @change="syncDateRange" />
-                    </label>
-                    <label class="block">
-                      <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.endDate') }}</span>
-                      <input v-model="endDate" type="date" class="input" @change="syncDateRange" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rounded-xl border border-gray-200/70 bg-white/50 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  @click="identityFiltersOpen = !identityFiltersOpen"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-dark-300">
-                      <Icon name="user" size="sm" />
-                    </span>
-                    <span>
-                      <span class="block text-sm font-semibold text-gray-950 dark:text-white">{{ t('usage.identityInfo') }}</span>
-                      <span class="block text-xs text-gray-500 dark:text-dark-400">{{ t('usage.identityDescription') }}</span>
-                    </span>
-                  </span>
-                  <Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="{ 'rotate-180': identityFiltersOpen }" />
-                </button>
-                <div v-if="identityFiltersOpen" class="grid gap-3 px-4 pb-4 sm:grid-cols-2">
-                  <label class="block">
-                    <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.apiKeyFilter') }}</span>
-                    <Select
-                      v-model="apiKeyFilter"
-                      :options="apiKeyOptions"
-                      :placeholder="t('usage.allApiKeys')"
-                    />
-                  </label>
-                  <label class="block">
-                    <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.model') }}</span>
-                    <input
-                      v-model="modelFilter"
-                      type="text"
-                      class="input"
-                      :placeholder="t('usage.modelPlaceholder')"
-                      @keyup.enter="applyFilters"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div class="rounded-xl border border-gray-200/70 bg-white/50 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  @click="requestFiltersOpen = !requestFiltersOpen"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-dark-300">
-                      <Icon name="server" size="sm" />
-                    </span>
-                    <span>
-                      <span class="block text-sm font-semibold text-gray-950 dark:text-white">{{ t('usage.requestParams') }}</span>
-                      <span class="block text-xs text-gray-500 dark:text-dark-400">{{ t('usage.requestDescription') }}</span>
-                    </span>
-                  </span>
-                  <Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="{ 'rotate-180': requestFiltersOpen }" />
-                </button>
-                <div v-if="requestFiltersOpen" class="grid gap-3 px-4 pb-4 sm:grid-cols-2">
-                  <label class="block">
-                    <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.type') }}</span>
-                    <Select
-                      v-model="requestTypeFilter"
-                      :options="requestTypeOptions"
-                      :placeholder="t('usage.allTypes')"
-                    />
-                  </label>
-                  <label class="block">
-                    <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.endpoint') }}</span>
-                    <input
-                      type="text"
-                      class="input"
-                      :value="t('usage.endpointFilterUnavailable')"
-                      disabled
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div class="rounded-xl border border-gray-200/70 bg-white/50 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  @click="statusFiltersOpen = !statusFiltersOpen"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-dark-300">
-                      <Icon name="database" size="sm" />
-                    </span>
-                    <span>
-                      <span class="block text-sm font-semibold text-gray-950 dark:text-white">{{ t('usage.statusInfo') }}</span>
-                      <span class="block text-xs text-gray-500 dark:text-dark-400">{{ t('usage.statusDescription') }}</span>
-                    </span>
-                  </span>
-                  <Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="{ 'rotate-180': statusFiltersOpen }" />
-                </button>
-                <div v-if="statusFiltersOpen" class="px-4 pb-4 text-sm text-gray-500 dark:text-dark-400">
-                  {{ t('usage.statusFilterUnavailable') }}
-                </div>
-              </div>
+            <!-- Date Range Filter -->
+            <div>
+              <label class="input-label">{{ t('usage.timeRange') }}</label>
+              <DateRangePicker
+                v-model:start-date="startDate"
+                v-model:end-date="endDate"
+                @change="onDateRangeChange"
+              />
             </div>
 
-            <div class="mt-5 flex flex-wrap items-center gap-2">
-              <button type="button" class="btn btn-primary" :disabled="loading" @click="applyFilters">
-                {{ t('usage.applyFilters') }}
+            <!-- Actions -->
+            <div class="ml-auto flex items-center gap-3">
+              <button @click="applyFilters" :disabled="loading" class="btn btn-secondary">
+                {{ t('common.refresh') }}
               </button>
-              <button type="button" class="btn btn-secondary" @click="resetFilters">
+              <button @click="resetFilters" class="btn btn-secondary">
                 {{ t('common.reset') }}
               </button>
-              <button type="button" class="btn btn-secondary" :disabled="exporting" @click="exportToCSV">
-                <Icon name="download" size="sm" :class="{ 'animate-bounce': exporting }" />
+              <button @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
+                <svg
+                  v-if="exporting"
+                  class="-ml-1 mr-2 h-4 w-4 animate-spin"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
                 {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
               </button>
             </div>
           </div>
-        </Transition>
-      </section>
-
-      <section class="cch-panel-card overflow-hidden">
-        <div class="flex items-center justify-between gap-3 border-b border-gray-200/70 px-4 py-3 dark:border-white/[0.06]">
-          <span class="text-sm text-gray-500 dark:text-dark-400">
-            {{ t('usage.loadedRecords', { count: usageLogs.length }) }}
-          </span>
-          <span class="text-xs text-gray-400 dark:text-dark-500">
-            {{ usageStatsSummary }}
-          </span>
         </div>
+        </div>
+      </template>
 
-        <UsageTable
+      <template #table>
+        <DataTable
+          :columns="columns"
           :data="usageLogs"
           :loading="loading"
-          :columns="visibleLogColumns"
-          shell-class="overflow-hidden"
-          :server-side-sort="false"
-          :default-sort-key="'created_at'"
-          :default-sort-order="'desc'"
-        />
+          :server-side-sort="true"
+          default-sort-key="created_at"
+          default-sort-order="desc"
+          @sort="handleSort"
+        >
+          <template #cell-api_key="{ row }">
+            <span class="text-sm text-gray-900 dark:text-white">{{
+              row.api_key?.name || '-'
+            }}</span>
+          </template>
 
-        <div v-if="pagination.total > 0" class="border-t border-gray-200/70 p-4 dark:border-white/[0.06]">
-          <Pagination
-            :page="pagination.page"
-            :total="pagination.total"
-            :page-size="pagination.page_size"
-            @update:page="handlePageChange"
-            @update:pageSize="handlePageSizeChange"
-          />
-        </div>
-      </section>
-    </div>
+          <template #cell-model="{ value }">
+            <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+          </template>
+
+          <template #cell-reasoning_effort="{ row }">
+            <span class="text-sm text-gray-900 dark:text-white">
+              {{ formatReasoningEffort(row.reasoning_effort) }}
+            </span>
+          </template>
+
+          <template #cell-endpoint="{ row }">
+            <span class="text-sm text-gray-600 dark:text-gray-300 block max-w-[320px] whitespace-normal break-all">
+              {{ formatUsageEndpoints(row) }}
+            </span>
+          </template>
+
+          <template #cell-stream="{ row }">
+            <span
+              class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
+              :class="getRequestTypeBadgeClass(row)"
+            >
+              {{ getRequestTypeLabel(row) }}
+            </span>
+          </template>
+
+          <template #cell-billing_mode="{ row }">
+            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+                  :class="getBillingModeBadgeClass(getDisplayBillingMode(row))">
+              {{ getBillingModeLabel(getDisplayBillingMode(row), t) }}
+            </span>
+          </template>
+
+          <template #cell-tokens="{ row }">
+            <!-- 图片生成请求 -->
+            <div v-if="isImageUsage(row)" class="flex items-center gap-1.5">
+              <svg
+                class="h-4 w-4 text-indigo-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span class="font-medium text-gray-900 dark:text-white">{{ row.image_count }}{{ t('usage.imageUnit') }}</span>
+              <span class="text-gray-400">({{ formatImageBillingSize(row, t) }})</span>
+            </div>
+            <!-- Token 请求 -->
+            <div v-else class="flex items-center gap-1.5">
+              <div class="space-y-1.5 text-sm">
+                <!-- Input / Output Tokens -->
+                <div class="flex items-center gap-2">
+                  <!-- Input -->
+                  <div class="inline-flex items-center gap-1">
+                    <Icon name="arrowDown" size="sm" class="text-emerald-500" />
+                    <span class="font-medium text-gray-900 dark:text-white">{{
+                      row.input_tokens.toLocaleString()
+                    }}</span>
+                  </div>
+                  <!-- Output -->
+                  <div class="inline-flex items-center gap-1">
+                    <Icon name="arrowUp" size="sm" class="text-violet-500" />
+                    <span class="font-medium text-gray-900 dark:text-white">{{
+                      row.output_tokens.toLocaleString()
+                    }}</span>
+                  </div>
+                </div>
+                <!-- Cache Tokens (Read + Write) -->
+                <div
+                  v-if="row.cache_read_tokens > 0 || row.cache_creation_tokens > 0"
+                  class="flex items-center gap-2"
+                >
+                  <!-- Cache Read -->
+                  <div v-if="row.cache_read_tokens > 0" class="inline-flex items-center gap-1">
+                    <Icon name="inbox" size="sm" class="text-sky-500" />
+                    <span class="font-medium text-sky-600 dark:text-sky-400">{{
+                      formatCacheTokens(row.cache_read_tokens)
+                    }}</span>
+                  </div>
+                  <!-- Cache Write -->
+                  <div v-if="row.cache_creation_tokens > 0" class="inline-flex items-center gap-1">
+                    <Icon name="edit" size="sm" class="text-amber-500" />
+                    <span class="font-medium text-amber-600 dark:text-amber-400">{{
+                      formatCacheTokens(row.cache_creation_tokens)
+                    }}</span>
+                    <span v-if="row.cache_creation_1h_tokens > 0" class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-orange-100 text-orange-600 ring-1 ring-inset ring-orange-200 dark:bg-orange-500/20 dark:text-orange-400 dark:ring-orange-500/30">1h</span>
+                    <span v-if="row.cache_ttl_overridden" :title="t('usage.cacheTtlOverriddenHint')" class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30 cursor-help">R</span>
+                  </div>
+                </div>
+              </div>
+              <!-- Token Detail Tooltip -->
+              <div
+                class="group relative"
+                @mouseenter="showTokenTooltip($event, row)"
+                @mouseleave="hideTokenTooltip"
+              >
+                <div
+                  class="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-blue-100 dark:bg-gray-700 dark:group-hover:bg-blue-900/50"
+                >
+                  <Icon
+                    name="infoCircle"
+                    size="xs"
+                    class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template #cell-cost="{ row }">
+            <div class="flex items-center gap-1.5 text-sm">
+              <span class="font-medium text-green-600 dark:text-green-400">
+                ${{ row.actual_cost.toFixed(6) }}
+              </span>
+              <!-- Cost Detail Tooltip -->
+              <div
+                class="group relative"
+                @mouseenter="showTooltip($event, row)"
+                @mouseleave="hideTooltip"
+              >
+                <div
+                  class="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-blue-100 dark:bg-gray-700 dark:group-hover:bg-blue-900/50"
+                >
+                  <Icon
+                    name="infoCircle"
+                    size="xs"
+                    class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template #cell-first_token="{ row }">
+            <span
+              v-if="row.first_token_ms != null"
+              class="text-sm text-gray-600 dark:text-gray-400"
+            >
+              {{ formatDuration(row.first_token_ms) }}
+            </span>
+            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          </template>
+
+          <template #cell-duration="{ row }">
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{
+              formatDuration(row.duration_ms)
+            }}</span>
+          </template>
+
+          <template #cell-created_at="{ value }">
+            <span class="text-sm text-gray-600 dark:text-gray-400">{{
+              formatDateTime(value)
+            }}</span>
+          </template>
+
+          <template #cell-user_agent="{ row }">
+            <span v-if="row.user_agent" class="text-sm text-gray-600 dark:text-gray-400 block max-w-[320px] whitespace-normal break-all" :title="row.user_agent">{{ formatUserAgent(row.user_agent) }}</span>
+            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          </template>
+
+          <template #empty>
+            <EmptyState :message="t('usage.noRecords')" />
+          </template>
+        </DataTable>
+      </template>
+
+      <template #pagination>
+        <Pagination
+          v-if="pagination.total > 0"
+          :page="pagination.page"
+          :total="pagination.total"
+          :page-size="pagination.page_size"
+          @update:page="handlePageChange"
+          @update:pageSize="handlePageSizeChange"
+        />
+      </template>
+    </TablePageLayout>
   </AppLayout>
+
+  <!-- Token Tooltip Portal -->
+  <Teleport to="body">
+    <div
+      v-if="tokenTooltipVisible"
+      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
+      :style="{
+        left: tokenTooltipPosition.x + 'px',
+        top: tokenTooltipPosition.y + 'px'
+      }"
+    >
+      <div
+        class="whitespace-nowrap rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
+      >
+        <div class="space-y-1.5">
+          <!-- Token Breakdown -->
+          <div>
+            <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.tokenDetails') }}</div>
+            <div v-if="tokenTooltipData && tokenTooltipData.input_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
+              <span class="font-medium text-white">{{ tokenTooltipData.input_tokens.toLocaleString() }}</span>
+            </div>
+            <div v-if="tokenTooltipData && tokenTooltipData.output_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
+              <span class="font-medium text-white">{{ tokenTooltipData.output_tokens.toLocaleString() }}</span>
+            </div>
+            <div v-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
+              <!-- 有 5m/1h 明细时，展开显示 -->
+              <template v-if="tokenTooltipData.cache_creation_5m_tokens > 0 || tokenTooltipData.cache_creation_1h_tokens > 0">
+                <div v-if="tokenTooltipData.cache_creation_5m_tokens > 0" class="flex items-center justify-between gap-4">
+                  <span class="text-gray-400 flex items-center gap-1.5">
+                    {{ t('admin.usage.cacheCreation5mTokens') }}
+                    <span class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30">5m</span>
+                  </span>
+                  <span class="font-medium text-white">{{ tokenTooltipData.cache_creation_5m_tokens.toLocaleString() }}</span>
+                </div>
+                <div v-if="tokenTooltipData.cache_creation_1h_tokens > 0" class="flex items-center justify-between gap-4">
+                  <span class="text-gray-400 flex items-center gap-1.5">
+                    {{ t('admin.usage.cacheCreation1hTokens') }}
+                    <span class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-orange-500/20 text-orange-400 ring-1 ring-inset ring-orange-500/30">1h</span>
+                  </span>
+                  <span class="font-medium text-white">{{ tokenTooltipData.cache_creation_1h_tokens.toLocaleString() }}</span>
+                </div>
+              </template>
+              <!-- 无明细时，只显示聚合值 -->
+              <div v-else class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.cacheCreationTokens') }}</span>
+                <span class="font-medium text-white">{{ tokenTooltipData.cache_creation_tokens.toLocaleString() }}</span>
+              </div>
+            </div>
+            <div v-if="tokenTooltipData && tokenTooltipData.cache_ttl_overridden" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400 flex items-center gap-1.5">
+                {{ t('usage.cacheTtlOverriddenLabel') }}
+                <span class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-500/20 text-rose-400 ring-1 ring-inset ring-rose-500/30">R-{{ tokenTooltipData.cache_creation_1h_tokens > 0 ? '5m' : '1H' }}</span>
+              </span>
+              <span class="font-medium text-rose-400">{{ tokenTooltipData.cache_creation_1h_tokens > 0 ? t('usage.cacheTtlOverridden1h') : t('usage.cacheTtlOverridden5m') }}</span>
+            </div>
+            <div v-if="tokenTooltipData && tokenTooltipData.cache_read_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheReadTokens') }}</span>
+              <span class="font-medium text-white">{{ tokenTooltipData.cache_read_tokens.toLocaleString() }}</span>
+            </div>
+          </div>
+          <!-- Total -->
+          <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
+            <span class="text-gray-400">{{ t('usage.totalTokens') }}</span>
+            <span class="font-semibold text-blue-400">{{ ((tokenTooltipData?.input_tokens || 0) + (tokenTooltipData?.output_tokens || 0) + (tokenTooltipData?.cache_creation_tokens || 0) + (tokenTooltipData?.cache_read_tokens || 0)).toLocaleString() }}</span>
+          </div>
+        </div>
+        <!-- Tooltip Arrow (left side) -->
+        <div
+          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"
+        ></div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Tooltip Portal -->
+  <Teleport to="body">
+    <div
+      v-if="tooltipVisible"
+      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
+      :style="{
+        left: tooltipPosition.x + 'px',
+        top: tooltipPosition.y + 'px'
+      }"
+    >
+      <div
+        class="whitespace-nowrap rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
+      >
+        <div class="space-y-1.5">
+          <!-- Cost Breakdown -->
+          <div class="mb-2 border-b border-gray-700 pb-1.5">
+            <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.costDetails') }}</div>
+            <div v-if="tooltipData && tooltipData.input_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.inputCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.input_cost.toFixed(6) }}</span>
+            </div>
+            <div v-if="tooltipData && tooltipData.output_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.outputCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.output_cost.toFixed(6) }}</span>
+            </div>
+            <!-- Per-image billing: show image metadata and unit price -->
+            <template v-if="tooltipData && isImageUsage(tooltipData)">
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageCount') }}</span>
+                <span class="font-medium text-white">{{ tooltipData.image_count }}{{ t('usage.imageUnit') }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageBillingSize') }}</span>
+                <span class="font-medium text-white">{{ formatImageBillingSize(tooltipData, t) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageSizeSource') }}</span>
+                <span class="font-medium text-white">{{ formatImageSizeSource(tooltipData, t) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageInputSize') }}</span>
+                <span class="font-medium text-white">{{ formatImageInputSize(tooltipData, t) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageOutputSize') }}</span>
+                <span class="font-medium text-white">{{ formatImageOutputSize(tooltipData, t) }}</span>
+              </div>
+              <div v-if="formatImageSizeBreakdown(tooltipData)" class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageSizeBreakdown') }}</span>
+                <span class="font-medium text-white">{{ formatImageSizeBreakdown(tooltipData) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageUnitPrice') }}</span>
+                <span class="font-medium text-sky-300">${{ imageUnitPrice(tooltipData).toFixed(6) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageTotalPrice') }}</span>
+                <span class="font-medium text-white">${{ tooltipData.total_cost?.toFixed(6) || '0.000000' }}</span>
+              </div>
+            </template>
+            <!-- Token billing: show unit prices per 1M tokens -->
+            <template v-else-if="!getDisplayBillingMode(tooltipData) || getDisplayBillingMode(tooltipData) === BILLING_MODE_TOKEN">
+              <div v-if="tooltipData && tooltipData.input_tokens > 0" class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.inputTokenPrice') }}</span>
+                <span class="font-medium text-sky-300">{{ formatTokenPricePerMillion(tooltipData.input_cost, tooltipData.input_tokens) }} {{ t('usage.perMillionTokens') }}</span>
+              </div>
+              <div v-if="tooltipData && tooltipData.output_tokens > 0" class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.outputTokenPrice') }}</span>
+                <span class="font-medium text-violet-300">{{ formatTokenPricePerMillion(tooltipData.output_cost, tooltipData.output_tokens) }} {{ t('usage.perMillionTokens') }}</span>
+              </div>
+            </template>
+            <div v-else class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('usage.unitPrice') }}</span>
+              <span class="font-medium text-sky-300">${{ tooltipData?.total_cost?.toFixed(6) || '0.000000' }}</span>
+            </div>
+            <div v-if="tooltipData && tooltipData.cache_creation_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheCreationCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.cache_creation_cost.toFixed(6) }}</span>
+            </div>
+            <div v-if="tooltipData && tooltipData.cache_read_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheReadCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.cache_read_cost.toFixed(6) }}</span>
+            </div>
+          </div>
+          <!-- Rate and Summary -->
+          <div class="flex items-center justify-between gap-6">
+            <span class="text-gray-400">{{ t('usage.serviceTier') }}</span>
+            <span class="font-semibold text-cyan-300">{{ getUsageServiceTierLabel(tooltipData?.service_tier, t) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-6">
+            <span class="text-gray-400">{{ t('usage.rate') }}</span>
+            <span class="font-semibold text-blue-400"
+              >{{ formatMultiplier(tooltipData?.rate_multiplier || 1) }}x</span
+            >
+          </div>
+          <div class="flex items-center justify-between gap-6">
+            <span class="text-gray-400">{{ t('usage.original') }}</span>
+            <span class="font-medium text-white">${{ tooltipData?.total_cost.toFixed(6) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
+            <span class="text-gray-400">{{ t('usage.billed') }}</span>
+            <span class="font-semibold text-green-400"
+              >${{ tooltipData?.actual_cost.toFixed(6) }}</span
+            >
+          </div>
+        </div>
+        <!-- Tooltip Arrow (left side) -->
+        <div
+          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"
+        ></div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { usageAPI, keysAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
-import UsageTable from '@/components/admin/usage/UsageTable.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse, UsageRequestType } from '@/types'
+import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
+import { formatTokenPricePerMillion } from '@/utils/usagePricing'
+import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
   BILLING_MODE_IMAGE,
+  BILLING_MODE_TOKEN,
+  getBillingModeBadgeClass,
   getBillingModeLabel,
 } from '@/utils/billingMode'
+import {
+  formatImageBillingSize,
+  formatImageInputSize,
+  formatImageOutputSize,
+  formatImageSizeBreakdown,
+  formatImageSizeSource,
+} from '@/utils/imageUsage'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 
 let abortController: AbortController | null = null
-let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+// Tooltip state
+const tooltipVisible = ref(false)
+const tooltipPosition = ref({ x: 0, y: 0 })
+const tooltipData = ref<UsageLog | null>(null)
+
+// Token tooltip state
+const tokenTooltipVisible = ref(false)
+const tokenTooltipPosition = ref({ x: 0, y: 0 })
+const tokenTooltipData = ref<UsageLog | null>(null)
 
 // Usage stats from API
 const usageStats = ref<UsageStatsResponse | null>(null)
+
+const columns = computed<Column[]>(() => [
+  { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
+  { key: 'model', label: t('usage.model'), sortable: true },
+  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
+  { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
+  { key: 'stream', label: t('usage.type'), sortable: false },
+  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
+  { key: 'tokens', label: t('usage.tokens'), sortable: false },
+  { key: 'cost', label: t('usage.cost'), sortable: false },
+  { key: 'first_token', label: t('usage.firstToken'), sortable: false },
+  { key: 'duration', label: t('usage.duration'), sortable: false },
+  { key: 'created_at', label: t('usage.time'), sortable: true },
+  { key: 'user_agent', label: t('usage.userAgent'), sortable: false }
+])
 
 const usageLogs = ref<UsageLog[]>([])
 const apiKeys = ref<ApiKey[]>([])
 const loading = ref(false)
 const exporting = ref(false)
-const filtersOpen = ref(true)
-const timeFiltersOpen = ref(true)
-const identityFiltersOpen = ref(true)
-const requestFiltersOpen = ref(false)
-const statusFiltersOpen = ref(false)
-const columnDropdownOpen = ref(false)
-const autoRefreshEnabled = ref(false)
-
-type DatePresetKey = 'today' | 'this_week' | 'last_7_days' | 'last_30_days'
-type UsageLogColumnKey =
-  | 'time'
-  | 'api_key'
-  | 'request_id'
-  | 'endpoint'
-  | 'model'
-  | 'tokens'
-  | 'cache'
-  | 'cost'
-  | 'performance'
-  | 'status'
-
-const activePreset = ref<DatePresetKey | null>('last_7_days')
-const hiddenLogColumns = ref<UsageLogColumnKey[]>(['endpoint', 'cache'])
-
-const logColumnOptions = computed<Array<Column & { key: UsageLogColumnKey }>>(() => [
-  { key: 'time', label: t('usage.time') },
-  { key: 'api_key', label: t('usage.apiKeyFilter') },
-  { key: 'request_id', label: t('usage.requestId') },
-  { key: 'endpoint', label: t('usage.endpoint') },
-  { key: 'model', label: t('usage.billingModel') },
-  { key: 'tokens', label: t('usage.tokens') },
-  { key: 'cache', label: t('usage.cache') },
-  { key: 'cost', label: t('usage.cost') },
-  { key: 'performance', label: t('usage.performance') },
-  { key: 'status', label: t('usage.status') }
-])
-
-const visibleLogColumns = computed(() => (
-  logColumnOptions.value.filter((column) => isLogColumnVisible(column.key))
-))
-
-const visibleLogColumnCount = computed(() => visibleLogColumns.value.length)
-
-const quickDatePresets = computed<Array<{ key: DatePresetKey; label: string; icon: 'calendar' | 'clock' }>>(() => [
-  { key: 'today', label: t('usage.quickToday'), icon: 'calendar' },
-  { key: 'this_week', label: t('usage.quickThisWeek'), icon: 'calendar' },
-  { key: 'last_7_days', label: t('usage.quickLast7Days'), icon: 'clock' },
-  { key: 'last_30_days', label: t('usage.quickLast30Days'), icon: 'clock' }
-])
-
-const requestTypeOptions = computed(() => [
-  { value: null, label: t('usage.allTypes') },
-  { value: 'sync', label: t('usage.sync') },
-  { value: 'stream', label: t('usage.stream') },
-  { value: 'ws_v2', label: t('usage.ws') }
-])
 
 const apiKeyOptions = computed(() => {
   return [
@@ -447,58 +618,6 @@ const apiKeyOptions = computed(() => {
       label: key.name
     }))
   ]
-})
-
-const apiKeyFilter = computed({
-  get: () => filters.value.api_key_id ?? null,
-  set: (value: string | number | boolean | null) => {
-    filters.value.api_key_id = typeof value === 'number' ? value : undefined
-  }
-})
-
-const modelFilter = computed({
-  get: () => filters.value.model || '',
-  set: (value: string) => {
-    filters.value.model = value.trim() || undefined
-  }
-})
-
-const requestTypeFilter = computed({
-  get: () => filters.value.request_type ?? null,
-  set: (value: string | number | boolean | null) => {
-    filters.value.request_type = typeof value === 'string' && value
-      ? value as UsageRequestType
-      : undefined
-  }
-})
-
-const activeFilterCount = computed(() => {
-  let count = 0
-  if (filters.value.api_key_id) count += 1
-  if (filters.value.model) count += 1
-  if (filters.value.request_type) count += 1
-  if (filters.value.start_date || filters.value.end_date) count += 1
-  return count
-})
-
-const activeSessionRows = computed(() => {
-  const now = Date.now()
-  const activeWindowMs = 5 * 60 * 1000
-
-  return usageLogs.value
-    .filter((row) => {
-      const createdAt = new Date(row.created_at).getTime()
-      if (Number.isNaN(createdAt)) return false
-      return now - createdAt <= activeWindowMs || row.duration_ms === 0
-    })
-    .slice(0, 5)
-})
-
-const usageStatsSummary = computed(() => {
-  const requests = usageStats.value?.total_requests || 0
-  const tokens = usageStats.value?.total_tokens || 0
-  const cost = usageStats.value?.total_actual_cost || 0
-  return `${requests.toLocaleString()} ${t('usage.requestsShort')} · ${formatTokens(tokens)} ${t('usage.tokens')} · $${cost.toFixed(4)}`
 })
 
 // Helper function to format date in local timezone
@@ -525,6 +644,17 @@ const filters = ref<UsageQueryParams>({
 filters.value.start_date = startDate.value
 filters.value.end_date = endDate.value
 
+// Handle date range change from DateRangePicker
+const onDateRangeChange = (range: {
+  startDate: string
+  endDate: string
+  preset: string | null
+}) => {
+  filters.value.start_date = range.startDate
+  filters.value.end_date = range.endDate
+  applyFilters()
+}
+
 const pagination = reactive({
   page: 1,
   page_size: getPersistedPageSize(),
@@ -536,12 +666,49 @@ const sortState = reactive({
   sort_order: 'desc' as 'asc' | 'desc'
 })
 
+const formatDuration = (ms: number): string => {
+  if (ms < 1000) return `${ms.toFixed(0)}ms`
+  return `${(ms / 1000).toFixed(2)}s`
+}
+
+const imageUnitPrice = (row: UsageLog | null): number => {
+  if (!row || row.image_count <= 0) return 0
+  const total = row.total_cost ?? 0
+  const price = total / row.image_count
+  return Number.isFinite(price) ? price : 0
+}
+
+const isImageUsage = (row: Pick<UsageLog, 'image_count'> | null | undefined): boolean => {
+  return (row?.image_count ?? 0) > 0
+}
+
 const getDisplayBillingMode = (row: Pick<UsageLog, 'billing_mode' | 'image_count'> | null | undefined): string | null | undefined => {
-  if ((row?.image_count ?? 0) > 0) {
+  if (isImageUsage(row)) {
     return BILLING_MODE_IMAGE
   }
   return row?.billing_mode
 }
+
+const formatUserAgent = (ua: string): string => {
+  return ua
+}
+
+const getRequestTypeLabel = (log: UsageLog): string => {
+  const requestType = resolveUsageRequestType(log)
+  if (requestType === 'ws_v2') return t('usage.ws')
+  if (requestType === 'stream') return t('usage.stream')
+  if (requestType === 'sync') return t('usage.sync')
+  return t('usage.unknown')
+}
+
+const getRequestTypeBadgeClass = (log: UsageLog): string => {
+  const requestType = resolveUsageRequestType(log)
+  if (requestType === 'ws_v2') return 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200'
+  if (requestType === 'stream') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+  if (requestType === 'sync') return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+  return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+}
+
 
 const getRequestTypeExportText = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
@@ -554,73 +721,6 @@ const getRequestTypeExportText = (log: UsageLog): string => {
 const formatUsageEndpoints = (log: UsageLog): string => {
   const inbound = log.inbound_endpoint?.trim()
   return inbound || '-'
-}
-
-const formatRelativeTime = (value: string): string => {
-  const timestamp = new Date(value).getTime()
-  if (Number.isNaN(timestamp)) return '-'
-
-  const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
-  if (diffSeconds < 30) return t('usage.justNow')
-  if (diffSeconds < 60) return t('usage.secondsAgo', { count: diffSeconds })
-
-  const diffMinutes = Math.floor(diffSeconds / 60)
-  if (diffMinutes < 60) return t('usage.minutesAgo', { count: diffMinutes })
-
-  const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) return t('usage.hoursAgo', { count: diffHours })
-
-  const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 7) return t('usage.daysAgo', { count: diffDays })
-
-  return formatDateTime(value)
-}
-
-const isLogColumnVisible = (key: UsageLogColumnKey): boolean => {
-  return !hiddenLogColumns.value.includes(key)
-}
-
-const toggleLogColumn = (key: UsageLogColumnKey) => {
-  if (visibleLogColumnCount.value === 1 && isLogColumnVisible(key)) return
-
-  hiddenLogColumns.value = isLogColumnVisible(key)
-    ? [...hiddenLogColumns.value, key]
-    : hiddenLogColumns.value.filter((column) => column !== key)
-}
-
-const startOfWeek = (date: Date): Date => {
-  const start = new Date(date)
-  const day = start.getDay() || 7
-  start.setDate(start.getDate() - day + 1)
-  return start
-}
-
-const syncDateRange = () => {
-  filters.value.start_date = startDate.value || undefined
-  filters.value.end_date = endDate.value || undefined
-  activePreset.value = null
-}
-
-const applyDatePreset = (preset: DatePresetKey) => {
-  const today = new Date()
-  let start = new Date(today)
-
-  if (preset === 'today') {
-    start = new Date(today)
-  } else if (preset === 'this_week') {
-    start = startOfWeek(today)
-  } else if (preset === 'last_7_days') {
-    start.setDate(today.getDate() - 6)
-  } else {
-    start.setDate(today.getDate() - 29)
-  }
-
-  activePreset.value = preset
-  startDate.value = formatLocalDate(start)
-  endDate.value = formatLocalDate(today)
-  filters.value.start_date = startDate.value
-  filters.value.end_date = endDate.value
-  applyFilters()
 }
 
 const formatTokens = (value: number): string => {
@@ -714,15 +814,13 @@ const applyFilters = () => {
 const resetFilters = () => {
   filters.value = {
     api_key_id: undefined,
-    model: undefined,
-    request_type: undefined,
     start_date: undefined,
     end_date: undefined
   }
+  // Reset date range to default (last 7 days)
   const now = new Date()
   const weekAgo = new Date(now)
   weekAgo.setDate(weekAgo.getDate() - 6)
-  activePreset.value = 'last_7_days'
   startDate.value = formatLocalDate(weekAgo)
   endDate.value = formatLocalDate(now)
   filters.value.start_date = startDate.value
@@ -743,24 +841,11 @@ const handlePageSizeChange = (pageSize: number) => {
   loadUsageLogs()
 }
 
-const refreshData = () => {
+const handleSort = (key: string, order: 'asc' | 'desc') => {
+  sortState.sort_by = key
+  sortState.sort_order = order
+  pagination.page = 1
   loadUsageLogs()
-  loadUsageStats()
-}
-
-const toggleAutoRefresh = () => {
-  autoRefreshEnabled.value = !autoRefreshEnabled.value
-
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer)
-    autoRefreshTimer = null
-  }
-
-  if (autoRefreshEnabled.value) {
-    autoRefreshTimer = setInterval(() => {
-      refreshData()
-    }, 5000)
-  }
 }
 
 /**
@@ -870,20 +955,42 @@ const exportToCSV = async () => {
   }
 }
 
+// Tooltip functions
+const showTooltip = (event: MouseEvent, row: UsageLog) => {
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+
+  tooltipData.value = row
+  // Position to the right of the icon, vertically centered
+  tooltipPosition.value.x = rect.right + 8
+  tooltipPosition.value.y = rect.top + rect.height / 2
+  tooltipVisible.value = true
+}
+
+const hideTooltip = () => {
+  tooltipVisible.value = false
+  tooltipData.value = null
+}
+
+// Token tooltip functions
+const showTokenTooltip = (event: MouseEvent, row: UsageLog) => {
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+
+  tokenTooltipData.value = row
+  tokenTooltipPosition.value.x = rect.right + 8
+  tokenTooltipPosition.value.y = rect.top + rect.height / 2
+  tokenTooltipVisible.value = true
+}
+
+const hideTokenTooltip = () => {
+  tokenTooltipVisible.value = false
+  tokenTooltipData.value = null
+}
+
 onMounted(() => {
   loadApiKeys()
   loadUsageLogs()
   loadUsageStats()
-})
-
-onUnmounted(() => {
-  if (abortController) {
-    abortController.abort()
-    abortController = null
-  }
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer)
-    autoRefreshTimer = null
-  }
 })
 </script>

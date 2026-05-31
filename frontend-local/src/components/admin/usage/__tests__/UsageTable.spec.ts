@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import UsageTable from '../UsageTable.vue'
+import type { Column } from '@/components/common/types'
 
 const messages: Record<string, string> = {
   'usage.costDetails': 'Cost Breakdown',
@@ -42,6 +43,15 @@ const messages: Record<string, string> = {
   'admin.usage.billingModeToken': 'Token',
   'admin.usage.billingModePerRequest': 'Per request',
   'admin.usage.billingModeImage': 'Image',
+  'usage.justNow': 'just now',
+  'usage.tokens': 'Tokens',
+  'usage.cost': 'Cost',
+  'usage.requestId': 'Request ID',
+  'usage.performance': 'Performance',
+  'usage.unknownKey': 'Unknown key',
+  'usage.upstreamAttempts': 'Upstream attempts',
+  'usage.upstreamAttemptCount': '{count} upstream attempts',
+  'usage.upstreamAttemptStatus': 'upstream {status}',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -49,24 +59,22 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) => {
+        let message = messages[key] ?? key
+        for (const [name, value] of Object.entries(params || {})) {
+          message = message.replaceAll(`{${name}}`, String(value))
+        }
+        return message
+      },
     }),
   }
 })
 
-const DataTableStub = {
-  props: ['data'],
-  template: `
-    <div>
-      <div v-for="row in data" :key="row.request_id">
-        <slot name="cell-model" :row="row" :value="row.model" />
-        <slot name="cell-billing_mode" :row="row" />
-        <slot name="cell-tokens" :row="row" />
-        <slot name="cell-cost" :row="row" />
-      </div>
-    </div>
-  `,
-}
+const tableColumns: Column[] = [
+  { key: 'model', label: 'Model' },
+  { key: 'tokens', label: 'Tokens' },
+  { key: 'cost', label: 'Cost' },
+]
 
 const baseImageRow = {
   request_id: 'req-admin-image',
@@ -98,6 +106,7 @@ const baseImageRow = {
 
 describe('admin UsageTable tooltip', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
       y: 0,
@@ -131,20 +140,19 @@ describe('admin UsageTable tooltip', () => {
       props: {
         data: [row],
         loading: false,
-        columns: [],
+        columns: tableColumns,
       },
       global: {
         stubs: {
-          DataTable: DataTableStub,
-          EmptyState: true,
           Icon: true,
           Teleport: true,
         },
       },
     })
 
-    const tooltipTriggers = wrapper.findAll('.group.relative')
-    await tooltipTriggers[tooltipTriggers.length - 1].trigger('mouseenter')
+    const costInfoButton = wrapper.find('button[aria-label="Cost Breakdown"]')
+    expect(costInfoButton.exists()).toBe(true)
+    await costInfoButton.trigger('mouseenter')
     await nextTick()
 
     const text = wrapper.text()
@@ -182,12 +190,10 @@ describe('admin UsageTable tooltip', () => {
       props: {
         data: [row],
         loading: false,
-        columns: [],
+        columns: tableColumns,
       },
       global: {
         stubs: {
-          DataTable: DataTableStub,
-          EmptyState: true,
           Icon: true,
           Teleport: true,
         },
@@ -197,6 +203,462 @@ describe('admin UsageTable tooltip', () => {
     const text = wrapper.text()
     expect(text).toContain('claude-sonnet-4')
     expect(text).toContain('claude-sonnet-4-20250514')
+  })
+
+  it('renders pending status as a compact single-line badge', () => {
+    const row = {
+      request_id: 'req-admin-pending-1',
+      kind: 'pending',
+      outcome: 'pending',
+      status_code: 0,
+      duration_ms: null,
+      actual_cost: null,
+      total_cost: null,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      user_agent: 'Codex Desktop/0.135.0-alpha.1 (macOS 15.5; arm64) renderer/123',
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [
+          { key: 'status', label: 'Status' },
+          { key: 'user_agent', label: 'User-Agent' },
+        ],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const statusCell = wrapper.findAll('tbody td').at(0)
+    expect(statusCell).toBeTruthy()
+    expect(statusCell!.text()).toContain('Pending')
+    expect(statusCell!.find('span').classes()).toEqual(expect.arrayContaining(['whitespace-nowrap']))
+
+    const userAgentCell = wrapper.findAll('tbody td').at(1)
+    expect(userAgentCell?.find('span').classes()).toEqual(expect.arrayContaining(['line-clamp-2']))
+    expect(userAgentCell?.find('span').classes()).not.toContain('block')
+  })
+
+  it('renders non-billable cost as a dash even when cost fields are present', () => {
+    const row = {
+      request_id: 'req-admin-non-billable-1',
+      kind: 'success',
+      outcome: 'non_billable',
+      billable: false,
+      actual_cost: 0.041,
+      total_cost: 0.037,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0.01,
+      output_cost: 0.02,
+      cache_creation_cost: 0.003,
+      cache_read_cost: 0.004,
+      input_tokens: 100,
+      output_tokens: 50,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'cost', label: 'Cost' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.find('tbody').text()).toBe('-')
+    expect(wrapper.find('tbody').text()).not.toContain('$0.041000')
+    expect(wrapper.find('button[aria-label="Cost Breakdown"]').exists()).toBe(false)
+  })
+
+  it('emits the session id when clicking a session cell', async () => {
+    const row = {
+      request_id: 'req-admin-session-1',
+      session_id: 'session-from-request-record',
+      session_source: 'header_session_id',
+      actual_cost: null,
+      total_cost: null,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'session', label: 'Session' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const sessionButton = wrapper.find('tbody button')
+    expect(sessionButton.text()).toContain('session-from-request-record')
+    await sessionButton.trigger('click')
+
+    expect(wrapper.emitted('session-click')).toEqual([['session-from-request-record']])
+  })
+
+  it('keeps error details in the status tooltip instead of rendering an extra line', async () => {
+    const row = {
+      request_id: 'req-admin-error-1',
+      kind: 'error',
+      outcome: 'error',
+      status_code: 500,
+      duration_ms: 4600,
+      message: 'upstream 500: model overloaded',
+      phase: 'upstream_response',
+      actual_cost: null,
+      total_cost: null,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'status', label: 'Status' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const statusBadge = wrapper.find('tbody span')
+    expect(statusBadge.text()).toBe('500')
+    expect(statusBadge.attributes('title')).toBeUndefined()
+    expect(wrapper.find('tbody').text()).not.toContain('upstream 500: model overloaded')
+
+    await statusBadge.trigger('mouseenter')
+    await nextTick()
+
+    const tooltip = wrapper.find('[role="tooltip"]')
+    expect(tooltip.exists()).toBe(true)
+    expect(tooltip.text()).toContain('upstream 500: model overloaded')
+  })
+
+  it('uses request record error_message as the status tooltip', async () => {
+    const row = {
+      request_id: 'req-admin-error-message-1',
+      kind: 'error',
+      outcome: 'error',
+      status_code: 503,
+      duration_ms: 4600,
+      error_message: 'Upstream service temporarily unavailable',
+      phase: 'upstream_response',
+      actual_cost: null,
+      total_cost: null,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'status', label: 'Status' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const statusBadge = wrapper.find('tbody span')
+    expect(statusBadge.text()).toBe('503')
+    expect(statusBadge.attributes('title')).toBeUndefined()
+    expect(wrapper.find('tbody').text()).not.toContain('Upstream service temporarily unavailable')
+
+    await statusBadge.trigger('mouseenter')
+    await nextTick()
+
+    const tooltip = wrapper.find('[role="tooltip"]')
+    expect(tooltip.exists()).toBe(true)
+    expect(tooltip.text()).toContain('Upstream service temporarily unavailable')
+  })
+
+  it('does not show a status tooltip when the row has no status detail', async () => {
+    const row = {
+      request_id: 'req-admin-success-no-status-detail',
+      kind: 'success',
+      outcome: 'success',
+      status_code: 200,
+      duration_ms: 4600,
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'status', label: 'Status' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const statusBadge = wrapper.find('tbody span')
+    expect(statusBadge.text()).toBe('200')
+
+    await statusBadge.trigger('mouseenter')
+    await nextTick()
+
+    expect(wrapper.find('[role="tooltip"]').exists()).toBe(false)
+  })
+
+  it('keeps recovered upstream errors out of the successful status tooltip', async () => {
+    const row = {
+      request_id: 'req-admin-success-recovered-upstream',
+      kind: 'success',
+      outcome: 'success',
+      status_code: 200,
+      duration_ms: 4600,
+      error_message: 'Recovered upstream error 401: Invalid API key',
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'status', label: 'Status' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const statusBadge = wrapper.find('tbody span')
+    expect(statusBadge.text()).toBe('200')
+
+    await statusBadge.trigger('mouseenter')
+    await nextTick()
+
+    expect(wrapper.find('[role="tooltip"]').exists()).toBe(false)
+  })
+
+  it('shows upstream attempts separately from the final status', async () => {
+    const row = {
+      request_id: 'req-admin-success-with-upstream-attempts',
+      kind: 'success',
+      outcome: 'success',
+      status_code: 200,
+      duration_ms: 4600,
+      upstream_attempts: [
+        {
+          account_id: 20,
+          account_name: 'L站福利1',
+          upstream_status_code: 401,
+          message: 'Invalid API key',
+        },
+        {
+          account_id: 21,
+          upstream_status_code: 429,
+          message: 'rate limited',
+        },
+      ],
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'status', label: 'Status' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const statusCell = wrapper.find('tbody td')
+    expect(statusCell.text()).toContain('200')
+    expect(statusCell.text()).toContain('2 upstream attempts')
+    expect(statusCell.text()).not.toContain('Invalid API key')
+
+    const upstreamBadge = wrapper.find('[data-testid="upstream-attempts-badge"]')
+    expect(upstreamBadge.exists()).toBe(true)
+    await upstreamBadge.trigger('mouseenter')
+    await nextTick()
+
+    const tooltip = wrapper.find('[role="tooltip"]')
+    expect(tooltip.exists()).toBe(true)
+    expect(tooltip.text()).toContain('L站福利1')
+    expect(tooltip.text()).toContain('upstream 401')
+    expect(tooltip.text()).toContain('rate limited')
+  })
+
+  it('does not show a long-text tooltip when content is fully visible', async () => {
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(80)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(120)
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(20)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(24)
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          {
+            request_id: 'req-admin-short-model',
+            model: 'gpt-5',
+            actual_cost: 0,
+            total_cost: 0,
+            account_rate_multiplier: 1,
+            rate_multiplier: 1,
+            input_cost: 0,
+            output_cost: 0,
+            cache_creation_cost: 0,
+            cache_read_cost: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+          },
+        ],
+        loading: false,
+        columns: [{ key: 'model', label: 'Model' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const modelText = wrapper.find('tbody td span.truncate')
+    expect(modelText.text()).toBe('gpt-5')
+
+    await modelText.trigger('mouseenter')
+    await nextTick()
+
+    expect(wrapper.find('[role="tooltip"]').exists()).toBe(false)
+  })
+
+  it('only forces the session tooltip when extra client session details exist', async () => {
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(80)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(120)
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(20)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(24)
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          {
+            request_id: 'req-admin-session-extra-1',
+            session_id: 'visible-session',
+            session_source: 'header_session_id',
+            client_session_id: 'client-session-from-header',
+            actual_cost: null,
+            total_cost: null,
+            account_rate_multiplier: 1,
+            rate_multiplier: 1,
+            input_cost: 0,
+            output_cost: 0,
+            cache_creation_cost: 0,
+            cache_read_cost: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+          },
+        ],
+        loading: false,
+        columns: [{ key: 'session', label: 'Session' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const sessionButton = wrapper.find('tbody button')
+    await sessionButton.trigger('mouseenter')
+    await nextTick()
+
+    const tooltip = wrapper.find('[role="tooltip"]')
+    expect(tooltip.exists()).toBe(true)
+    expect(tooltip.text()).toContain('client-session-from-header')
   })
 
   it.each([
@@ -254,19 +716,19 @@ describe('admin UsageTable tooltip', () => {
       props: {
         data: [row],
         loading: false,
-        columns: [],
+        columns: tableColumns,
       },
       global: {
         stubs: {
-          DataTable: DataTableStub,
-          EmptyState: true,
           Icon: true,
           Teleport: true,
         },
       },
     })
 
-    await wrapper.find('.group.relative').trigger('mouseenter')
+    const costInfoButton = wrapper.find('button[aria-label="Cost Breakdown"]')
+    expect(costInfoButton.exists()).toBe(true)
+    await costInfoButton.trigger('mouseenter')
     await nextTick()
 
     const text = wrapper.text()
@@ -276,7 +738,6 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('Input size')
     expect(text).toContain('Output size')
     expect(text).toContain('Per-image price')
-    expect(text).toContain('Image total price')
     for (const value of expected) {
       expect(text).toContain(value)
     }
@@ -298,19 +759,19 @@ describe('admin UsageTable tooltip', () => {
           },
         ],
         loading: false,
-        columns: [],
+        columns: tableColumns,
       },
       global: {
         stubs: {
-          DataTable: DataTableStub,
-          EmptyState: true,
           Icon: true,
           Teleport: true,
         },
       },
     })
 
-    await wrapper.find('.group.relative').trigger('mouseenter')
+    const costInfoButton = wrapper.find('button[aria-label="Cost Breakdown"]')
+    expect(costInfoButton.exists()).toBe(true)
+    await costInfoButton.trigger('mouseenter')
     await nextTick()
 
     const text = wrapper.text()

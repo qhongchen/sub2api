@@ -1,7 +1,7 @@
 <template>
   <div class="inline-flex flex-col gap-0.5 text-xs font-medium">
     <!-- Row 1: Platform + Type -->
-    <div class="inline-flex items-center overflow-hidden rounded-md">
+    <div v-if="showPlatformType" class="inline-flex items-center overflow-hidden rounded-md">
       <span :class="['inline-flex items-center gap-1 px-2 py-1', platformClass]">
         <PlatformIcon :platform="platform" size="xs" />
         <span>{{ platformLabel }}</span>
@@ -31,7 +31,7 @@
       </span>
     </div>
     <!-- Row 2: Plan type + Privacy mode (only if either exists) -->
-    <div v-if="planLabel || privacyBadge" class="inline-flex items-center overflow-hidden rounded-md">
+    <div v-if="showPlanPrivacy && (planLabel || privacyBadge)" class="inline-flex items-center overflow-hidden rounded-md">
       <span v-if="planLabel" :class="['inline-flex items-center gap-1 px-1.5 py-1', planBadgeClass]">
         <span>{{ planLabel }}</span>
       </span>
@@ -47,7 +47,11 @@
       </span>
     </div>
     <!-- Row 3: Subscription expiration (non-free paid accounts only) -->
-    <div v-if="expiresLabel" class="text-[10px] leading-tight text-gray-400 dark:text-gray-500 pl-0.5" :title="subscriptionExpiresAt">
+    <div
+      v-if="showPlanPrivacy && expiresLabel"
+      class="text-[10px] leading-tight text-gray-400 dark:text-gray-500 pl-0.5"
+      :title="subscriptionExpiresAt"
+    >
       {{ expiresLabel }}
     </div>
   </div>
@@ -62,15 +66,21 @@ import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 
+type DisplayMode = 'all' | 'platformType' | 'planPrivacy'
+
 interface Props {
   platform: AccountPlatform
   type: AccountType
+  mode?: DisplayMode
   planType?: string
   privacyMode?: string
   subscriptionExpiresAt?: string
 }
 
 const props = defineProps<Props>()
+
+const showPlatformType = computed(() => props.mode !== 'planPrivacy')
+const showPlanPrivacy = computed(() => props.mode !== 'platformType')
 
 const platformLabel = computed(() => {
   if (props.platform === 'anthropic') return 'Anthropic'

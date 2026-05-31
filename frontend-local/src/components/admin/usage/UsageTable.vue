@@ -16,31 +16,57 @@
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <div class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ row.model || '-' }}</div>
-            <div class="mt-1 text-xs text-gray-500 dark:text-dark-400" :title="formatDateTime(row.created_at)">
+            <div
+              class="truncate text-sm font-semibold text-gray-950 dark:text-white"
+              @mouseenter="showLongTextTooltip($event, row.model)"
+              @mouseleave="hideLongTextTooltip"
+            >
+              {{ row.model || '-' }}
+            </div>
+            <div
+              class="mt-1 text-xs text-gray-500 dark:text-dark-400"
+              @mouseenter="showLongTextTooltip($event, formatDateTime(row.created_at), { force: true })"
+              @mouseleave="hideLongTextTooltip"
+            >
               {{ formatRelativeTime(row.created_at) }}
               <template v-if="hasColumn('user')"> · {{ getUserDisplayName(row) }}</template>
               <template v-else> · {{ row.api_key?.name || t('usage.unknownKey') }}</template>
             </div>
-            <div v-if="hasColumn('account')" class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400" :title="getAccountDisplayName(row)">
+            <div
+              v-if="hasColumn('account')"
+              class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400"
+              @mouseenter="showLongTextTooltip($event, getAccountDisplayName(row))"
+              @mouseleave="hideLongTextTooltip"
+            >
               {{ getAccountDisplayName(row) }}
             </div>
-            <div v-if="hasColumn('user_agent')" class="mt-1 truncate text-xs text-gray-400 dark:text-dark-500" :title="row.user_agent || '-'">
+            <div
+              v-if="hasColumn('user_agent')"
+              class="mt-1 line-clamp-2 break-words text-xs leading-4 text-gray-400 dark:text-dark-500"
+              @mouseenter="showLongTextTooltip($event, row.user_agent)"
+              @mouseleave="hideLongTextTooltip"
+            >
               {{ row.user_agent || '-' }}
             </div>
           </div>
-          <span v-if="hasColumn('status')" class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getUsageStatusClass(row)">
+          <span
+            v-if="hasColumn('status')"
+            class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold"
+            :class="getUsageStatusClass(row)"
+            @mouseenter="showLongTextTooltip($event, getStatusTooltipContent(row), { force: true })"
+            @mouseleave="hideLongTextTooltip"
+          >
             {{ getUsageStatusLabel(row) }}
           </span>
         </div>
         <div class="grid grid-cols-2 gap-3 text-sm">
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.tokens') }}</div>
-            <div class="font-semibold text-gray-950 dark:text-white">{{ formatTokens(getTotalTokens(row)) }}</div>
+            <div class="font-semibold text-gray-950 dark:text-white">{{ hasUsageFacts(row) ? formatTokens(getTotalTokens(row)) : '-' }}</div>
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.cost') }}</div>
-            <div class="font-semibold text-emerald-600 dark:text-emerald-300">${{ num(row.actual_cost).toFixed(6) }}</div>
+            <div class="font-semibold text-emerald-600 dark:text-emerald-300">{{ hasBillableCost(row) ? `$${num(row.actual_cost).toFixed(6)}` : '-' }}</div>
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.requestId') }}</div>
@@ -110,7 +136,8 @@
                 <span
                   v-if="row.user"
                   class="block max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white"
-                  :title="getUserTooltip(row)"
+                  @mouseenter="showLongTextTooltip($event, getUserTooltip(row), { force: hasExtraUserDetails(row) })"
+                  @mouseleave="hideLongTextTooltip"
                 >
                   {{ getUserDisplayName(row) }}
                 </span>
@@ -118,7 +145,11 @@
               </template>
 
               <template v-else-if="column.key === 'time' || column.key === 'created_at'">
-                <span class="whitespace-nowrap text-sm text-gray-700 dark:text-dark-200" :title="formatDateTime(row.created_at)">
+                <span
+                  class="whitespace-nowrap text-sm text-gray-700 dark:text-dark-200"
+                  @mouseenter="showLongTextTooltip($event, formatDateTime(row.created_at), { force: true })"
+                  @mouseleave="hideLongTextTooltip"
+                >
                   {{ formatRelativeTime(row.created_at) }}
                 </span>
               </template>
@@ -135,20 +166,47 @@
               <template v-else-if="column.key === 'account'">
                 <div class="flex min-w-0 items-center gap-2">
                   <Icon name="server" size="xs" class="flex-shrink-0 text-gray-400" />
-                  <span class="max-w-[150px] truncate text-sm font-medium text-gray-950 dark:text-white" :title="getAccountDisplayName(row)">
+                  <span
+                    class="max-w-[150px] truncate text-sm font-medium text-gray-950 dark:text-white"
+                    @mouseenter="showLongTextTooltip($event, getAccountDisplayName(row))"
+                    @mouseleave="hideLongTextTooltip"
+                  >
                     {{ getAccountDisplayName(row) }}
                   </span>
                 </div>
               </template>
 
+              <template v-else-if="column.key === 'session'">
+                <button
+                  v-if="row.session_id"
+                  type="button"
+                  class="block max-w-[190px] text-left"
+                  @click="emit('session-click', row.session_id)"
+                  @mouseenter="showLongTextTooltip($event, formatSessionTitle(row), { force: hasExtraSessionDetails(row) })"
+                  @mouseleave="hideLongTextTooltip"
+                >
+                  <span class="block truncate font-mono text-xs font-semibold text-gray-800 dark:text-dark-100">{{ row.session_id }}</span>
+                  <span class="block truncate text-[10px] text-gray-500 dark:text-dark-400">{{ row.session_source || '-' }}</span>
+                </button>
+                <span v-else class="text-sm text-gray-500 dark:text-dark-400">-</span>
+              </template>
+
               <template v-else-if="column.key === 'request_id'">
-                <span class="font-mono text-xs text-gray-700 dark:text-dark-200" :title="row.request_id || '-'">
+                <span
+                  class="font-mono text-xs text-gray-700 dark:text-dark-200"
+                  @mouseenter="showLongTextTooltip($event, row.request_id, { force: true })"
+                  @mouseleave="hideLongTextTooltip"
+                >
                   {{ shortRequestId(row.request_id) }}
                 </span>
               </template>
 
               <template v-else-if="column.key === 'endpoint'">
-                <span class="block max-w-[220px] truncate text-sm text-gray-600 dark:text-dark-300" :title="formatUsageEndpoints(row)">
+                <span
+                  class="block max-w-[220px] truncate text-sm text-gray-600 dark:text-dark-300"
+                  @mouseenter="showLongTextTooltip($event, formatUsageEndpoints(row))"
+                  @mouseleave="hideLongTextTooltip"
+                >
                   {{ formatUsageEndpoints(row) }}
                 </span>
               </template>
@@ -156,7 +214,11 @@
               <template v-else-if="column.key === 'model'">
                 <div class="flex min-w-0 items-center gap-2">
                   <Icon name="cpu" size="xs" class="text-gray-500 dark:text-dark-400" />
-                  <span class="max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white" :title="row.model || '-'">{{ row.model || '-' }}</span>
+                  <span
+                    class="max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white"
+                    @mouseenter="showLongTextTooltip($event, row.model)"
+                    @mouseleave="hideLongTextTooltip"
+                  >{{ row.model || '-' }}</span>
                 </div>
                 <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="mt-0.5 space-y-0.5 text-[10px]">
                   <div
@@ -165,7 +227,8 @@
                     class="max-w-[180px] truncate"
                     :class="i === 0 ? 'text-gray-500 dark:text-dark-400' : 'text-gray-400 dark:text-dark-500'"
                     :style="i > 0 ? `padding-left: ${i * 0.5}rem` : ''"
-                    :title="step.trim()"
+                    @mouseenter="showLongTextTooltip($event, step.trim())"
+                    @mouseleave="hideLongTextTooltip"
                   >
                     <span v-if="i > 0" class="mr-0.5">↳</span>{{ step.trim() }}
                   </div>
@@ -173,7 +236,8 @@
                 <div
                   v-else-if="row.upstream_model && row.upstream_model !== row.model"
                   class="mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500 dark:text-dark-400"
-                  :title="row.upstream_model"
+                  @mouseenter="showLongTextTooltip($event, row.upstream_model)"
+                  @mouseleave="hideLongTextTooltip"
                 >
                   ↳ {{ row.upstream_model }}
                 </div>
@@ -183,7 +247,8 @@
               </template>
 
               <template v-else-if="column.key === 'tokens'">
-                <div v-if="isImageUsage(row)" class="inline-flex items-center justify-end gap-2">
+                <span v-if="!hasUsageFacts(row)" class="text-sm text-gray-500 dark:text-dark-400">-</span>
+                <div v-else-if="isImageUsage(row)" class="inline-flex items-center justify-end gap-2">
                   <Icon name="sparkles" size="xs" class="text-pink-500 dark:text-pink-300" />
                   <div>
                     <div class="text-sm font-semibold text-gray-950 dark:text-white">
@@ -201,9 +266,12 @@
                   </div>
                   <button
                     type="button"
+                    :aria-label="t('usage.tokenDetails')"
                     class="rounded-full text-gray-400 transition-colors hover:text-blue-500"
                     @mouseenter="showTokenTooltip($event, row)"
+                    @focus="showTokenTooltip($event, row)"
                     @mouseleave="hideTokenTooltip"
+                    @blur="hideTokenTooltip"
                   >
                     <Icon name="infoCircle" size="xs" />
                   </button>
@@ -211,9 +279,10 @@
               </template>
 
               <template v-else-if="column.key === 'cache'">
-                <div class="font-mono text-sm text-gray-950 dark:text-white">
+                <div v-if="hasUsageFacts(row)" class="font-mono text-sm text-gray-950 dark:text-white">
                   {{ getCacheTokens(row) > 0 ? formatTokens(getCacheTokens(row)) : '-' }}
                 </div>
+                <span v-else class="text-sm text-gray-500 dark:text-dark-400">-</span>
                 <div v-if="row.cache_ttl_overridden" class="text-[10px] text-rose-500">TTL</div>
               </template>
 
@@ -231,7 +300,11 @@
               </template>
 
               <template v-else-if="column.key === 'user_agent'">
-                <span class="block max-w-[180px] truncate text-sm text-gray-600 dark:text-dark-300" :title="row.user_agent || '-'">
+                <span
+                  class="line-clamp-2 max-w-[180px] break-words text-sm leading-5 text-gray-600 dark:text-dark-300"
+                  @mouseenter="showLongTextTooltip($event, row.user_agent)"
+                  @mouseleave="hideLongTextTooltip"
+                >
                   {{ row.user_agent || '-' }}
                 </span>
               </template>
@@ -242,18 +315,37 @@
                 </span>
               </template>
 
+              <template v-else-if="column.key === 'platform'">
+                <span class="text-sm text-gray-700 dark:text-dark-200">
+                  {{ row.platform || '-' }}
+                </span>
+              </template>
+
               <template v-else-if="column.key === 'cost'">
-                <div class="inline-flex items-center justify-end gap-1.5">
+                <span v-if="!hasBillableCost(row)" class="text-sm text-gray-500 dark:text-dark-400">-</span>
+                <div v-else class="inline-flex items-center justify-end gap-1.5">
                   <span class="font-mono text-sm font-semibold text-gray-950 dark:text-white">${{ num(row.actual_cost).toFixed(6) }}</span>
                   <button
                     type="button"
+                    :aria-label="t('usage.costDetails')"
                     class="rounded-full text-gray-400 transition-colors hover:text-blue-500"
                     @mouseenter="showTooltip($event, row)"
+                    @focus="showTooltip($event, row)"
                     @mouseleave="hideTooltip"
+                    @blur="hideTooltip"
                   >
                     <Icon name="infoCircle" size="xs" />
                   </button>
                 </div>
+              </template>
+
+              <template v-else-if="column.key === 'billable'">
+                <span
+                  class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                  :class="row.billable ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200' : 'bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-dark-200'"
+                >
+                  {{ row.billable ? t('usage.billable') : t('usage.nonBillable') }}
+                </span>
               </template>
 
               <template v-else-if="column.key === 'performance'">
@@ -264,16 +356,30 @@
               </template>
 
               <template v-else-if="column.key === 'status'">
-                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getUsageStatusClass(row)">
-                  {{ getUsageStatusLabel(row) }}
-                </span>
-                <div class="mt-1">
+                <div class="inline-flex flex-col items-start gap-1">
+                  <span
+                    class="inline-flex items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold"
+                    :class="getUsageStatusClass(row)"
+                    @mouseenter="showLongTextTooltip($event, getStatusTooltipContent(row), { force: true })"
+                    @mouseleave="hideLongTextTooltip"
+                  >
+                    {{ getUsageStatusLabel(row) }}
+                  </span>
+                  <span
+                    v-if="hasUpstreamAttempts(row)"
+                    data-testid="upstream-attempts-badge"
+                    class="inline-flex max-w-[150px] items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-inset ring-sky-200/70 dark:bg-sky-500/10 dark:text-sky-200 dark:ring-sky-400/20"
+                    @mouseenter="showLongTextTooltip($event, formatUpstreamAttempts(row), { force: true })"
+                    @mouseleave="hideLongTextTooltip"
+                  >
+                    <Icon name="infoCircle" size="xs" />
+                    <span class="truncate">{{ formatUpstreamAttemptCount(row) }}</span>
+                  </span>
+                </div>
+                <div v-if="showRequestTypeBadge" class="mt-1">
                   <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium" :class="getRequestTypeBadgeClass(row)">
                     {{ getRequestTypeLabel(row) }}
                   </span>
-                </div>
-                <div v-if="row.message || row.phase" class="mt-1 max-w-[180px] truncate text-[10px] text-rose-500" :title="row.message || row.phase || ''">
-                  {{ row.message || row.phase }}
                 </div>
               </template>
 
@@ -286,6 +392,29 @@
       </table>
     </div>
   </div>
+
+  <Teleport to="body">
+    <div
+      v-if="longTextTooltip.show"
+      role="tooltip"
+      class="usage-table-long-tooltip"
+      :class="{
+        'usage-table-long-tooltip-top': longTextTooltip.placement === 'top',
+        'usage-table-long-tooltip-bottom': longTextTooltip.placement === 'bottom'
+      }"
+      :style="{ top: `${longTextTooltip.top}px`, left: `${longTextTooltip.left}px` }"
+    >
+      {{ longTextTooltip.content }}
+      <span
+        class="usage-table-long-tooltip-arrow"
+        :class="{
+          'usage-table-long-tooltip-arrow-top': longTextTooltip.placement === 'top',
+          'usage-table-long-tooltip-arrow-bottom': longTextTooltip.placement === 'bottom'
+        }"
+        :style="{ left: `${longTextTooltip.arrowLeft}px` }"
+      />
+    </div>
+  </Teleport>
 
   <Teleport to="body">
     <div
@@ -417,7 +546,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { formatMultiplier } from '@/utils/formatters'
@@ -436,13 +565,91 @@ import Icon from '@/components/icons/Icon.vue'
 import type { AdminUsageLog, UsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
 
-type UsageTableRow = Partial<AdminUsageLog & UsageLog> & {
+type UsageTableIdentity = {
+  id: number
+  name?: string
+  username?: string
+  email?: string
+}
+
+type UsageTableUpstreamAttempt = {
+  at_unix_ms?: number
+  platform?: string
+  account_id?: number
+  account_name?: string
+  upstream_status_code?: number
+  upstream_request_id?: string
+  upstream_url?: string
+  kind?: string
+  message?: string
+  detail?: string
+}
+
+type NullableUsageNumberField =
+  | 'user_id'
+  | 'api_key_id'
+  | 'account_id'
+  | 'group_id'
+  | 'input_tokens'
+  | 'output_tokens'
+  | 'cache_creation_tokens'
+  | 'cache_read_tokens'
+  | 'cache_creation_5m_tokens'
+  | 'cache_creation_1h_tokens'
+  | 'input_cost'
+  | 'output_cost'
+  | 'cache_creation_cost'
+  | 'cache_read_cost'
+  | 'total_cost'
+  | 'actual_cost'
+  | 'rate_multiplier'
+  | 'billing_type'
+  | 'duration_ms'
+  | 'image_count'
+
+type NullableUsageStringField =
+  | 'inbound_endpoint'
+  | 'upstream_endpoint'
+  | 'image_size'
+  | 'image_input_size'
+  | 'image_output_size'
+  | 'billing_mode'
+  | 'user_agent'
+
+type UsageTableRow = Omit<
+  Partial<AdminUsageLog & UsageLog>,
+  | 'account'
+  | 'api_key'
+  | 'group'
+  | 'user'
+  | NullableUsageNumberField
+  | NullableUsageStringField
+  | 'cache_ttl_overridden'
+  | 'image_size_breakdown'
+  | 'image_size_source'
+> & {
   id?: number | string
   status_code?: number | null
-  kind?: 'success' | 'error'
+  kind?: 'success' | 'pending' | 'error'
+  billable?: boolean
+  outcome?: string
+  session_id?: string
+  session_source?: string
+  client_session_id?: string
+  error_message?: string
+  upstream_attempts?: UsageTableUpstreamAttempt[]
   phase?: string
   message?: string
-}
+  platform?: string | null
+  cache_ttl_overridden?: boolean | null
+  image_size_breakdown?: UsageLog['image_size_breakdown'] | null
+  image_size_source?: UsageLog['image_size_source'] | null
+  account?: UsageTableIdentity | null
+  api_key?: UsageTableIdentity | null
+  group?: UsageTableIdentity | null
+  user?: UsageTableIdentity | null
+} & Partial<Record<NullableUsageNumberField, number | null>>
+  & Partial<Record<NullableUsageStringField, string | null>>
 
 interface Props {
   data: UsageTableRow[]
@@ -452,6 +659,7 @@ interface Props {
   serverSideSort?: boolean
   defaultSortKey?: string
   defaultSortOrder?: 'asc' | 'desc'
+  showRequestTypeBadge?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -460,10 +668,12 @@ const props = withDefaults(defineProps<Props>(), {
   serverSideSort: false,
   defaultSortKey: '',
   defaultSortOrder: 'desc',
+  showRequestTypeBadge: true,
 })
 
 const emit = defineEmits<{
   sort: [key: string, order: 'asc' | 'desc']
+  'session-click': [sessionId: string]
 }>()
 
 const { t } = useI18n()
@@ -478,6 +688,14 @@ const tooltipData = ref<UsageTableRow | null>(null)
 const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<UsageTableRow | null>(null)
+const longTextTooltip = reactive({
+  show: false,
+  content: '',
+  top: 0,
+  left: 0,
+  arrowLeft: 0,
+  placement: 'top' as 'top' | 'bottom',
+})
 
 const num = (value: unknown, fallback = 0): number => {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -545,6 +763,17 @@ const formatUsageEndpoints = (log: UsageTableRow): string => {
   return inbound || '-'
 }
 
+const formatSessionTitle = (row: UsageTableRow): string => {
+  const parts = [row.session_id, row.session_source, row.client_session_id].filter(Boolean)
+  return parts.join(' · ') || '-'
+}
+
+const hasExtraSessionDetails = (row: UsageTableRow): boolean => {
+  const sessionId = row.session_id?.trim()
+  const clientSessionId = row.client_session_id?.trim()
+  return Boolean(clientSessionId && clientSessionId !== sessionId)
+}
+
 const getUserDisplayName = (row: UsageTableRow): string => {
   return row.user?.username?.trim() || row.user?.email?.trim() || (row.user_id ? `#${row.user_id}` : '-')
 }
@@ -553,6 +782,11 @@ const getUserTooltip = (row: UsageTableRow): string => {
   if (!row.user) return row.user_id ? `#${row.user_id}` : '-'
   const name = getUserDisplayName(row)
   return row.user.email && row.user.email !== name ? `${name} · ${row.user.email}` : name
+}
+
+const hasExtraUserDetails = (row: UsageTableRow): boolean => {
+  if (!row.user?.email) return false
+  return row.user.email !== getUserDisplayName(row)
 }
 
 const getAccountDisplayName = (row: UsageTableRow): string => {
@@ -565,6 +799,22 @@ const getTotalTokens = (row: UsageTableRow | null): number => {
 
 const getCacheTokens = (row: UsageTableRow): number => {
   return num(row.cache_creation_tokens) + num(row.cache_read_tokens)
+}
+
+const hasUsageFacts = (row: UsageTableRow): boolean => {
+  if (row.kind === 'error') return false
+  return (
+    row.input_tokens != null ||
+    row.output_tokens != null ||
+    row.cache_creation_tokens != null ||
+    row.cache_read_tokens != null ||
+    row.actual_cost != null ||
+    row.image_count != null
+  )
+}
+
+const hasBillableCost = (row: UsageTableRow): boolean => {
+  return row.billable !== false && row.kind !== 'error' && row.actual_cost != null
 }
 
 const isImageUsage = (row: Pick<UsageTableRow, 'image_count'> | null | undefined): boolean => {
@@ -607,13 +857,65 @@ const getRequestTypeBadgeClass = (row: UsageTableRow): string => {
 }
 
 const getUsageStatusLabel = (row: UsageTableRow): string => {
+  if (row.outcome === 'pending' || row.kind === 'pending') return t('usage.statusPending')
   if (row.status_code != null) return String(row.status_code)
   if (row.kind === 'error') return t('usage.statusFailed')
   if (row.duration_ms === 0) return t('usage.statusPending')
   return t('usage.statusSuccess')
 }
 
+const isFinalSuccessRow = (row: UsageTableRow): boolean => {
+  if (row.outcome === 'success' || row.outcome === 'non_billable' || row.kind === 'success') return true
+  return row.status_code != null && row.status_code >= 200 && row.status_code < 300
+}
+
+const getStatusTooltipContent = (row: UsageTableRow): string => {
+  if (isFinalSuccessRow(row)) return ''
+  const errorMessage = row.error_message?.trim()
+  if (errorMessage) return errorMessage
+  const message = row.message?.trim()
+  if (message) return message
+  const phase = row.phase?.trim()
+  if (phase) return phase
+  return ''
+}
+
+const hasUpstreamAttempts = (row: UsageTableRow): boolean => {
+  return Array.isArray(row.upstream_attempts) && row.upstream_attempts.length > 0
+}
+
+const formatUpstreamAttemptCount = (row: UsageTableRow): string => {
+  const count = row.upstream_attempts?.length || 0
+  return t('usage.upstreamAttemptCount', { count })
+}
+
+const formatUpstreamAttempt = (attempt: UsageTableUpstreamAttempt, index: number): string => {
+  const parts: string[] = []
+  const account = attempt.account_name?.trim() || (attempt.account_id ? `#${attempt.account_id}` : '')
+  if (account) parts.push(account)
+  if (attempt.upstream_status_code) {
+    parts.push(t('usage.upstreamAttemptStatus', { status: attempt.upstream_status_code }))
+  }
+  if (attempt.kind?.trim()) parts.push(attempt.kind.trim())
+  if (attempt.message?.trim()) parts.push(attempt.message.trim())
+  if (attempt.upstream_url?.trim()) parts.push(attempt.upstream_url.trim())
+  const summary = parts.join(' · ')
+  return `${index + 1}. ${summary || '-'}`
+}
+
+const formatUpstreamAttempts = (row: UsageTableRow): string => {
+  const attempts = row.upstream_attempts || []
+  if (attempts.length === 0) return ''
+  return [
+    t('usage.upstreamAttempts'),
+    ...attempts.map((attempt, index) => formatUpstreamAttempt(attempt, index)),
+  ].join('\n')
+}
+
 const getUsageStatusClass = (row: UsageTableRow): string => {
+  if (row.outcome === 'pending' || row.kind === 'pending') {
+    return 'whitespace-nowrap bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-400/20'
+  }
   if (row.status_code != null) {
     if (row.status_code >= 200 && row.status_code < 300) return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
     if (row.status_code >= 500) return 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-200'
@@ -624,7 +926,7 @@ const getUsageStatusClass = (row: UsageTableRow): string => {
   return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
 }
 
-const showTooltip = (event: MouseEvent, row: UsageTableRow) => {
+const showTooltip = (event: MouseEvent | FocusEvent, row: UsageTableRow) => {
   const target = event.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   tooltipData.value = row
@@ -638,7 +940,7 @@ const hideTooltip = () => {
   tooltipData.value = null
 }
 
-const showTokenTooltip = (event: MouseEvent, row: UsageTableRow) => {
+const showTokenTooltip = (event: MouseEvent | FocusEvent, row: UsageTableRow) => {
   const target = event.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   tokenTooltipData.value = row
@@ -651,4 +953,99 @@ const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
 }
+
+const normalizeTooltipContent = (value: unknown): string => {
+  if (value == null) return ''
+  const content = String(value).trim()
+  return content === '-' ? '' : content
+}
+
+type LongTextTooltipOptions = {
+  force?: boolean
+}
+
+const isTooltipTargetOverflowing = (target: HTMLElement): boolean => {
+  return target.scrollWidth > target.clientWidth + 1 || target.scrollHeight > target.clientHeight + 1
+}
+
+const estimateTooltipWidth = (content: string): number => {
+  const padding = 24
+  const estimatedTextWidth = Math.max(48, content.length * 7)
+  const maxViewportWidth = Math.max(48, window.innerWidth - padding)
+  return Math.min(360, maxViewportWidth, Math.max(48, estimatedTextWidth + padding))
+}
+
+const showLongTextTooltip = (
+  event: MouseEvent | FocusEvent,
+  value: unknown,
+  options: LongTextTooltipOptions = {},
+) => {
+  const content = normalizeTooltipContent(value)
+  if (!content) {
+    hideLongTextTooltip()
+    return
+  }
+
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+  if (!options.force && !isTooltipTargetOverflowing(target)) {
+    hideLongTextTooltip()
+    return
+  }
+
+  const rect = target.getBoundingClientRect()
+  const padding = 12
+  const gap = 8
+  const tooltipWidth = estimateTooltipWidth(content)
+  const tooltipHeightEstimate = Math.min(160, Math.max(56, Math.ceil(content.length / 40) * 18 + 28))
+  const preferredLeft = rect.left + rect.width / 2 - tooltipWidth / 2
+  const maxLeft = Math.max(padding, window.innerWidth - tooltipWidth - padding)
+  const left = Math.max(padding, Math.min(preferredLeft, maxLeft))
+  const hasTopSpace = rect.top >= tooltipHeightEstimate + gap + padding
+  const placement = hasTopSpace ? 'top' : 'bottom'
+  const top = placement === 'top'
+    ? Math.max(padding, rect.top - gap)
+    : Math.min(window.innerHeight - padding, rect.bottom + gap)
+  const arrowLeft = Math.max(12, Math.min(rect.left + rect.width / 2 - left, tooltipWidth - 12))
+
+  longTextTooltip.show = true
+  longTextTooltip.content = content
+  longTextTooltip.top = top
+  longTextTooltip.left = left
+  longTextTooltip.arrowLeft = arrowLeft
+  longTextTooltip.placement = placement
+}
+
+const hideLongTextTooltip = () => {
+  longTextTooltip.show = false
+}
 </script>
+
+<style scoped>
+.usage-table-long-tooltip {
+  @apply pointer-events-none fixed z-[99999] max-w-[min(22.5rem,calc(100vw-1.5rem))] rounded-md bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-relaxed text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-700;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  width: max-content;
+}
+
+.usage-table-long-tooltip-top {
+  transform: translateY(-100%);
+}
+
+.usage-table-long-tooltip-bottom {
+  transform: translateY(0);
+}
+
+.usage-table-long-tooltip-arrow {
+  @apply absolute h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-700;
+}
+
+.usage-table-long-tooltip-arrow-top {
+  @apply -bottom-1;
+}
+
+.usage-table-long-tooltip-arrow-bottom {
+  @apply -top-1;
+}
+</style>

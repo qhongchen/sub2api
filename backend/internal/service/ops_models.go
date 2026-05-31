@@ -33,9 +33,10 @@ type OpsErrorLog struct {
 
 	Severity string `json:"severity"`
 
-	StatusCode int    `json:"status_code"`
-	Platform   string `json:"platform"`
-	Model      string `json:"model"`
+	StatusCode         int    `json:"status_code"`
+	UpstreamStatusCode *int   `json:"upstream_status_code,omitempty"`
+	Platform           string `json:"platform"`
+	Model              string `json:"model"`
 
 	Resolved           bool       `json:"resolved"`
 	ResolvedAt         *time.Time `json:"resolved_at"`
@@ -73,7 +74,6 @@ type OpsErrorLogDetail struct {
 	UserAgent string `json:"user_agent"`
 
 	// Upstream context (optional)
-	UpstreamStatusCode   *int   `json:"upstream_status_code,omitempty"`
 	UpstreamErrorMessage string `json:"upstream_error_message,omitempty"`
 	UpstreamErrorDetail  string `json:"upstream_error_detail,omitempty"`
 	UpstreamErrors       string `json:"upstream_errors,omitempty"` // JSON array (string) for display/parsing
@@ -99,6 +99,7 @@ type OpsErrorLogFilter struct {
 
 	StatusCodes      []int
 	StatusCodesOther bool
+	StatusCodeScope  string
 	Phase            string
 	Owner            string
 	Source           string

@@ -232,11 +232,9 @@
                   <span class="account-card-title" :title="account.name">{{ account.name }}</span>
                   <PlatformTypeBadge
                     v-if="isCardFieldVisible('platform_type')"
+                    mode="platformType"
                     :platform="account.platform"
                     :type="account.type"
-                    :plan-type="getCredentialString(account, 'plan_type')"
-                    :privacy-mode="getExtraString(account, 'privacy_mode')"
-                    :subscription-expires-at="getCredentialString(account, 'subscription_expires_at')"
                   />
                   <span
                     v-if="isCardFieldVisible('platform_type') && getAntigravityTierLabel(account)"
@@ -276,27 +274,38 @@
                     v-if="isAccountTempUnschedulable(account)"
                     type="button"
                     :class="['account-status-chip', getAccountStatusClass(account)]"
+                    @mouseenter="showAccountStatusTooltip(account, $event)"
+                    @mouseleave="hideAccountStatusTooltip"
+                    @focus="showAccountStatusTooltip(account, $event)"
+                    @blur="hideAccountStatusTooltip"
                     @click="handleShowTempUnsched(account)"
                   >
                     {{ getAccountStatusText(account) }}
-                    <span v-if="getAccountStatusDetail(account)" class="account-status-popover">
-                      {{ getAccountStatusDetail(account) }}
-                    </span>
                   </button>
                   <span
                     v-else
                     :class="['account-status-chip', getAccountStatusClass(account)]"
                     tabindex="0"
+                    @mouseenter="showAccountStatusTooltip(account, $event)"
+                    @mouseleave="hideAccountStatusTooltip"
+                    @focus="showAccountStatusTooltip(account, $event)"
+                    @blur="hideAccountStatusTooltip"
                   >
                     {{ getAccountStatusText(account) }}
-                    <span v-if="getAccountStatusDetail(account)" class="account-status-popover">
-                      {{ getAccountStatusDetail(account) }}
-                    </span>
                   </span>
                   <AccountGroupsCell
                     v-if="!authStore.isSimpleMode && isCardFieldVisible('groups')"
                     :groups="account.groups"
                     :max-display="3"
+                  />
+                  <PlatformTypeBadge
+                    v-if="isCardFieldVisible('account_plan') && hasAccountPlanDisplay(account)"
+                    mode="planPrivacy"
+                    :platform="account.platform"
+                    :type="account.type"
+                    :plan-type="getCredentialString(account, 'plan_type')"
+                    :privacy-mode="getExtraString(account, 'privacy_mode')"
+                    :subscription-expires-at="getCredentialString(account, 'subscription_expires_at')"
                   />
                   <span v-if="isExpired(account.expires_at)" class="account-state-badge account-state-badge-warning">
                     {{ t('admin.accounts.expired') }}
@@ -416,6 +425,28 @@
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
+    <Teleport to="body">
+      <div
+        v-if="accountStatusTooltip.show"
+        role="tooltip"
+        class="account-status-tooltip"
+        :class="{
+          'account-status-tooltip-top': accountStatusTooltip.placement === 'top',
+          'account-status-tooltip-bottom': accountStatusTooltip.placement === 'bottom'
+        }"
+        :style="{ top: `${accountStatusTooltip.top}px`, left: `${accountStatusTooltip.left}px` }"
+      >
+        {{ accountStatusTooltip.content }}
+        <span
+          class="account-status-tooltip-arrow"
+          :class="{
+            'account-status-tooltip-arrow-top': accountStatusTooltip.placement === 'top',
+            'account-status-tooltip-arrow-bottom': accountStatusTooltip.placement === 'bottom'
+          }"
+          :style="{ left: `${accountStatusTooltip.arrowLeft}px` }"
+        />
+      </div>
+    </Teleport>
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
@@ -491,6 +522,14 @@ const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
+const accountStatusTooltip = reactive({
+  show: false,
+  content: '',
+  top: 0,
+  left: 0,
+  arrowLeft: 0,
+  placement: 'top' as 'top' | 'bottom'
+})
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
 
@@ -529,6 +568,7 @@ const usageManualRefreshToken = ref(0)
 const ACCOUNT_CARD_VISIBILITY_KEY = 'account-card-visible-fields'
 const CARD_VISIBLE_FIELD_KEYS = [
   'platform_type',
+  'account_plan',
   'groups',
   'priority',
   'capacity',
@@ -548,6 +588,7 @@ const cardVisibleFields = ref<Set<AccountCardFieldKey>>(new Set(DEFAULT_VISIBLE_
 
 const cardVisibilityOptions = computed<Array<{ key: AccountCardFieldKey; label: string }>>(() => [
   { key: 'platform_type', label: t('admin.accounts.columns.platformType') },
+  { key: 'account_plan', label: t('admin.accounts.columns.accountPlan') },
   { key: 'groups', label: t('admin.accounts.columns.groups') },
   { key: 'priority', label: t('admin.accounts.columns.priority') },
   { key: 'capacity', label: t('admin.accounts.columns.capacity') },
@@ -566,7 +607,11 @@ const loadSavedCardVisibility = () => {
     if (!saved) return
     const parsed = JSON.parse(saved)
     if (!Array.isArray(parsed)) return
-    cardVisibleFields.value = new Set(parsed.filter(isAccountCardFieldKey))
+    const fields = parsed.filter(isAccountCardFieldKey)
+    if (fields.includes('platform_type') && !fields.includes('account_plan')) {
+      fields.push('account_plan')
+    }
+    cardVisibleFields.value = new Set(fields)
   } catch (e) {
     console.error('Failed to load saved card visibility:', e)
   }
@@ -1058,6 +1103,26 @@ const getExtraString = (account: Account, key: string) => {
   return getRecordString(account.extra, key)
 }
 
+const isAccountPrivacyModeDisplayable = (account: Account) => {
+  if (account.type !== 'oauth') return false
+  if (account.platform !== 'openai' && account.platform !== 'antigravity') return false
+  return [
+    'training_off',
+    'training_set_cf_blocked',
+    'training_set_failed',
+    'privacy_set',
+    'privacy_set_failed'
+  ].includes(getExtraString(account, 'privacy_mode'))
+}
+
+const hasAccountPlanDisplay = (account: Account) => {
+  return Boolean(
+    getCredentialString(account, 'plan_type') ||
+    isAccountPrivacyModeDisplayable(account) ||
+    getCredentialString(account, 'subscription_expires_at')
+  )
+}
+
 const getAccountEmail = (account: Account) => {
   return (
     getExtraString(account, 'email_address') ||
@@ -1143,31 +1208,36 @@ const hasAccountWarning = (account: Account) => {
 }
 
 const accountAccentClass = (account: Account) => {
+  if (!account.schedulable) return 'account-rich-row-muted'
+  if (account.status === 'error') return 'account-rich-row-error'
   if (hasAccountWarning(account)) return 'account-rich-row-warning'
-  if (account.status !== 'active' || !account.schedulable) return 'account-rich-row-muted'
+  if (account.status !== 'active') return 'account-rich-row-muted'
   return 'account-rich-row-active'
 }
 
 const getAccountStatusText = (account: Account) => {
+  if (!account.schedulable) return t('admin.accounts.status.paused')
   if (isAccountRateLimited(account)) return t('admin.accounts.status.rateLimited')
   if (isAccountOverloaded(account)) return t('admin.accounts.status.overloaded')
   if (account.status === 'error') return t('admin.accounts.status.error')
   if (isAccountTempUnschedulable(account)) return t('admin.accounts.status.tempUnschedulable')
   if (account.status !== 'active') return t(`admin.accounts.status.${account.status}`)
   if (isAccountQuotaExceeded(account)) return t('admin.accounts.status.quotaExceeded')
-  if (!account.schedulable) return t('admin.accounts.status.paused')
   const modelLimitCount = getActiveModelLimitCount(account)
   if (modelLimitCount > 0) return t('admin.accounts.status.modelLimitedCount', { count: modelLimitCount })
   return t('admin.accounts.status.active')
 }
 
 const getAccountStatusClass = (account: Account) => {
+  if (!account.schedulable) return 'account-status-chip-muted'
+  if (account.status === 'error') return 'account-status-chip-error'
   if (hasAccountWarning(account)) return 'account-status-chip-warning'
-  if (account.status !== 'active' || !account.schedulable) return 'account-status-chip-muted'
+  if (account.status !== 'active') return 'account-status-chip-muted'
   return 'account-status-chip-success'
 }
 
 const getAccountStatusDetail = (account: Account) => {
+  if (!account.schedulable) return ''
   if (isAccountRateLimited(account)) {
     const countdown = formatCountdown(account.rate_limit_reset_at)
     const resumeText = countdown ? t('admin.accounts.status.rateLimitedAutoResume', { time: countdown }) : ''
@@ -1187,6 +1257,43 @@ const getAccountStatusDetail = (account: Account) => {
     return t('admin.accounts.status.modelLimitedDetail', { count: modelLimitCount })
   }
   return ''
+}
+
+const hideAccountStatusTooltip = () => {
+  accountStatusTooltip.show = false
+}
+
+const showAccountStatusTooltip = (account: Account, event: MouseEvent | FocusEvent) => {
+  const detail = getAccountStatusDetail(account)
+  if (!detail) {
+    hideAccountStatusTooltip()
+    return
+  }
+
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+
+  const rect = target.getBoundingClientRect()
+  const padding = 12
+  const gap = 8
+  const tooltipWidth = Math.min(360, Math.max(240, window.innerWidth - padding * 2))
+  const tooltipHeightEstimate = 96
+  const preferredLeft = rect.left + rect.width / 2 - tooltipWidth / 2
+  const maxLeft = Math.max(padding, window.innerWidth - tooltipWidth - padding)
+  const left = Math.max(padding, Math.min(preferredLeft, maxLeft))
+  const hasTopSpace = rect.top >= tooltipHeightEstimate + gap + padding
+  const placement = hasTopSpace ? 'top' : 'bottom'
+  const top = placement === 'top'
+    ? Math.max(padding, rect.top - gap)
+    : Math.min(window.innerHeight - padding, rect.bottom + gap)
+  const arrowLeft = Math.max(12, Math.min(rect.left + rect.width / 2 - left, tooltipWidth - 12))
+
+  accountStatusTooltip.show = true
+  accountStatusTooltip.content = detail
+  accountStatusTooltip.top = top
+  accountStatusTooltip.left = left
+  accountStatusTooltip.arrowLeft = arrowLeft
+  accountStatusTooltip.placement = placement
 }
 
 const handleEdit = (a: Account) => { edAcc.value = a; showEdit.value = true }
@@ -1484,6 +1591,7 @@ const isExpired = (value: number | null) => {
 
 const handleScroll = () => {
   menu.show = false
+  hideAccountStatusTooltip()
 }
 
 const handleClickOutside = (event: MouseEvent) => {
@@ -1519,6 +1627,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll, true)
   document.removeEventListener('click', handleClickOutside)
+  hideAccountStatusTooltip()
 })
 </script>
 
@@ -1585,6 +1694,10 @@ onUnmounted(() => {
   @apply border-l-amber-400 dark:border-l-amber-500;
 }
 
+.account-rich-row-error {
+  @apply border-l-rose-400 dark:border-l-rose-500;
+}
+
 .account-rich-row-muted {
   @apply border-l-gray-300 dark:border-l-gray-600;
 }
@@ -1642,18 +1755,38 @@ onUnmounted(() => {
   @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300;
 }
 
+.account-status-chip-error {
+  @apply bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300;
+}
+
 .account-status-chip-muted {
   @apply bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300;
 }
 
-.account-status-popover {
-  @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-60 -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
+.account-status-tooltip {
+  @apply pointer-events-none fixed z-[99999] w-[min(22.5rem,calc(100vw-1.5rem))] rounded-md bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-relaxed text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-700;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-.account-status-chip:hover .account-status-popover,
-.account-status-chip:focus .account-status-popover,
-.account-status-chip:focus-visible .account-status-popover {
-  @apply block;
+.account-status-tooltip-top {
+  transform: translateY(-100%);
+}
+
+.account-status-tooltip-bottom {
+  transform: translateY(0);
+}
+
+.account-status-tooltip-arrow {
+  @apply absolute h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-700;
+}
+
+.account-status-tooltip-arrow-top {
+  @apply -bottom-1;
+}
+
+.account-status-tooltip-arrow-bottom {
+  @apply -top-1;
 }
 
 .account-inline-meta {

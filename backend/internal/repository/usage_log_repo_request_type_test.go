@@ -537,6 +537,37 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetAccountSpendingRanking(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	rows := sqlmock.NewRows([]string{"account_id", "account_name", "platform", "actual_cost", "requests", "tokens", "total_actual_cost", "total_requests", "total_tokens"}).
+		AddRow(int64(20), "beta-account", "anthropic", 22.5, int64(10), int64(1200), 55.0, int64(40), int64(3600)).
+		AddRow(int64(10), "alpha-account", "openai", 22.5, int64(9), int64(1100), 55.0, int64(40), int64(3600)).
+		AddRow(int64(30), "gamma-account", "gemini", 10.0, int64(6), int64(500), 55.0, int64(40), int64(3600))
+
+	mock.ExpectQuery("WITH account_spend AS \\(").
+		WithArgs(start, end, 12).
+		WillReturnRows(rows)
+
+	got, err := repo.GetAccountSpendingRanking(context.Background(), start, end, 12)
+	require.NoError(t, err)
+	require.Equal(t, &usagestats.AccountSpendingRankingResponse{
+		Ranking: []usagestats.AccountSpendingRankingItem{
+			{AccountID: 20, AccountName: "beta-account", Platform: "anthropic", ActualCost: 22.5, Requests: 10, Tokens: 1200},
+			{AccountID: 10, AccountName: "alpha-account", Platform: "openai", ActualCost: 22.5, Requests: 9, Tokens: 1100},
+			{AccountID: 30, AccountName: "gamma-account", Platform: "gemini", ActualCost: 10.0, Requests: 6, Tokens: 500},
+		},
+		TotalActualCost: 55.0,
+		TotalRequests:   40,
+		TotalTokens:     3600,
+	}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	tests := []struct {
 		name      string

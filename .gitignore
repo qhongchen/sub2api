@@ -34,6 +34,7 @@ backend/.gocache/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+.pnpm-store/
 *.local
 *.tsbuildinfo
 vite.config.d.ts
@@ -131,6 +132,7 @@ docs/*
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
+!docs/CCH_SUB2API_FEATURE_MAPPING.md
 .serena/
 .codex/
 frontend/coverage/

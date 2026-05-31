@@ -30,11 +30,9 @@
           :user-entries="userRankingEntries"
           :account-entries="accountRankingEntries"
           :model-entries="modelRankingEntries"
-          :active-sessions="activeSessionItems"
           :user-loading="rankingLoading"
           :account-loading="accountRankingLoading"
           :model-loading="chartsLoading"
-          :sessions-loading="accountRuntimeLoading"
           @view-usage="goToUsageList"
           @view-accounts="goToAccounts"
           @select-user="goToUserUsage"
@@ -54,12 +52,11 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { ChartData, ChartOptions, TooltipItem } from 'chart.js'
 import type {
-  Account,
-  AdminUsageLog,
   DashboardStats,
   ModelStat,
   UserUsageTrendPoint,
-  UserSpendingRankingItem
+  UserSpendingRankingItem,
+  AccountSpendingRankingItem
 } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -67,7 +64,6 @@ import DashboardMetricGrid from '@/components/admin/dashboard/DashboardMetricGri
 import DashboardUsageChart from '@/components/admin/dashboard/DashboardUsageChart.vue'
 import DashboardRankingGrid from '@/components/admin/dashboard/DashboardRankingGrid.vue'
 import type {
-  DashboardActiveSessionEntry,
   DashboardMetricCard,
   DashboardRankingEntry,
   DashboardTimeRange,
@@ -83,20 +79,17 @@ const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 const chartsLoading = ref(false)
 const rankingLoading = ref(false)
-const accountRuntimeLoading = ref(false)
 const accountRankingLoading = ref(false)
 const showMoreMetrics = ref(false)
 
 const userTrend = ref<UserUsageTrendPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const rankingItems = ref<UserSpendingRankingItem[]>([])
-const accounts = ref<Account[]>([])
-const accountRankingLogs = ref<AdminUsageLog[]>([])
+const accountRankingItems = ref<AccountSpendingRankingItem[]>([])
 
 let snapshotLoadSeq = 0
 let userTrendLoadSeq = 0
 let rankingLoadSeq = 0
-let accountRuntimeLoadSeq = 0
 let accountRankingLoadSeq = 0
 const rankingLimit = 12
 
@@ -171,34 +164,32 @@ const timeRangeOptions = computed(() => [
   { key: 'this_month' as const, label: t('admin.dashboard.rangeThisMonth') }
 ])
 
-const activeSessionCount = computed(() => (
-  accounts.value.reduce((sum, account) => sum + (account.active_sessions ?? 0), 0)
-))
-
-const activeSessionAccountCount = computed(() => (
-  accounts.value.filter((account) => (account.active_sessions ?? 0) > 0).length
-))
-
 const adminMetricCards = computed<DashboardMetricCard[]>(() => {
   const s = stats.value
   if (!s) return []
 
   return [
     {
-      key: 'active-sessions',
-      title: t('admin.dashboard.activeSessions'),
-      value: formatNumber(activeSessionCount.value),
-      subtitle: `${activeSessionAccountCount.value} ${t('admin.dashboard.sessionAccounts')}`,
-      badge: 'Live',
-      icon: 'terminal',
-      accentClass: 'cch-accent-emerald',
-      iconClass: 'bg-emerald-500/10 dark:bg-emerald-500/15',
-      iconTextClass: 'text-emerald-500',
+      key: 'today-cost',
+      title: t('admin.dashboard.todayCost'),
+      value: `$${formatCost(s.today_actual_cost)}`,
+      subtitle: `${t('common.total')}: $${formatCost(s.total_actual_cost)}`,
+      badge: 'USD',
+      icon: 'chart',
+      accentClass: 'cch-accent-amber',
+      iconClass: 'bg-amber-500/10 dark:bg-amber-500/15',
+      iconTextClass: 'text-amber-500',
+      valueClass: 'text-amber-600 dark:text-amber-400',
       comparisons: [
         {
-          label: 'RPM',
-          value: formatTokens(s.rpm),
-          valueClass: comparisonClass.positive
+          label: t('admin.dashboard.accountCost'),
+          value: `$${formatCost(s.today_account_cost)}`,
+          valueClass: comparisonClass.warning
+        },
+        {
+          label: t('admin.dashboard.standard'),
+          value: `$${formatCost(s.today_cost)}`,
+          valueClass: comparisonClass.neutral
         }
       ]
     },
@@ -257,30 +248,6 @@ const adminMetricCards = computed<DashboardMetricCard[]>(() => {
         {
           label: t('admin.dashboard.averageTime'),
           value: formatDuration(s.average_duration_ms),
-          valueClass: comparisonClass.neutral
-        }
-      ]
-    },
-    {
-      key: 'today-cost',
-      title: t('admin.dashboard.todayCost'),
-      value: `$${formatCost(s.today_actual_cost)}`,
-      subtitle: `${t('common.total')}: $${formatCost(s.total_actual_cost)}`,
-      badge: 'USD',
-      icon: 'chart',
-      accentClass: 'cch-accent-amber',
-      iconClass: 'bg-amber-500/10 dark:bg-amber-500/15',
-      iconTextClass: 'text-amber-500',
-      valueClass: 'text-amber-600 dark:text-amber-400',
-      comparisons: [
-        {
-          label: t('admin.dashboard.accountCost'),
-          value: `$${formatCost(s.today_account_cost)}`,
-          valueClass: comparisonClass.warning
-        },
-        {
-          label: t('admin.dashboard.standard'),
-          value: `$${formatCost(s.today_cost)}`,
           valueClass: comparisonClass.neutral
         }
       ]
@@ -853,48 +820,15 @@ const userRankingEntries = computed<DashboardRankingEntry[]>(() => {
 })
 
 const accountRankingEntries = computed<DashboardRankingEntry[]>(() => {
-  const accountNameMap = new Map(accounts.value.map((account) => [account.id, account.name || `${account.platform} #${account.id}`]))
-  const rankingMap = new Map<number, DashboardRankingEntry>()
-
-  accountRankingLogs.value.forEach((log) => {
-    const accountId = log.account_id ?? log.account?.id
-    if (!accountId) return
-
-    const entry = rankingMap.get(accountId) || {
-      id: `account-${accountId}`,
-      rawId: accountId,
-      name: log.account?.name || accountNameMap.get(accountId) || `#${accountId}`,
-      requests: 0,
-      tokens: 0,
-      cost: 0
-    }
-
-    entry.requests += 1
-    entry.tokens += getLogTotalTokens(log)
-    entry.cost += getLogAccountCost(log)
-    rankingMap.set(accountId, entry)
-  })
-
-  return Array.from(rankingMap.values())
-    .sort((a, b) => b.cost - a.cost || b.requests - a.requests)
-    .slice(0, 3)
+  return accountRankingItems.value.slice(0, 3).map((item) => ({
+    id: `account-${item.account_id}`,
+    rawId: item.account_id,
+    name: item.account_name?.trim() || `${item.platform || t('usage.unknown')} #${item.account_id}`,
+    requests: item.requests || 0,
+    tokens: item.tokens || 0,
+    cost: item.actual_cost || 0
+  }))
 })
-
-const getLogTotalTokens = (log: AdminUsageLog): number => {
-  return (
-    (log.input_tokens || 0) +
-    (log.output_tokens || 0) +
-    (log.cache_creation_tokens || 0) +
-    (log.cache_read_tokens || 0)
-  )
-}
-
-const getLogAccountCost = (log: AdminUsageLog): number => {
-  if (Number.isFinite(log.account_stats_cost)) {
-    return Number(log.account_stats_cost)
-  }
-  return (log.total_cost || 0) * (log.account_rate_multiplier ?? 1)
-}
 
 const modelRankingEntries = computed<DashboardRankingEntry[]>(() => {
   return modelStats.value
@@ -908,19 +842,6 @@ const modelRankingEntries = computed<DashboardRankingEntry[]>(() => {
     }))
     .sort((a, b) => b.cost - a.cost || b.requests - a.requests)
     .slice(0, 3)
-})
-
-const activeSessionItems = computed<DashboardActiveSessionEntry[]>(() => {
-  return accounts.value
-    .filter((account) => (account.active_sessions ?? 0) > 0)
-    .sort((a, b) => (b.active_sessions ?? 0) - (a.active_sessions ?? 0))
-    .slice(0, 8)
-    .map((account) => ({
-      id: `session-account-${account.id}`,
-      shortId: String(account.id).padStart(4, '0'),
-      name: account.name || `${account.platform} #${account.id}`,
-      activeSessions: account.active_sessions ?? 0
-    }))
 })
 
 const formatTokens = (value: number | undefined | null): string => {
@@ -1100,46 +1021,21 @@ const loadUserSpendingRanking = async () => {
   }
 }
 
-const loadAccountRuntime = async () => {
-  const currentSeq = ++accountRuntimeLoadSeq
-  accountRuntimeLoading.value = true
-  try {
-    const response = await adminAPI.accounts.list(1, 100, {
-      lite: 'true',
-      sort_by: 'name',
-      sort_order: 'asc'
-    })
-    if (currentSeq !== accountRuntimeLoadSeq) return
-    accounts.value = response.items || []
-  } catch (error) {
-    if (currentSeq !== accountRuntimeLoadSeq) return
-    console.error('Error loading account runtime data:', error)
-    accounts.value = []
-  } finally {
-    if (currentSeq === accountRuntimeLoadSeq) {
-      accountRuntimeLoading.value = false
-    }
-  }
-}
-
 const loadAccountRanking = async () => {
   const currentSeq = ++accountRankingLoadSeq
   accountRankingLoading.value = true
   try {
-    const response = await adminAPI.usage.list({
-      page: 1,
-      page_size: 1000,
+    const response = await adminAPI.dashboard.getAccountSpendingRanking({
       start_date: startDate.value,
       end_date: endDate.value,
-      sort_by: 'created_at',
-      sort_order: 'desc'
+      limit: rankingLimit
     })
     if (currentSeq !== accountRankingLoadSeq) return
-    accountRankingLogs.value = response.items || []
+    accountRankingItems.value = response.ranking || []
   } catch (error) {
     if (currentSeq !== accountRankingLoadSeq) return
     console.error('Error loading account ranking:', error)
-    accountRankingLogs.value = []
+    accountRankingItems.value = []
   } finally {
     if (currentSeq === accountRankingLoadSeq) {
       accountRankingLoading.value = false
@@ -1152,7 +1048,6 @@ const loadDashboardStats = async () => {
     loadDashboardSnapshot(true),
     loadUserTrend(),
     loadUserSpendingRanking(),
-    loadAccountRuntime(),
     loadAccountRanking()
   ])
 }

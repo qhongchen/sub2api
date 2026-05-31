@@ -580,10 +580,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			fallbackPlatform := guessPlatformFromPath(c.Request.URL.Path)
 			platform := resolveOpsPlatform(apiKey, fallbackPlatform)
 
-			requestID := c.Writer.Header().Get("X-Request-Id")
-			if requestID == "" {
-				requestID = c.Writer.Header().Get("x-request-id")
-			}
+			requestID := getRequestID(c)
 
 			// Best-effort backfill single upstream fields from the last event (if present).
 			var upstreamStatusCode *int
@@ -715,7 +712,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				UpstreamErrorDetail:  upstreamErrorDetail,
 				UpstreamErrors:       events,
 
-				CreatedAt: time.Now(),
+				CreatedAt: opsErrorLogCreatedAt(c),
 			}
 			applyOpsLatencyFieldsFromContext(c, entry)
 
@@ -789,10 +786,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		fallbackPlatform := guessPlatformFromPath(c.Request.URL.Path)
 		platform := resolveOpsPlatform(apiKey, fallbackPlatform)
 
-		requestID := c.Writer.Header().Get("X-Request-Id")
-		if requestID == "" {
-			requestID = c.Writer.Header().Get("x-request-id")
-		}
+		requestID := getRequestID(c)
 
 		normalizedType := normalizeOpsErrorType(parsed.ErrorType, parsed.Code)
 
@@ -851,7 +845,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			ErrorSource: errorSource,
 			ErrorOwner:  errorOwner,
 
-			CreatedAt: time.Now(),
+			CreatedAt: opsErrorLogCreatedAt(c),
 		}
 		applyOpsLatencyFieldsFromContext(c, entry)
 
@@ -950,6 +944,15 @@ func applyOpsLatencyFieldsFromContext(c *gin.Context, entry *service.OpsInsertEr
 	entry.UpstreamLatencyMs = getContextLatencyMs(c, service.OpsUpstreamLatencyMsKey)
 	entry.ResponseLatencyMs = getContextLatencyMs(c, service.OpsResponseLatencyMsKey)
 	entry.TimeToFirstTokenMs = getContextLatencyMs(c, service.OpsTimeToFirstTokenMsKey)
+}
+
+func opsErrorLogCreatedAt(c *gin.Context) time.Time {
+	if c != nil && c.Request != nil {
+		if startedAt, ok := c.Request.Context().Value(ctxkey.RequestStartedAt).(time.Time); ok && !startedAt.IsZero() {
+			return startedAt
+		}
+	}
+	return time.Now()
 }
 
 func getContextLatencyMs(c *gin.Context, key string) *int64 {

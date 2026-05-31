@@ -162,6 +162,22 @@ type UserSpendingRankingResponse struct {
 	TotalTokens     int64                     `json:"total_tokens"`
 }
 
+type AccountSpendingRankingItem struct {
+	AccountID   int64   `json:"account_id"`
+	AccountName string  `json:"account_name"`
+	Platform    string  `json:"platform"`
+	ActualCost  float64 `json:"actual_cost"` // 账号口径费用
+	Requests    int64   `json:"requests"`
+	Tokens      int64   `json:"tokens"`
+}
+
+type AccountSpendingRankingResponse struct {
+	Ranking         []AccountSpendingRankingItem `json:"ranking"`
+	TotalActualCost float64                      `json:"total_actual_cost"`
+	TotalRequests   int64                        `json:"total_requests"`
+	TotalTokens     int64                        `json:"total_tokens"`
+}
+
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
 	UserID      int64   `json:"user_id"`

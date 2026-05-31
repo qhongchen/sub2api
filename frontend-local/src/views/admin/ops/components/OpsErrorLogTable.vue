@@ -58,7 +58,7 @@
             >
               <!-- Time -->
               <td class="whitespace-nowrap px-4 py-2">
-                <el-tooltip :content="log.request_id || log.client_request_id" placement="top" :show-after="500">
+                <el-tooltip :content="log.request_id || log.client_request_id" placement="top" :show-after="0">
                   <span class="font-mono text-xs font-medium text-gray-900 dark:text-gray-200">
                     {{ formatDateTime(log.created_at).split(' ')[1] }}
                   </span>
@@ -80,7 +80,7 @@
               <!-- Endpoint -->
               <td class="px-4 py-2">
                 <div class="max-w-[160px]">
-                  <el-tooltip v-if="log.inbound_endpoint" :content="formatEndpointTooltip(log)" placement="top" :show-after="500">
+                  <el-tooltip v-if="log.inbound_endpoint" :content="formatEndpointTooltip(log)" placement="top" :show-after="0">
                     <span class="truncate font-mono text-[11px] text-gray-700 dark:text-gray-300">
                       {{ log.inbound_endpoint }}
                     </span>
@@ -100,7 +100,7 @@
               <td class="px-4 py-2">
                 <div class="max-w-[160px]">
                   <template v-if="hasModelMapping(log)">
-                    <el-tooltip :content="modelMappingTooltip(log)" placement="top" :show-after="500">
+                    <el-tooltip :content="modelMappingTooltip(log)" placement="top" :show-after="0">
                       <span class="flex items-center gap-1 truncate font-mono text-[11px] text-gray-700 dark:text-gray-300">
                         <span class="truncate">{{ log.requested_model }}</span>
                         <span class="flex-shrink-0 text-gray-400">→</span>
@@ -109,9 +109,11 @@
                     </el-tooltip>
                   </template>
                   <template v-else>
-                    <span v-if="displayModel(log)" class="truncate font-mono text-[11px] text-gray-700 dark:text-gray-300" :title="displayModel(log)">
-                      {{ displayModel(log) }}
-                    </span>
+                    <el-tooltip v-if="displayModel(log)" :content="displayModel(log)" placement="top" :show-after="0">
+                      <span class="truncate font-mono text-[11px] text-gray-700 dark:text-gray-300">
+                        {{ displayModel(log) }}
+                      </span>
+                    </el-tooltip>
                     <span v-else class="text-xs text-gray-400">-</span>
                   </template>
                 </div>
@@ -119,7 +121,7 @@
 
               <!-- Group -->
               <td class="px-4 py-2">
-                 <el-tooltip v-if="log.group_id" :content="t('admin.ops.errorLog.id') + ' ' + log.group_id" placement="top" :show-after="500">
+                 <el-tooltip v-if="log.group_id" :content="formatGroupTooltip(log)" placement="top" :show-after="0">
                   <span class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200">
                     {{ log.group_name || '-' }}
                   </span>
@@ -130,7 +132,7 @@
               <!-- User / Account -->
               <td class="px-4 py-2">
                 <template v-if="isUpstreamRow(log)">
-                  <el-tooltip v-if="log.account_id" :content="t('admin.ops.errorLog.accountId') + ' ' + log.account_id" placement="top" :show-after="500">
+                  <el-tooltip v-if="log.account_id" :content="formatAccountTooltip(log)" placement="top" :show-after="0">
                     <span class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200">
                       {{ log.account_name || '-' }}
                     </span>
@@ -138,7 +140,7 @@
                   <span v-else class="text-xs text-gray-400">-</span>
                 </template>
                 <template v-else>
-                  <el-tooltip v-if="log.user_id" :content="t('admin.ops.errorLog.userId') + ' ' + log.user_id" placement="top" :show-after="500">
+                  <el-tooltip v-if="log.user_id" :content="formatUserTooltip(log)" placement="top" :show-after="0">
                     <span class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200">
                       {{ log.user_email || '-' }}
                     </span>
@@ -158,6 +160,16 @@
                   >
                     {{ log.status_code }}
                   </span>
+                  <el-tooltip
+                    v-if="hasDifferentUpstreamStatus(log)"
+                    :content="formatUpstreamStatusTooltip(log)"
+                    placement="top"
+                    :show-after="0"
+                  >
+                    <span class="inline-flex items-center rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-dark-700 dark:text-dark-300 dark:ring-dark-600">
+                      upstream {{ log.upstream_status_code }}
+                    </span>
+                  </el-tooltip>
                   <span
                     v-if="log.severity"
                     :class="['rounded px-1.5 py-0.5 text-[10px] font-bold', getSeverityClass(log.severity)]"
@@ -176,9 +188,12 @@
               <!-- Message (Response Content) -->
               <td class="px-4 py-2">
                 <div class="max-w-[200px]">
-                  <p class="truncate text-[11px] font-medium text-gray-600 dark:text-gray-400" :title="log.message">
-                    {{ formatSmartMessage(log.message) || '-' }}
-                  </p>
+                  <el-tooltip v-if="log.message" :content="log.message" placement="top" :show-after="0">
+                    <p class="truncate text-[11px] font-medium text-gray-600 dark:text-gray-400">
+                      {{ formatSmartMessage(log.message) || '-' }}
+                    </p>
+                  </el-tooltip>
+                  <p v-else class="truncate text-[11px] font-medium text-gray-600 dark:text-gray-400">-</p>
                 </div>
               </td>
 
@@ -245,6 +260,24 @@ function modelMappingTooltip(log: OpsErrorLog): string {
   return upstream || requested
 }
 
+function formatGroupTooltip(log: OpsErrorLog): string {
+  const name = String(log.group_name || '').trim()
+  const id = log.group_id ? `${t('admin.ops.errorLog.id')} ${log.group_id}` : ''
+  return [name, id].filter(Boolean).join(' · ')
+}
+
+function formatAccountTooltip(log: OpsErrorLog): string {
+  const name = String(log.account_name || '').trim()
+  const id = log.account_id ? `${t('admin.ops.errorLog.accountId')} ${log.account_id}` : ''
+  return [name, id].filter(Boolean).join(' · ')
+}
+
+function formatUserTooltip(log: OpsErrorLog): string {
+  const email = String(log.user_email || '').trim()
+  const id = log.user_id ? `${t('admin.ops.errorLog.userId')} ${log.user_id}` : ''
+  return [email, id].filter(Boolean).join(' · ')
+}
+
 function displayModel(log: OpsErrorLog): string {
   const upstream = String(log.upstream_model || '').trim()
   if (upstream) return upstream
@@ -260,6 +293,16 @@ function formatRequestType(type: number | null | undefined): string {
     case 3: return t('admin.ops.errorLog.requestTypeWs')
     default: return ''
   }
+}
+
+function hasDifferentUpstreamStatus(log: OpsErrorLog): boolean {
+  const upstreamCode = Number(log.upstream_status_code || 0)
+  const clientCode = Number(log.status_code || 0)
+  return upstreamCode > 0 && upstreamCode !== clientCode
+}
+
+function formatUpstreamStatusTooltip(log: OpsErrorLog): string {
+  return `Client ${log.status_code} / Upstream ${log.upstream_status_code}`
 }
 
 function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {

@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/requestrecord"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -48,6 +49,7 @@ type GatewayHandler struct {
 	usageRecordWorkerPool     *service.UsageRecordWorkerPool
 	errorPassthroughService   *service.ErrorPassthroughService
 	contentModerationService  *service.ContentModerationService
+	requestRecordService      *requestrecord.Service
 	concurrencyHelper         *ConcurrencyHelper
 	userMsgQueueHelper        *UserMsgQueueHelper
 	maxAccountSwitches        int
@@ -70,6 +72,7 @@ func NewGatewayHandler(
 	errorPassthroughService *service.ErrorPassthroughService,
 	contentModerationService *service.ContentModerationService,
 	userMsgQueueService *service.UserMessageQueueService,
+	requestRecordService *requestrecord.Service,
 	cfg *config.Config,
 	settingService *service.SettingService,
 ) *GatewayHandler {
@@ -103,6 +106,7 @@ func NewGatewayHandler(
 		usageRecordWorkerPool:     usageRecordWorkerPool,
 		errorPassthroughService:   errorPassthroughService,
 		contentModerationService:  contentModerationService,
+		requestRecordService:      requestRecordService,
 		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
 		userMsgQueueHelper:        umqHelper,
 		maxAccountSwitches:        maxAccountSwitches,
@@ -115,6 +119,8 @@ func NewGatewayHandler(
 // Messages handles Claude API compatible messages endpoint
 // POST /v1/messages
 func (h *GatewayHandler) Messages(c *gin.Context) {
+	defer completePendingRequestRecord(c, h.requestRecordService)
+
 	// 从context获取apiKey和user（ApiKeyAuth中间件已设置）
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {
@@ -361,6 +367,20 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if account.IsInterceptWarmupEnabled() {
 				interceptType := detectInterceptType(body, reqModel, parsedReq.MaxTokens, reqStream, isClaudeCodeClient)
 				if interceptType != InterceptTypeNone {
+					recordHandle := startClaudeRequestRecord(
+						c,
+						h.requestRecordService,
+						subject,
+						apiKey,
+						account,
+						body,
+						reqModel,
+						reqModel,
+						reqModel,
+						service.RequestTypeFromLegacy(reqStream, false),
+						reqStream,
+						GetUpstreamEndpoint(c, account.Platform),
+					)
 					if selection.Acquired && selection.ReleaseFunc != nil {
 						selection.ReleaseFunc()
 					}
@@ -369,6 +389,13 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					} else {
 						sendMockInterceptResponse(c, reqModel, interceptType)
 					}
+					completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+						RequestID:  recordRequestID(recordHandle, c),
+						Outcome:    requestrecord.OutcomeNonBillable,
+						StatusCode: intPtr(http.StatusOK),
+						DurationMs: recordDurationMs(recordHandle),
+						Billable:   false,
+					})
 					return
 				}
 			}
@@ -439,6 +466,20 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 			writerSizeBeforeForward := c.Writer.Size()
+			recordHandle := startClaudeRequestRecord(
+				c,
+				h.requestRecordService,
+				subject,
+				apiKey,
+				account,
+				body,
+				reqModel,
+				reqModel,
+				reqModel,
+				service.RequestTypeFromLegacy(reqStream, false),
+				reqStream,
+				GetUpstreamEndpoint(c, account.Platform),
+			)
 			if account.Platform == service.PlatformAntigravity {
 				result, err = h.antigravityGatewayService.ForwardGemini(requestCtx, c, account, reqModel, "generateContent", reqStream, body, hasBoundSession)
 			} else {
@@ -452,6 +493,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				if errors.As(err, &failoverErr) {
 					// 流式内容已写入客户端，无法撤销，禁止 failover 以防止流拼接腐化
 					if c.Writer.Size() != writerSizeBeforeForward {
+						completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+							RequestID:    recordRequestID(recordHandle, c),
+							Outcome:      requestrecord.OutcomeError,
+							StatusCode:   &failoverErr.StatusCode,
+							DurationMs:   forwardResultDurationMs(result),
+							FirstTokenMs: forwardResultFirstTokenMs(result),
+							ErrorMessage: string(failoverErr.ResponseBody),
+						})
 						h.handleFailoverExhausted(c, failoverErr, service.PlatformGemini, true)
 						return
 					}
@@ -460,13 +509,33 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					case FailoverContinue:
 						continue
 					case FailoverExhausted:
-						h.handleFailoverExhausted(c, fs.LastFailoverErr, service.PlatformGemini, streamStarted)
+						lastFailoverErr := fs.LastFailoverErr
+						if lastFailoverErr == nil {
+							lastFailoverErr = failoverErr
+						}
+						completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+							RequestID:    recordRequestID(recordHandle, c),
+							Outcome:      requestrecord.OutcomeError,
+							StatusCode:   &lastFailoverErr.StatusCode,
+							DurationMs:   forwardResultDurationMs(result),
+							FirstTokenMs: forwardResultFirstTokenMs(result),
+							ErrorMessage: string(lastFailoverErr.ResponseBody),
+						})
+						h.handleFailoverExhausted(c, lastFailoverErr, service.PlatformGemini, streamStarted)
 						return
 					case FailoverCanceled:
 						return
 					}
 				}
 				wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
+				completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+					RequestID:    recordRequestID(recordHandle, c),
+					Outcome:      requestrecord.OutcomeError,
+					StatusCode:   statusCodePtr(c.Writer.Status()),
+					DurationMs:   forwardResultDurationMs(result),
+					FirstTokenMs: forwardResultFirstTokenMs(result),
+					ErrorMessage: err.Error(),
+				})
 				forwardFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),
 					zap.String("account_name", account.Name),
@@ -503,6 +572,18 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			requestPayloadHash := service.HashUsageRequestPayload(body)
 			inboundEndpoint := GetInboundEndpoint(c)
 			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+			usageRequestID := getRequestID(c)
+			usageClientRequestID := getClientRequestID(c)
+			completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+				RequestID:    recordRequestID(recordHandle, c),
+				Outcome:      requestrecord.OutcomeSuccess,
+				StatusCode:   intPtr(http.StatusOK),
+				DurationMs:   intPtrFromDuration(result.Duration),
+				FirstTokenMs: forwardResultFirstTokenMs(result),
+				Billable:     true,
+				InputTokens:  intPtr(result.Usage.InputTokens),
+				OutputTokens: intPtr(result.Usage.OutputTokens),
+			})
 
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
@@ -511,6 +592,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 			quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 			h.submitUsageRecordTask(func(ctx context.Context) {
+				ctx = withUsageRecordContext(c, ctx, usageRequestID, usageClientRequestID)
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
 					ParsedRequest:      parsedReq,
@@ -617,6 +699,20 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if account.IsInterceptWarmupEnabled() {
 				interceptType := detectInterceptType(body, reqModel, parsedReq.MaxTokens, reqStream, isClaudeCodeClient)
 				if interceptType != InterceptTypeNone {
+					recordHandle := startClaudeRequestRecord(
+						c,
+						h.requestRecordService,
+						subject,
+						currentAPIKey,
+						account,
+						body,
+						reqModel,
+						reqModel,
+						parsedReq.Model,
+						service.RequestTypeFromLegacy(reqStream, false),
+						reqStream,
+						GetUpstreamEndpoint(c, account.Platform),
+					)
 					if selection.Acquired && selection.ReleaseFunc != nil {
 						selection.ReleaseFunc()
 					}
@@ -625,6 +721,13 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					} else {
 						sendMockInterceptResponse(c, reqModel, interceptType)
 					}
+					completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+						RequestID:  recordRequestID(recordHandle, c),
+						Outcome:    requestrecord.OutcomeNonBillable,
+						StatusCode: intPtr(http.StatusOK),
+						DurationMs: recordDurationMs(recordHandle),
+						Billable:   false,
+					})
 					return
 				}
 			}
@@ -761,6 +864,25 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 			writerSizeBeforeForward := c.Writer.Size()
+			recordHandle := startRequestRecord(c, h.requestRecordService, &requestrecord.StartInput{
+				RequestID:        getRequestID(c),
+				ClientRequestID:  getClientRequestID(c),
+				UserID:           &subject.UserID,
+				APIKeyID:         &currentAPIKey.ID,
+				AccountID:        &account.ID,
+				GroupID:          currentAPIKey.GroupID,
+				Session:          requestrecord.SessionResolver{}.ResolveClaude(body),
+				Platform:         account.Platform,
+				Model:            reqModel,
+				RequestedModel:   reqModel,
+				UpstreamModel:    parsedReq.Model,
+				RequestType:      requestTypePtr(service.RequestTypeFromLegacy(reqStream, false)),
+				Stream:           reqStream,
+				InboundEndpoint:  GetInboundEndpoint(c),
+				UpstreamEndpoint: GetUpstreamEndpoint(c, account.Platform),
+				IPAddress:        ip.GetClientIP(c),
+				UserAgent:        c.GetHeader("User-Agent"),
+			})
 			if account.Platform == service.PlatformAntigravity && account.Type != service.AccountTypeAPIKey {
 				result, err = h.antigravityGatewayService.Forward(requestCtx, c, account, body, hasBoundSession)
 			} else {
@@ -836,6 +958,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				if errors.As(err, &failoverErr) {
 					// 流式内容已写入客户端，无法撤销，禁止 failover 以防止流拼接腐化
 					if c.Writer.Size() != writerSizeBeforeForward {
+						completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+							RequestID:    recordRequestID(recordHandle, c),
+							Outcome:      requestrecord.OutcomeError,
+							StatusCode:   &failoverErr.StatusCode,
+							DurationMs:   forwardResultDurationMs(result),
+							FirstTokenMs: forwardResultFirstTokenMs(result),
+							ErrorMessage: string(failoverErr.ResponseBody),
+						})
 						h.handleFailoverExhausted(c, failoverErr, account.Platform, true)
 						return
 					}
@@ -851,6 +981,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					}
 				}
 				wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
+				completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+					RequestID:    recordRequestID(recordHandle, c),
+					Outcome:      requestrecord.OutcomeError,
+					StatusCode:   statusCodePtr(c.Writer.Status()),
+					DurationMs:   forwardResultDurationMs(result),
+					FirstTokenMs: forwardResultFirstTokenMs(result),
+					ErrorMessage: err.Error(),
+				})
 				forwardFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),
 					zap.String("account_name", account.Name),
@@ -898,6 +1036,18 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			requestPayloadHash := service.HashUsageRequestPayload(body)
 			inboundEndpoint := GetInboundEndpoint(c)
 			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+			usageRequestID := getRequestID(c)
+			usageClientRequestID := getClientRequestID(c)
+			completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+				RequestID:    recordRequestID(recordHandle, c),
+				Outcome:      requestrecord.OutcomeSuccess,
+				StatusCode:   intPtr(http.StatusOK),
+				DurationMs:   intPtrFromDuration(result.Duration),
+				FirstTokenMs: forwardResultFirstTokenMs(result),
+				Billable:     true,
+				InputTokens:  intPtr(result.Usage.InputTokens),
+				OutputTokens: intPtr(result.Usage.OutputTokens),
+			})
 
 			if result.ReasoningEffort == nil {
 				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
@@ -906,6 +1056,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 			quotaPlatform := service.QuotaPlatform(c.Request.Context(), currentAPIKey)
 			h.submitUsageRecordTask(func(ctx context.Context) {
+				ctx = withUsageRecordContext(c, ctx, usageRequestID, usageClientRequestID)
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
 					ParsedRequest:      parsedReq,

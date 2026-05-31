@@ -38,7 +38,7 @@
           </router-link>
 
           <div
-            v-if="isAdmin"
+            v-if="isAdmin && adminSettingsGroups.length"
             ref="adminSettingsRef"
             class="relative overflow-visible"
             @pointerenter="openAdminSettingsDelayed"
@@ -47,7 +47,7 @@
             <button
               type="button"
               class="consumer-nav-link"
-              :class="{ 'consumer-nav-link-active': isAdminSettingsActive }"
+              :class="{ 'consumer-nav-link-active': adminSettingsOpen || isAdminSettingsActive }"
               @click="adminSettingsOpen = !adminSettingsOpen"
             >
               {{ t('common.more') }}
@@ -64,7 +64,7 @@
                 <div class="space-y-3 p-1">
                   <div
                     v-for="group in adminSettingsGroups"
-                    :key="group.label"
+                    :key="group.id"
                     class="consumer-system-group"
                   >
                     <div class="consumer-system-group-title">{{ group.label }}</div>
@@ -73,10 +73,7 @@
                       :key="item.path"
                       :to="item.path"
                       class="consumer-system-item"
-                      :class="{
-                        'consumer-system-item-active': isActive(item.path),
-                        'consumer-settings-separator': item.separatorBefore
-                      }"
+                      :class="{ 'consumer-system-item-active': isActive(item.path) }"
                       :id="tourIdForPath(item.path)"
                       @click="closeAdminSettings"
                     >
@@ -334,6 +331,7 @@ interface TocNavItem {
 }
 
 interface TocNavGroup {
+  id: string
   label: string
   items: TocNavItem[]
 }
@@ -429,7 +427,7 @@ const adminPrimaryNavItems = computed(() => finalizeNav([
   { path: '/admin/dashboard', label: t('nav.dashboard'), icon: 'grid' },
   { path: '/admin/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
   { path: '/admin/accounts', label: t('nav.accounts'), icon: 'globe' },
-  { path: '/admin/users', label: t('nav.users'), icon: 'users' }
+  { path: '/monitor', label: t('nav.channelStatus'), icon: 'server', featureFlag: flagChannelMonitor }
 ]))
 
 const primaryNavItems = computed(() => (isAdmin.value ? adminPrimaryNavItems.value : userPrimaryNavItems.value))
@@ -449,12 +447,24 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
 
   const groups: TocNavGroup[] = [
     {
+      id: 'my',
+      label: t('nav.my'),
+      items: [
+        { path: '/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
+        { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
+        ...secondaryNavItems.value
+      ]
+    },
+    {
+      id: 'users-and-groups',
       label: t('nav.usersAndGroups'),
       items: [
+        { path: '/admin/users', label: t('nav.users'), icon: 'users', hideInSimpleMode: true },
         { path: '/admin/groups', label: t('nav.groups'), icon: 'users', hideInSimpleMode: true }
       ]
     },
     {
+      id: 'channels-and-accounts',
       label: t('nav.channelsAndAccounts'),
       items: [
         { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: 'server', hideInSimpleMode: true },
@@ -469,6 +479,7 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
       ]
     },
     {
+      id: 'operations-and-billing',
       label: t('nav.operationsAndBilling'),
       items: [
         { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: 'creditCard', hideInSimpleMode: true },
@@ -527,9 +538,11 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
       ]
     },
     {
+      id: 'system-configuration',
       label: t('nav.systemConfiguration'),
       items: [
         { path: '/admin/ops', label: t('nav.ops'), icon: 'chart', featureFlag: flagOpsMonitoring },
+        { path: '/admin/request-logs', label: t('nav.requestLogs'), icon: 'document' },
         { path: '/admin/settings', label: t('nav.settings'), icon: 'cog' },
         ...customAdminMenuItems.value
       ]

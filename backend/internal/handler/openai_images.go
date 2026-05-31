@@ -11,6 +11,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/requestrecord"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -22,6 +23,7 @@ import (
 // POST /v1/images/edits
 func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	streamStarted := false
+	defer completePendingRequestRecord(c, h.requestRecordService)
 	defer h.recoverResponsesPanic(c, &streamStarted)
 
 	requestStart := time.Now()
@@ -195,6 +197,24 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 		service.SetOpsLatencyMs(c, service.OpsRoutingLatencyMsKey, time.Since(routingStart).Milliseconds())
 		forwardStart := time.Now()
+		upstreamModel := ""
+		if channelMapping.Mapped {
+			upstreamModel = channelMapping.MappedModel
+		}
+		recordHandle := startOpenAIRequestRecord(
+			c,
+			h.requestRecordService,
+			subject,
+			apiKey,
+			account,
+			body,
+			parsed.Model,
+			parsed.Model,
+			upstreamModel,
+			service.RequestTypeFromLegacy(parsed.Stream, false),
+			parsed.Stream,
+			GetUpstreamEndpoint(c, account.Platform),
+		)
 		result, err := func() (*service.OpenAIForwardResult, error) {
 			defer func() {
 				if accountReleaseFunc != nil {
@@ -231,6 +251,14 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 						zap.String("error_code", imageUpstreamErr.Code),
 						zap.Error(err),
 					)
+					completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+						RequestID:    recordRequestID(recordHandle, c),
+						Outcome:      requestrecord.OutcomeError,
+						StatusCode:   &imageUpstreamErr.StatusCode,
+						DurationMs:   intPtrFromInt64(forwardDurationMs),
+						FirstTokenMs: openAIFirstTokenPtr(result),
+						ErrorMessage: imageUpstreamErr.Error(),
+					})
 					return
 				}
 				var failoverErr *service.UpstreamFailoverError
@@ -258,11 +286,27 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 					failedAccountIDs[account.ID] = struct{}{}
 					lastFailoverErr = failoverErr
 					if switchCount >= maxAccountSwitches {
+						completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+							RequestID:    recordRequestID(recordHandle, c),
+							Outcome:      requestrecord.OutcomeError,
+							StatusCode:   &failoverErr.StatusCode,
+							DurationMs:   intPtrFromInt64(forwardDurationMs),
+							FirstTokenMs: openAIFirstTokenPtr(result),
+							ErrorMessage: string(failoverErr.ResponseBody),
+						})
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
 					}
 					switchCount++
 					if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount) {
+						completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+							RequestID:    recordRequestID(recordHandle, c),
+							Outcome:      requestrecord.OutcomeError,
+							StatusCode:   &failoverErr.StatusCode,
+							DurationMs:   intPtrFromInt64(forwardDurationMs),
+							FirstTokenMs: openAIFirstTokenPtr(result),
+							ErrorMessage: string(failoverErr.ResponseBody),
+						})
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
 					}
@@ -283,9 +327,25 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				}
 				if shouldLogOpenAIForwardFailureAsWarn(c, wroteFallback) {
 					reqLog.Warn("openai.images.forward_failed", fields...)
+					completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+						RequestID:    recordRequestID(recordHandle, c),
+						Outcome:      requestrecord.OutcomeError,
+						StatusCode:   statusCodePtr(c.Writer.Status()),
+						DurationMs:   intPtrFromInt64(forwardDurationMs),
+						FirstTokenMs: openAIFirstTokenPtr(result),
+						ErrorMessage: err.Error(),
+					})
 					return
 				}
 				reqLog.Error("openai.images.forward_failed", fields...)
+				completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+					RequestID:    recordRequestID(recordHandle, c),
+					Outcome:      requestrecord.OutcomeError,
+					StatusCode:   statusCodePtr(c.Writer.Status()),
+					DurationMs:   intPtrFromInt64(forwardDurationMs),
+					FirstTokenMs: openAIFirstTokenPtr(result),
+					ErrorMessage: err.Error(),
+				})
 				return
 			}
 		}
@@ -306,12 +366,24 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		}
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		usageRequestID := getRequestID(c)
+		usageClientRequestID := getClientRequestID(c)
 
-		upstreamModel := ""
 		if result != nil {
 			upstreamModel = result.UpstreamModel
 		}
+		completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
+			RequestID:    recordRequestID(recordHandle, c),
+			Outcome:      requestrecord.OutcomeSuccess,
+			StatusCode:   intPtr(http.StatusOK),
+			DurationMs:   intPtrFromDuration(result.Duration),
+			FirstTokenMs: openAIFirstTokenPtr(result),
+			Billable:     true,
+			InputTokens:  intPtr(result.Usage.InputTokens),
+			OutputTokens: intPtr(result.Usage.OutputTokens),
+		})
 		h.submitMandatoryUsageRecordTask(func(ctx context.Context) {
+			ctx = withUsageRecordContext(c, ctx, usageRequestID, usageClientRequestID)
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
 				APIKey:             apiKey,

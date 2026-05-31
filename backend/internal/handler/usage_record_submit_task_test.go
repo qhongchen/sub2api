@@ -2,11 +2,15 @@ package handler
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -188,4 +192,29 @@ func TestOpenAIGatewayHandlerSubmitOpenAIUsageRecordTask_ImageResultUsesMandator
 	close(release)
 
 	require.True(t, called.Load(), "image usage task must be mandatory when async submit is dropped")
+}
+
+func TestWithUsageRecordRequestIDsPreservesRequestContextValues(t *testing.T) {
+	ctx := withUsageRecordRequestIDs(context.Background(), " request-1 ", " client-1 ")
+
+	require.Equal(t, "request-1", ctx.Value(ctxkey.RequestID))
+	require.Equal(t, "client-1", ctx.Value(ctxkey.ClientRequestID))
+}
+
+func TestWithUsageRecordContextPreservesRequestStartedAt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	startedAt := time.Date(2026, 5, 29, 17, 30, 0, 0, time.UTC)
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	req = req.WithContext(context.WithValue(req.Context(), ctxkey.RequestStartedAt, startedAt))
+	c.Request = req
+
+	ctx := withUsageRecordContext(c, context.Background(), " request-1 ", " client-1 ")
+
+	require.Equal(t, "request-1", ctx.Value(ctxkey.RequestID))
+	require.Equal(t, "client-1", ctx.Value(ctxkey.ClientRequestID))
+	require.Equal(t, startedAt, ctx.Value(ctxkey.RequestStartedAt))
 }

@@ -8107,17 +8107,26 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 
 func resolveUsageBillingRequestID(ctx context.Context, upstreamRequestID string) string {
 	if ctx != nil {
+		if requestID, _ := ctx.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
+			return strings.TrimSpace(requestID)
+		}
 		if clientRequestID, _ := ctx.Value(ctxkey.ClientRequestID).(string); strings.TrimSpace(clientRequestID) != "" {
 			return "client:" + strings.TrimSpace(clientRequestID)
-		}
-		if requestID, _ := ctx.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
-			return "local:" + strings.TrimSpace(requestID)
 		}
 	}
 	if requestID := strings.TrimSpace(upstreamRequestID); requestID != "" {
 		return requestID
 	}
 	return "generated:" + generateRequestID()
+}
+
+func resolveUsageLogCreatedAt(ctx context.Context) time.Time {
+	if ctx != nil {
+		if startedAt, ok := ctx.Value(ctxkey.RequestStartedAt).(time.Time); ok && !startedAt.IsZero() {
+			return startedAt
+		}
+	}
+	return time.Now()
 }
 
 func resolveUsageBillingPayloadFingerprint(ctx context.Context, requestPayloadHash string) string {
@@ -8830,7 +8839,7 @@ func (s *GatewayService) buildRecordUsageLog(
 		IPAddress:             optionalTrimmedStringPtr(input.IPAddress),
 		GroupID:               apiKey.GroupID,
 		SubscriptionID:        optionalSubscriptionID(subscription),
-		CreatedAt:             time.Now(),
+		CreatedAt:             resolveUsageLogCreatedAt(ctx),
 	}
 	if result.ImageCount > 0 {
 		usageLog.RateMultiplier = imageMultiplier

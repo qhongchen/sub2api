@@ -1,5 +1,5 @@
 <template>
-  <section class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
+  <section class="grid grid-cols-1 gap-6 md:grid-cols-3">
     <div class="cch-panel-card flex min-h-[280px] min-w-0 flex-col p-5">
       <div class="mb-4 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-gray-950 dark:text-white">
@@ -167,69 +167,21 @@
         </div>
       </div>
     </div>
-
-    <div class="cch-panel-card flex min-h-[280px] min-w-0 flex-col overflow-hidden bg-slate-50 p-0 dark:border-white/[0.06] dark:bg-[#0a0a0c]">
-      <div class="flex items-center justify-between border-b border-slate-200 bg-slate-100/70 p-4 dark:border-white/[0.06] dark:bg-white/[0.02]">
-        <div class="flex min-w-0 items-center gap-2">
-          <Icon name="bolt" size="sm" class="text-slate-500 dark:text-dark-300" :stroke-width="2" />
-          <span class="min-w-0 truncate font-mono text-xs font-semibold text-slate-700 dark:text-dark-100">
-            {{ t('admin.dashboard.activeSessions') }}
-          </span>
-        </div>
-        <div class="flex flex-shrink-0 gap-1.5">
-          <span class="h-2.5 w-2.5 rounded-full bg-rose-300" />
-          <span class="h-2.5 w-2.5 rounded-full bg-amber-300" />
-          <span class="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-        </div>
-      </div>
-
-      <div class="flex-1 overflow-y-auto p-3 font-mono text-xs">
-        <div v-if="sessionsLoading" class="flex h-full items-center justify-center text-gray-500 dark:text-dark-400">
-          <span class="mr-2 h-2 w-2 animate-pulse rounded-full bg-primary-500" />
-          {{ t('common.loading') }}
-        </div>
-        <div v-else-if="activeSessions.length" class="space-y-1">
-          <button
-            v-for="item in activeSessions"
-            :key="item.id"
-            type="button"
-            class="group flex w-full min-w-0 items-center gap-2 rounded-md p-2 text-left transition-colors hover:bg-slate-100 dark:hover:bg-white/[0.05]"
-            @click="emit('viewAccounts')"
-          >
-            <span class="relative flex h-2.5 w-2.5 flex-shrink-0">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-              <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
-            <span class="max-w-[64px] flex-shrink-0 truncate text-slate-500 dark:text-dark-400">#{{ item.shortId }}</span>
-            <span class="min-w-0 flex-1 truncate font-medium text-blue-600 dark:text-blue-300">{{ item.name }}</span>
-            <span class="flex-shrink-0 text-right font-bold text-emerald-600 dark:text-emerald-300">
-              {{ item.activeSessions }} {{ t('admin.dashboard.sessionsShort') }}
-            </span>
-          </button>
-        </div>
-        <div v-else class="flex h-full flex-col items-center justify-center gap-2 text-gray-500 dark:text-dark-400">
-          <Icon name="exclamationCircle" size="lg" class="opacity-50" />
-          <span>{{ t('admin.dashboard.noActiveSessions') }}</span>
-        </div>
-      </div>
-    </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
-import type { DashboardActiveSessionEntry, DashboardRankingEntry } from './types'
+import type { DashboardRankingEntry } from './types'
 
 defineProps<{
   userEntries: DashboardRankingEntry[]
   accountEntries: DashboardRankingEntry[]
   modelEntries: DashboardRankingEntry[]
-  activeSessions: DashboardActiveSessionEntry[]
   userLoading: boolean
   accountLoading: boolean
   modelLoading: boolean
-  sessionsLoading: boolean
 }>()
 
 const emit = defineEmits<{

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
+	"github.com/Wei-Shaw/sub2api/internal/requestrecord"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers
@@ -36,6 +37,7 @@ type AdminHandlers struct {
 	ContentModeration      *admin.ContentModerationHandler
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
+	RequestRecord          *requestrecord.AdminHandler
 }
 
 // Handlers contains all HTTP handlers
