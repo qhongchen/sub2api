@@ -49,6 +49,14 @@ func getClientRequestID(c *gin.Context) string {
 	return ""
 }
 
+func ensureRequestRecordIDsInContext(c *gin.Context, requestID, clientRequestID string) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	ctx := withUsageRecordRequestIDs(c.Request.Context(), requestID, clientRequestID)
+	c.Request = c.Request.WithContext(ctx)
+}
+
 func startRequestRecord(
 	c *gin.Context,
 	recorder requestRecordRecorder,
@@ -63,6 +71,7 @@ func startRequestRecord(
 	if strings.TrimSpace(input.ClientRequestID) == "" {
 		input.ClientRequestID = getClientRequestID(c)
 	}
+	ensureRequestRecordIDsInContext(c, input.RequestID, input.ClientRequestID)
 	if strings.TrimSpace(input.IPAddress) == "" {
 		input.IPAddress = ip.GetClientIP(c)
 	}
@@ -276,16 +285,6 @@ func getRequestStartedAt(c *gin.Context) time.Time {
 		return startedAt
 	}
 	return time.Now()
-}
-
-func withUsageRecordContext(c *gin.Context, ctx context.Context, requestID, clientRequestID string) context.Context {
-	ctx = withUsageRecordRequestIDs(ctx, requestID, clientRequestID)
-	if c != nil && c.Request != nil {
-		if startedAt, ok := c.Request.Context().Value(ctxkey.RequestStartedAt).(time.Time); ok && !startedAt.IsZero() {
-			ctx = context.WithValue(ctx, ctxkey.RequestStartedAt, startedAt)
-		}
-	}
-	return ctx
 }
 
 func requestTypePtr(v service.RequestType) *int16 {

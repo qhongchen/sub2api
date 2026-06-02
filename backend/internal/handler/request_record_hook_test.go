@@ -148,3 +148,16 @@ func TestGetRequestIDPrefersContextOverUpstreamResponseHeader(t *testing.T) {
 
 	require.Equal(t, "server-request-id", getRequestID(c))
 }
+
+func TestStartRequestRecordStoresStableIDsInRequestContext(t *testing.T) {
+	c := newRequestRecordHookTestContext(t)
+	recorder := &requestRecordRecorderStub{}
+
+	startRequestRecord(c, recorder, &requestrecord.StartInput{
+		RequestID:       " request-from-record ",
+		ClientRequestID: " client-from-record ",
+	})
+
+	require.Equal(t, "request-from-record", c.Request.Context().Value(ctxkey.RequestID))
+	require.Equal(t, "client-from-record", c.Request.Context().Value(ctxkey.ClientRequestID))
+}

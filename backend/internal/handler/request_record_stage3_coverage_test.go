@@ -130,15 +130,8 @@ func TestRequestRecordStage3UsageTasksPreserveStableRequestIDs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body := readHandlerSource(t, tt.file)
 			fnBody := extractFunctionBody(t, body, tt.fn)
-			if !strings.Contains(fnBody, "usageRequestID := getRequestID(c)") {
-				t.Fatalf("%s must capture request id before submitting usage task", tt.fn)
-			}
-			if !strings.Contains(fnBody, "usageClientRequestID := getClientRequestID(c)") {
-				t.Fatalf("%s must capture client request id before submitting usage task", tt.fn)
-			}
-			if !strings.Contains(fnBody, "ctx = withUsageRecordContext(c, ctx, usageRequestID, usageClientRequestID)") &&
-				!strings.Contains(fnBody, "taskCtx = withUsageRecordContext(c, taskCtx, usageRequestID, usageClientRequestID)") {
-				t.Fatalf("%s must inject stable request ids and request start time into usage task context", tt.fn)
+			if !strings.Contains(fnBody, "c.Request.Context()") && !strings.Contains(fnBody, "submitOpenAIUsageRecordTask(ctx,") {
+				t.Fatalf("%s must submit usage tasks with a parent request context", tt.fn)
 			}
 		})
 	}
