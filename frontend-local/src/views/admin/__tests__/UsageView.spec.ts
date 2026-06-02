@@ -198,4 +198,37 @@ describe('admin UsageView distribution metric toggles', () => {
     expect(groupChart.find('.metric').text()).toBe('actual_cost')
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
   })
+
+  it('renders distribution statistics before filters and the usage table', async () => {
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: { template: '<div data-test="usage-table" />' },
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: { template: '<div data-test="token-trend" />' },
+          ModelDistributionChart: ModelDistributionChartStub,
+          GroupDistributionChart: GroupDistributionChartStub,
+          EndpointDistributionChart: { template: '<div data-test="endpoint-chart" />' },
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    const html = wrapper.html()
+    expect(html.indexOf('data-test="model-chart"')).toBeGreaterThanOrEqual(0)
+    expect(html.indexOf('data-test="usage-table"')).toBeGreaterThanOrEqual(0)
+    expect(html.indexOf('data-test="model-chart"')).toBeLessThan(html.indexOf('usage.filterCriteria'))
+    expect(html.indexOf('data-test="token-trend"')).toBeLessThan(html.indexOf('data-test="usage-table"'))
+  })
 })

@@ -2,14 +2,21 @@ package requestrecord
 
 import "time"
 
+func startOfLocalDay(now time.Time) time.Time {
+	y, m, d := now.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+}
+
 const (
-	SessionSourceHeaderSessionID      = "header_session_id"
-	SessionSourceHeaderConversationID = "header_conversation_id"
-	SessionSourcePromptCacheKey       = "prompt_cache_key"
-	SessionSourceMetadataUserID       = "metadata_user_id"
-	SessionSourceMetadataSessionID    = "metadata_session_id"
-	SessionSourceGenerated            = "generated"
-	SessionSourceUnknown              = "unknown"
+	SessionSourceHeaderSessionID       = "header_session_id"
+	SessionSourceHeaderConversationID  = "header_conversation_id"
+	SessionSourceHeaderXSessionID      = "header_x_session_id"
+	SessionSourceHeaderXConversationID = "header_x_conversation_id"
+	SessionSourcePromptCacheKey        = "prompt_cache_key"
+	SessionSourceMetadataUserID        = "metadata_user_id"
+	SessionSourceMetadataSessionID     = "metadata_session_id"
+	SessionSourceGenerated             = "generated"
+	SessionSourceUnknown               = "unknown"
 )
 
 const (
@@ -52,6 +59,7 @@ type Record struct {
 	Model             string `json:"model,omitempty"`
 	RequestedModel    string `json:"requested_model,omitempty"`
 	UpstreamModel     string `json:"upstream_model,omitempty"`
+	BillingModel      string `json:"billing_model,omitempty"`
 	ModelMappingChain string `json:"model_mapping_chain,omitempty"`
 	BillingTier       string `json:"billing_tier,omitempty"`
 	ServiceTier       string `json:"service_tier,omitempty"`
@@ -209,7 +217,7 @@ func (f *Filter) Normalize() (page, pageSize int, startTime, endTime time.Time) 
 	page = 1
 	pageSize = 50
 	endTime = time.Now()
-	startTime = endTime.Add(-1 * time.Hour)
+	startTime = startOfLocalDay(endTime)
 
 	if f == nil {
 		return page, pageSize, startTime, endTime

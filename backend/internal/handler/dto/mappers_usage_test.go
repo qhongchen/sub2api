@@ -123,14 +123,18 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 
 	require.Equal(t, "claude-sonnet-4", userDTO.Model)
 	require.Equal(t, "claude-sonnet-4", adminDTO.Model)
+	require.NotNil(t, adminDTO.BillingModel)
+	require.Equal(t, upstreamModel, *adminDTO.BillingModel)
 
 	userJSON, err := json.Marshal(userDTO)
 	require.NoError(t, err)
 	require.NotContains(t, string(userJSON), "upstream_model")
+	require.NotContains(t, string(userJSON), "billing_model")
 
 	adminJSON, err := json.Marshal(adminDTO)
 	require.NoError(t, err)
 	require.Contains(t, string(adminJSON), `"upstream_model":"claude-sonnet-4-20250514"`)
+	require.Contains(t, string(adminJSON), `"billing_model":"claude-sonnet-4-20250514"`)
 }
 
 func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *testing.T) {

@@ -93,7 +93,7 @@ var usageLogInsertArgTypes = [...]string{
 const rawUsageLogModelColumn = "model"
 
 // rawUsageLogModelColumn preserves the exact stored usage_logs.model semantics for direct filters.
-// Historical rows may contain upstream/billing model values, while newer rows store requested_model.
+// Newer rows store the billing model, while requested_model keeps the original client request.
 // Requested/upstream/mapping analytics must use resolveModelDimensionExpression instead.
 
 // usageLogSuccessFilterUL 用于把"失败请求 usage log"（tokens=0、cost=0、不计费的占位记录）

@@ -1,6 +1,46 @@
 <template>
   <AppLayout>
     <div class="space-y-5">
+      <section class="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
+        <ModelDistributionChart
+          v-model:source="modelDistributionSource"
+          v-model:metric="modelDistributionMetric"
+          :model-stats="requestedModelStats"
+          :upstream-model-stats="upstreamModelStats"
+          :mapping-model-stats="mappingModelStats"
+          :loading="modelStatsLoading"
+          :show-source-toggle="true"
+          :show-metric-toggle="true"
+          :start-date="startDate"
+          :end-date="endDate"
+          :filters="breakdownFilters"
+        />
+        <GroupDistributionChart
+          v-model:metric="groupDistributionMetric"
+          :group-stats="groupStats"
+          :loading="chartsLoading"
+          :show-metric-toggle="true"
+          :start-date="startDate"
+          :end-date="endDate"
+          :filters="breakdownFilters"
+        />
+        <EndpointDistributionChart
+          v-model:source="endpointDistributionSource"
+          v-model:metric="endpointDistributionMetric"
+          :endpoint-stats="inboundEndpointStats"
+          :upstream-endpoint-stats="upstreamEndpointStats"
+          :endpoint-path-stats="endpointPathStats"
+          :loading="endpointStatsLoading"
+          :show-source-toggle="true"
+          :show-metric-toggle="true"
+          :title="t('usage.endpointDistribution')"
+          :start-date="startDate"
+          :end-date="endDate"
+          :filters="breakdownFilters"
+        />
+        <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+      </section>
+
       <section class="space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <button
@@ -361,46 +401,6 @@
             @update:pageSize="handlePageSizeChange"
           />
         </div>
-      </section>
-
-      <section class="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
-        <ModelDistributionChart
-          v-model:source="modelDistributionSource"
-          v-model:metric="modelDistributionMetric"
-          :model-stats="requestedModelStats"
-          :upstream-model-stats="upstreamModelStats"
-          :mapping-model-stats="mappingModelStats"
-          :loading="modelStatsLoading"
-          :show-source-toggle="true"
-          :show-metric-toggle="true"
-          :start-date="startDate"
-          :end-date="endDate"
-          :filters="breakdownFilters"
-        />
-        <GroupDistributionChart
-          v-model:metric="groupDistributionMetric"
-          :group-stats="groupStats"
-          :loading="chartsLoading"
-          :show-metric-toggle="true"
-          :start-date="startDate"
-          :end-date="endDate"
-          :filters="breakdownFilters"
-        />
-        <EndpointDistributionChart
-          v-model:source="endpointDistributionSource"
-          v-model:metric="endpointDistributionMetric"
-          :endpoint-stats="inboundEndpointStats"
-          :upstream-endpoint-stats="upstreamEndpointStats"
-          :endpoint-path-stats="endpointPathStats"
-          :loading="endpointStatsLoading"
-          :show-source-toggle="true"
-          :show-metric-toggle="true"
-          :title="t('usage.endpointDistribution')"
-          :start-date="startDate"
-          :end-date="endDate"
-          :filters="breakdownFilters"
-        />
-        <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
       </section>
     </div>
   </AppLayout>

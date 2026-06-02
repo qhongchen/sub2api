@@ -194,14 +194,34 @@
                 </div>
               </div>
 
-              <router-link to="/profile" class="consumer-dropdown-item" @click="closeUserMenu">
-                <Icon name="user" size="sm" />
-                {{ t('nav.profile') }}
-              </router-link>
-              <router-link :to="isAdmin ? '/admin/users' : '/keys'" class="consumer-dropdown-item" @click="closeUserMenu">
-                <Icon :name="isAdmin ? 'users' : 'key'" size="sm" />
-                {{ isAdmin ? t('nav.users') : t('nav.apiKeys') }}
-              </router-link>
+              <template v-if="isAdmin">
+                <div class="py-1">
+                  <router-link
+                    v-for="item in adminAccountNavItems"
+                    :key="item.path"
+                    :to="item.path"
+                    class="consumer-dropdown-item"
+                    :class="{ 'consumer-dropdown-item-active': isActive(item.path) }"
+                    :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+                    @click="closeUserMenu"
+                  >
+                    <Icon :name="item.icon" size="sm" />
+                    <span class="min-w-0 truncate">{{ item.label }}</span>
+                  </router-link>
+                </div>
+
+              </template>
+
+              <template v-else>
+                <router-link to="/profile" class="consumer-dropdown-item" @click="closeUserMenu">
+                  <Icon name="user" size="sm" />
+                  {{ t('nav.profile') }}
+                </router-link>
+                <router-link to="/keys" class="consumer-dropdown-item" @click="closeUserMenu">
+                  <Icon name="key" size="sm" />
+                  {{ t('nav.apiKeys') }}
+                </router-link>
+              </template>
 
               <button
                 type="button"
@@ -425,7 +445,7 @@ const userPrimaryNavItems = computed(() => finalizeNav([
 
 const adminPrimaryNavItems = computed(() => finalizeNav([
   { path: '/admin/dashboard', label: t('nav.dashboard'), icon: 'grid' },
-  { path: '/admin/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
+  { path: '/admin/request-logs', label: t('nav.requestLogs'), icon: 'document' },
   { path: '/admin/accounts', label: t('nav.accounts'), icon: 'globe' },
   { path: '/monitor', label: t('nav.channelStatus'), icon: 'server', featureFlag: flagChannelMonitor }
 ]))
@@ -442,19 +462,16 @@ const secondaryNavItems = computed(() => finalizeNav([
   ...customMenuItems.value
 ]))
 
+const adminAccountNavItems = computed(() => finalizeNav([
+  { path: '/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
+  { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
+  ...secondaryNavItems.value
+]))
+
 const adminSettingsGroups = computed((): TocNavGroup[] => {
   if (!isAdmin.value) return []
 
   const groups: TocNavGroup[] = [
-    {
-      id: 'my',
-      label: t('nav.my'),
-      items: [
-        { path: '/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
-        { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
-        ...secondaryNavItems.value
-      ]
-    },
     {
       id: 'users-and-groups',
       label: t('nav.usersAndGroups'),
@@ -482,6 +499,7 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
       id: 'operations-and-billing',
       label: t('nav.operationsAndBilling'),
       items: [
+        { path: '/admin/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
         { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: 'creditCard', hideInSimpleMode: true },
         { path: '/admin/announcements', label: t('nav.announcements'), icon: 'bell' },
         { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: 'gift', hideInSimpleMode: true },
@@ -542,7 +560,6 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
       label: t('nav.systemConfiguration'),
       items: [
         { path: '/admin/ops', label: t('nav.ops'), icon: 'chart', featureFlag: flagOpsMonitoring },
-        { path: '/admin/request-logs', label: t('nav.requestLogs'), icon: 'document' },
         { path: '/admin/settings', label: t('nav.settings'), icon: 'cog' },
         ...customAdminMenuItems.value
       ]
@@ -554,10 +571,13 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
     .filter((group) => group.items.length > 0)
 })
 
-const mobileNavItems = computed(() => [
-  ...primaryNavItems.value,
-  ...secondaryNavItems.value
-])
+const mobileNavItems = computed(() => {
+  if (isAdmin.value) return primaryNavItems.value
+  return [
+    ...primaryNavItems.value,
+    ...secondaryNavItems.value
+  ]
+})
 
 const isSecondaryActive = computed(() => secondaryNavItems.value.some((item) => isActive(item.path)))
 const isAdminSettingsActive = computed(() => adminSettingsGroups.value.some((group) => (

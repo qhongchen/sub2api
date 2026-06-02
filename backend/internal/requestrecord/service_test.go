@@ -53,6 +53,24 @@ func TestFilterNormalizeDefaultsAndClamp(t *testing.T) {
 	}
 }
 
+func TestFilterNormalizeDefaultsToToday(t *testing.T) {
+	filter := &Filter{}
+
+	page, pageSize, gotStart, gotEnd := filter.Normalize()
+
+	if page != 1 || pageSize != 50 {
+		t.Fatalf("pagination=(%d,%d), want (1,50)", page, pageSize)
+	}
+	now := time.Now()
+	wantStart := startOfLocalDay(now)
+	if !gotStart.Equal(wantStart) {
+		t.Fatalf("start=%v, want local day start %v", gotStart, wantStart)
+	}
+	if gotEnd.Before(now.Add(-2*time.Second)) || gotEnd.After(now.Add(2*time.Second)) {
+		t.Fatalf("end=%v, want around now %v", gotEnd, now)
+	}
+}
+
 func TestListRecordsNilRepositoryReturnsEmpty(t *testing.T) {
 	service := NewService(nil)
 

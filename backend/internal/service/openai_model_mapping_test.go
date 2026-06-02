@@ -303,3 +303,12 @@ func TestUsageBillingModelCandidatesPreserveCodexAutoReviewModel(t *testing.T) {
 		}
 	}
 }
+
+func TestForwardResultBillingModelPrefersUpstreamModel(t *testing.T) {
+	if got := forwardResultBillingModel("gpt-5.4", "gpt-5.5"); got != "gpt-5.5" {
+		t.Fatalf("forwardResultBillingModel(gpt-5.4, gpt-5.5) = %q, want %q", got, "gpt-5.5")
+	}
+	if got := forwardResultBillingModel("gpt-5.4", ""); got != "gpt-5.4" {
+		t.Fatalf("forwardResultBillingModel(gpt-5.4, \"\") = %q, want %q", got, "gpt-5.4")
+	}
+}

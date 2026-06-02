@@ -116,14 +116,16 @@
               </div>
 
               <div class="py-1">
-                <router-link to="/profile" @click="closeDropdown" class="dropdown-item">
-                  <Icon name="user" size="sm" />
-                  {{ t('nav.profile') }}
-                </router-link>
-
-                <router-link :to="authStore.isAdmin ? '/admin/users' : '/keys'" @click="closeDropdown" class="dropdown-item">
-                  <Icon :name="authStore.isAdmin ? 'users' : 'key'" size="sm" />
-                  {{ authStore.isAdmin ? t('nav.users') : t('nav.apiKeys') }}
+                <router-link
+                  v-for="item in accountDropdownItems"
+                  :key="item.path"
+                  :to="item.path"
+                  @click="closeDropdown"
+                  class="dropdown-item"
+                  :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+                >
+                  <Icon :name="item.icon" size="sm" />
+                  {{ item.label }}
                 </router-link>
 
                 <a
@@ -222,6 +224,17 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+
+type HeaderIconName = 'key' | 'chart' | 'server' | 'creditCard' | 'gift' | 'users' | 'user' | 'document'
+
+interface HeaderNavItem {
+  path: string
+  label: string
+  icon: HeaderIconName
+  hideInSimpleMode?: boolean
+  featureFlag?: () => boolean | undefined
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -237,6 +250,10 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => appStore.docUrl)
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
+const flagPayment = makeSidebarFlag(FeatureFlags.payment)
+const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
+const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
@@ -285,6 +302,38 @@ const pageDescription = computed(() => {
   }
   return (route.meta.description as string) || ''
 })
+
+const customMenuItems = computed(() => {
+  const items = appStore.cachedPublicSettings?.custom_menu_items ?? []
+  return items
+    .filter((item) => item.visibility === 'user')
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((item): HeaderNavItem => ({
+      path: `/custom/${item.id}`,
+      label: item.label,
+      icon: 'document',
+      hideInSimpleMode: true
+    }))
+})
+
+const accountDropdownItems = computed(() => finalizeNav([
+  { path: '/profile', label: t('nav.profile'), icon: 'user' },
+  { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
+  { path: '/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
+  { path: '/available-channels', label: t('nav.availableChannels'), icon: 'server', hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+  { path: '/monitor', label: t('nav.channelStatus'), icon: 'server', featureFlag: flagChannelMonitor },
+  { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard', hideInSimpleMode: true },
+  { path: '/purchase', label: t('nav.buySubscription'), icon: 'creditCard', hideInSimpleMode: true, featureFlag: flagPayment },
+  { path: '/orders', label: t('nav.myOrders'), icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
+  { path: '/redeem', label: t('nav.redeem'), icon: 'gift', hideInSimpleMode: true },
+  { path: '/affiliate', label: t('nav.affiliate'), icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
+  ...customMenuItems.value
+]))
+
+function finalizeNav(items: HeaderNavItem[]): HeaderNavItem[] {
+  const visible = items.filter((item) => item.featureFlag?.() !== false)
+  return authStore.isSimpleMode ? visible.filter((item) => !item.hideInSimpleMode) : visible
+}
 
 function toggleMobileSidebar() {
   appStore.toggleMobileSidebar()

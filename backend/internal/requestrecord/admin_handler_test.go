@@ -122,6 +122,47 @@ func TestAdminHandlerListAcceptsPageCompatibilityParams(t *testing.T) {
 	}
 }
 
+func TestAdminHandlerListDefaultsEmptyTimeRangeToToday(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := NewAdminHandler(&fakeListService{out: &List{Items: []*Record{}, Total: 0, Page: 1, PageSize: 20, Pages: 1}})
+	router := gin.New()
+	router.GET("/records", handler.List)
+
+	req := httptest.NewRequest(http.MethodGet, "/records", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	svc := handler.service.(*fakeListService)
+	if svc.gotFilter == nil || svc.gotFilter.StartTime == nil || svc.gotFilter.EndTime == nil {
+		t.Fatalf("default time range not converted: %+v", svc.gotFilter)
+	}
+	now := time.Now()
+	wantStart := startOfLocalDay(now)
+	if !svc.gotFilter.StartTime.Equal(wantStart) {
+		t.Fatalf("start=%v, want local day start %v", *svc.gotFilter.StartTime, wantStart)
+	}
+	if svc.gotFilter.EndTime.Before(now.Add(-2*time.Second)) || svc.gotFilter.EndTime.After(now.Add(2*time.Second)) {
+		t.Fatalf("end=%v, want around now %v", *svc.gotFilter.EndTime, now)
+	}
+}
+
+func TestParseRelativeTimeRangeAcceptsDashboardRanges(t *testing.T) {
+	ranges := []string{"today", "this_week", "week", "last_7_days", "7d", "this_month", "month", "last_30_days", "30d"}
+	for _, raw := range ranges {
+		start, end, ok := parseRelativeTimeRange(raw)
+		if !ok {
+			t.Fatalf("parseRelativeTimeRange(%q) returned ok=false", raw)
+		}
+		if start.IsZero() || end.IsZero() || start.After(end) {
+			t.Fatalf("parseRelativeTimeRange(%q) returned invalid range: start=%v end=%v", raw, start, end)
+		}
+	}
+}
+
 func TestAdminHandlerListRejectsInvalidBillable(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler := NewAdminHandler(&fakeListService{})

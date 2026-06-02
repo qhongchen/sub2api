@@ -38,6 +38,8 @@ export interface AdminRequestLog {
   outcome?: AdminRequestRecordOutcome
   billable?: boolean
   created_at: string
+  updated_at?: string
+  completed_at?: string | null
   request_id: string
   client_request_id?: string
   session_id?: string
@@ -46,11 +48,14 @@ export interface AdminRequestLog {
   status_code: number
   platform: string
   model: string
+  requested_model?: string | null
   upstream_model?: string | null
+  billing_model?: string | null
   model_mapping_chain?: string | null
   billing_tier?: string | null
   service_tier?: string | null
   reasoning_effort?: string | null
+  prompt_cache_key?: string | null
   request_type?: UsageRequestType
   stream: boolean
   duration_ms?: number | null
@@ -108,7 +113,7 @@ export interface AdminRequestLog {
 export interface AdminRequestLogQueryParams {
   page?: number
   page_size?: number
-  time_range?: '5m' | '30m' | '1h' | '6h' | '24h'
+  time_range?: 'today' | 'this_week' | 'last_7_days' | 'this_month' | 'last_30_days'
   start_time?: string
   end_time?: string
   kind?: AdminRequestLogKindFilter

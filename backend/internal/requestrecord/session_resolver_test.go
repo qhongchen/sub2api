@@ -42,6 +42,39 @@ func TestSessionResolverOpenAIConversationAndPromptCacheFallback(t *testing.T) {
 	}
 }
 
+func TestSessionResolverOpenAIXHeaderFallback(t *testing.T) {
+	resolver := SessionResolver{}
+
+	reqWithSession := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	reqWithSession.Header.Set("x-session-id", "x-session-123")
+	gotSession := resolver.ResolveOpenAI(reqWithSession, nil)
+	if gotSession.SessionID != "x-session-123" || gotSession.Source != SessionSourceHeaderXSessionID {
+		t.Fatalf("x-session-id fallback=%+v", gotSession)
+	}
+
+	reqWithConversation := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	reqWithConversation.Header.Set("x-conversation-id", "x-conv-123")
+	gotConversation := resolver.ResolveOpenAI(reqWithConversation, nil)
+	if gotConversation.SessionID != "x-conv-123" || gotConversation.Source != SessionSourceHeaderXConversationID {
+		t.Fatalf("x-conversation-id fallback=%+v", gotConversation)
+	}
+}
+
+func TestSessionResolverOpenAIMetadataFallback(t *testing.T) {
+	resolver := SessionResolver{}
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+
+	gotSession := resolver.ResolveOpenAI(req, []byte(`{"metadata":{"session_id":"metadata-session"}}`))
+	if gotSession.SessionID != "metadata-session" || gotSession.Source != SessionSourceMetadataSessionID {
+		t.Fatalf("metadata.session_id fallback=%+v", gotSession)
+	}
+
+	gotUserID := resolver.ResolveOpenAI(req, []byte(`{"metadata":{"user_id":"{\"device_id\":\"abc\",\"session_id\":\"metadata-user-session\"}"}}`))
+	if gotUserID.SessionID != "metadata-user-session" || gotUserID.Source != SessionSourceMetadataUserID {
+		t.Fatalf("metadata.user_id fallback=%+v", gotUserID)
+	}
+}
+
 func TestSessionResolverOpenAIUnknownWhenNoExplicitSignal(t *testing.T) {
 	resolver := SessionResolver{}
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)

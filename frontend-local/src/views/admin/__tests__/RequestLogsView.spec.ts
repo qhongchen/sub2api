@@ -34,12 +34,11 @@ const {
 })
 
 const messages: Record<string, string> = {
-  'admin.ops.timeRange.5m': '5m',
-  'admin.ops.timeRange.30m': '30m',
-  'admin.ops.timeRange.1h': '1h',
-  'admin.ops.timeRange.6h': '6h',
-  'admin.ops.timeRange.24h': '24h',
-  'admin.ops.timeRange.custom': 'Custom',
+  'admin.dashboard.rangeToday': 'Today',
+  'admin.dashboard.rangeThisWeek': 'This Week',
+  'admin.dashboard.rangeLast7Days': 'Last 7 Days',
+  'admin.dashboard.rangeThisMonth': 'This Month',
+  'admin.dashboard.rangeLast30Days': 'Last 30 Days',
   'admin.requestLogs.title': 'Request Logs',
   'admin.requestLogs.description': 'Request-level diagnostics',
   'admin.requestLogs.refresh': 'Refresh',
@@ -65,6 +64,109 @@ const messages: Record<string, string> = {
   'admin.requestLogs.copyRequestId': 'Copy Request ID',
   'admin.requestLogs.requestIdCopied': 'Copied',
   'admin.requestLogs.viewError': 'View Error',
+  'admin.requestLogs.timeRange': 'Time Range',
+  'admin.requestLogs.status': 'Status',
+  'admin.requestLogs.statusCode': 'Status Code',
+  'admin.requestLogs.startTime': 'Start Time',
+  'admin.requestLogs.endTime': 'End Time',
+  'admin.requestLogs.platform': 'Platform',
+  'admin.requestLogs.model': 'Model',
+  'admin.requestLogs.user': 'User',
+  'admin.requestLogs.apiKey': 'API Key',
+  'admin.requestLogs.account': 'Account',
+  'admin.requestLogs.group': 'Group',
+  'admin.requestLogs.requestId': 'Request ID',
+  'admin.requestLogs.keyword': 'Keyword',
+  'admin.requestLogs.sort': 'Sort',
+  'admin.requestLogs.custom': 'Custom',
+  'admin.requestLogs.allStatuses': 'All Statuses',
+  'admin.requestLogs.allStatusCodes': 'All Status Codes',
+  'admin.requestLogs.allPlatforms': 'All Platforms',
+  'admin.requestLogs.allGroups': 'All Groups',
+  'admin.requestLogs.excludeStatus200': 'Exclude 200',
+  'admin.requestLogs.customStatusCode': 'Custom Status Code',
+  'admin.requestLogs.sortNewest': 'Newest First',
+  'admin.requestLogs.sortDuration': 'Duration Desc',
+  'admin.requestLogs.searchUserPlaceholder': 'Search users by email...',
+  'admin.requestLogs.searchApiKeyPlaceholder': 'Search API keys by name...',
+  'admin.requestLogs.searchAccountPlaceholder': 'Search accounts by name...',
+  'admin.requestLogs.modelPlaceholder': 'Enter model name',
+  'admin.requestLogs.requestIdPlaceholder': 'Enter full Request ID',
+  'admin.requestLogs.keywordPlaceholder': 'Request ID, model, error, IP, or User-Agent',
+  'admin.requestLogs.filterGroups.time': 'Time Range',
+  'admin.requestLogs.filterGroups.timeDescription': 'Control the request-record query window',
+  'admin.requestLogs.filterGroups.identity': 'Identity & Source',
+  'admin.requestLogs.filterGroups.identityDescription': 'Locate sources by user, key, account, and group',
+  'admin.requestLogs.filterGroups.routing': 'Request & Routing',
+  'admin.requestLogs.filterGroups.routingDescription': 'Trace by platform, model, Request ID, and Session',
+  'admin.requestLogs.filterGroups.result': 'Status & Result',
+  'admin.requestLogs.filterGroups.resultDescription': 'Filter by status code and sort',
+  'admin.requestLogs.diagnostics.title': 'Request Diagnostics',
+  'admin.requestLogs.diagnostics.requestId': 'Request ID',
+  'admin.requestLogs.diagnostics.copyRequestId': 'Copy Request ID',
+  'admin.requestLogs.diagnostics.copySessionId': 'Copy Session ID',
+  'admin.requestLogs.diagnostics.sessionCopied': 'Session ID copied',
+  'admin.requestLogs.diagnostics.filterSession': 'Filter by this Session',
+  'admin.requestLogs.diagnostics.retryRecovered': 'Upstream failed mid-flight, final response recovered',
+  'admin.requestLogs.diagnostics.pendingHint': 'Request is still running',
+  'admin.requestLogs.diagnostics.summaryPending': 'This record is still pending; only recorded input, identity, routing, and session facts are available.',
+  'admin.requestLogs.diagnostics.summaryRecovered': 'The final client response succeeded. Failed upstream attempts below indicate retry or account switching recovered the request.',
+  'admin.requestLogs.diagnostics.summarySuccess': 'The request was returned successfully to the client. Review identity, routing, performance, resource, and billing facts below.',
+  'admin.requestLogs.diagnostics.summaryError': 'The final client response failed. Use the final error and upstream attempts below to locate the failing layer.',
+  'admin.requestLogs.diagnostics.finalError': 'Final error',
+  'admin.requestLogs.diagnostics.overview': 'Overview',
+  'admin.requestLogs.diagnostics.identity': 'Identity & Source',
+  'admin.requestLogs.diagnostics.routing': 'Routing & Model',
+  'admin.requestLogs.diagnostics.session': 'Session Linkage',
+  'admin.requestLogs.diagnostics.resourceBilling': 'Resources & Billing',
+  'admin.requestLogs.diagnostics.upstreamTimeline': 'Upstream Attempts Timeline',
+  'admin.requestLogs.diagnostics.finalOutcome': 'Final outcome',
+  'admin.requestLogs.diagnostics.clientStatusCode': 'Client status code',
+  'admin.requestLogs.diagnostics.createdAt': 'Started at',
+  'admin.requestLogs.diagnostics.completedAt': 'Completed at',
+  'admin.requestLogs.diagnostics.duration': 'Duration',
+  'admin.requestLogs.diagnostics.firstToken': 'First token',
+  'admin.requestLogs.diagnostics.requestType': 'Request type',
+  'admin.requestLogs.diagnostics.stream': 'Stream',
+  'admin.requestLogs.diagnostics.clientRequestId': 'Client Request ID',
+  'admin.requestLogs.diagnostics.user': 'User',
+  'admin.requestLogs.diagnostics.apiKey': 'API Key',
+  'admin.requestLogs.diagnostics.account': 'Account',
+  'admin.requestLogs.diagnostics.group': 'Group',
+  'admin.requestLogs.diagnostics.ipAddress': 'Source IP',
+  'admin.requestLogs.diagnostics.userAgent': 'User-Agent',
+  'admin.requestLogs.diagnostics.platform': 'Platform',
+  'admin.requestLogs.diagnostics.model': 'Billing model',
+  'admin.requestLogs.diagnostics.requestedModel': 'Requested model',
+  'admin.requestLogs.diagnostics.upstreamModel': 'Upstream model',
+  'admin.requestLogs.diagnostics.reasoningEffort': 'Reasoning effort',
+  'admin.requestLogs.diagnostics.serviceTier': 'Service tier',
+  'admin.requestLogs.diagnostics.inboundEndpoint': 'Inbound endpoint',
+  'admin.requestLogs.diagnostics.upstreamEndpoint': 'Upstream endpoint',
+  'admin.requestLogs.diagnostics.modelMappingChain': 'Model mapping chain',
+  'admin.requestLogs.diagnostics.sessionId': 'Session ID',
+  'admin.requestLogs.diagnostics.sessionSource': 'Session source',
+  'admin.requestLogs.diagnostics.clientSessionId': 'Client Session ID',
+  'admin.requestLogs.diagnostics.billable': 'Billing state',
+  'admin.requestLogs.diagnostics.billingMode': 'Billing mode',
+  'admin.requestLogs.diagnostics.inputTokens': 'Input tokens',
+  'admin.requestLogs.diagnostics.outputTokens': 'Output tokens',
+  'admin.requestLogs.diagnostics.cacheCreationTokens': 'Cache creation tokens',
+  'admin.requestLogs.diagnostics.cacheReadTokens': 'Cache read tokens',
+  'admin.requestLogs.diagnostics.imageCount': 'Image count',
+  'admin.requestLogs.diagnostics.cacheTtlOverridden': 'Cache TTL override',
+  'admin.requestLogs.diagnostics.totalCost': 'Raw cost',
+  'admin.requestLogs.diagnostics.actualCost': 'User billed',
+  'admin.requestLogs.diagnostics.accountStatsCost': 'Account stats cost',
+  'admin.requestLogs.diagnostics.rateMultiplier': 'User multiplier',
+  'admin.requestLogs.diagnostics.accountRateMultiplier': 'Account multiplier',
+  'admin.requestLogs.diagnostics.nonBillableNote': 'This is a non-billable request: resource facts remain useful for diagnostics, but cost is not counted in user or account statistics.',
+  'admin.requestLogs.diagnostics.billableCostPendingNote': 'This request is marked billable but cost fields are not populated yet.',
+  'admin.requestLogs.diagnostics.upstreamRequestId': 'Upstream Request ID',
+  'admin.requestLogs.diagnostics.upstreamUrl': 'Upstream URL',
+  'admin.requestLogs.diagnostics.noUpstreamAttempts': 'No upstream attempt details are available.',
+  'admin.requestLogs.diagnostics.yes': 'Yes',
+  'admin.requestLogs.diagnostics.no': 'No',
   'admin.requestLogs.loading': 'Loading',
   'admin.requestLogs.empty': 'Empty',
   'admin.requestLogs.emptyHint': 'Try a wider range',
@@ -151,6 +253,7 @@ const messages: Record<string, string> = {
   'usage.statusSuccess': 'Success',
   'usage.billable': 'Billable',
   'usage.nonBillable': 'Non-billable',
+  'usage.viewDiagnostics': 'Diagnostics',
 }
 
 vi.mock('@/api', () => ({
@@ -240,6 +343,20 @@ const errorRow = {
   phase: 'upstream_response',
   severity: 'error',
   message: '503 service unavailable',
+  upstream_attempts: [
+    {
+      at_unix_ms: 1780018200000,
+      platform: 'openai',
+      account_id: 9,
+      account_name: 'openai-account',
+      upstream_status_code: 503,
+      upstream_request_id: 'upstream-503',
+      upstream_url: 'https://upstream.example/v1/chat/completions',
+      kind: 'error',
+      message: 'upstream overloaded',
+      detail: '503 service unavailable',
+    },
+  ],
 }
 
 const successRow = {
@@ -270,11 +387,13 @@ const successRow = {
   upstream_endpoint: '/v1/chat/completions',
   ip_address: '10.0.0.8',
   user_agent: 'codex-cli/1.0',
+  requested_model: '5.4-mini',
   upstream_model: 'gpt-5.5',
   model_mapping_chain: '5.4-mini→gpt-5.5',
   billing_tier: 'XHigh',
   service_tier: 'priority',
   reasoning_effort: 'xhigh',
+  prompt_cache_key: 'prompt-cache-key-demo',
   input_tokens: 100000,
   output_tokens: 500,
   cache_creation_tokens: 60000,
@@ -293,6 +412,31 @@ const successRow = {
   account_rate_multiplier: 1.2,
   account_stats_cost: 0.05,
   cache_ttl_overridden: true,
+  upstream_attempts: [
+    {
+      at_unix_ms: 1780017600000,
+      platform: 'openai',
+      account_id: 10,
+      account_name: 'openai-account-failed',
+      upstream_status_code: 401,
+      upstream_request_id: 'upstream-401',
+      upstream_url: 'https://upstream.example/v1/chat/completions',
+      kind: 'error',
+      message: 'invalid upstream key',
+      detail: '401 unauthorized',
+    },
+    {
+      at_unix_ms: 1780017600500,
+      platform: 'openai',
+      account_id: 9,
+      account_name: 'openai-account',
+      upstream_status_code: 200,
+      upstream_request_id: 'upstream-200',
+      upstream_url: 'https://upstream.example/v1/chat/completions',
+      kind: 'success',
+      message: 'ok',
+    },
+  ],
 }
 
 const pendingRow = {
@@ -397,7 +541,7 @@ describe('RequestLogsView', () => {
     vi.useRealTimers()
   })
 
-  it('loads recent one-hour request logs by default and renders summary from API', async () => {
+  it('loads request logs without default filters and renders summary from API', async () => {
     const wrapper = mountRequestLogsView()
     await flushPromises()
 
@@ -405,11 +549,12 @@ describe('RequestLogsView', () => {
       expect.objectContaining({
         page: 1,
         page_size: 20,
-        time_range: '1h',
         sort: 'created_at_desc',
       }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+    expect(requestRecordsList.mock.calls[0]?.[0]).not.toHaveProperty('time_range')
+    expect(wrapper.find('[data-test="request-log-filter-time"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Request Logs')
     expect(wrapper.text()).toContain('Total Requests')
     expect(wrapper.text()).toContain('9')
@@ -420,12 +565,120 @@ describe('RequestLogsView', () => {
     expect(wrapper.text()).toContain('50.00%')
   })
 
-  it('passes kind, 503 status, model, and exclude-200 filters to the API', async () => {
+  it('uses dashboard-aligned quick time ranges and submits an explicit date window', async () => {
+    vi.setSystemTime(new Date('2026-05-29T10:20:30+08:00'))
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const filterButton = wrapper.findAll('button').find((button) => button.text().includes('Filters'))
+    expect(filterButton).toBeTruthy()
+    await filterButton!.trigger('click')
+    await flushPromises()
+
+    const buttonTexts = wrapper.findAll('button').map((button) => button.text())
+    expect(buttonTexts).toContain('Today')
+    expect(buttonTexts).toContain('This Week')
+    expect(buttonTexts).toContain('Last 7 Days')
+    expect(buttonTexts).toContain('This Month')
+    expect(buttonTexts).toContain('Last 30 Days')
+    expect(buttonTexts).toContain('Custom')
+    expect(buttonTexts).not.toContain('5m')
+    expect(buttonTexts).not.toContain('30m')
+    expect(buttonTexts).not.toContain('1h')
+    expect(buttonTexts).not.toContain('6h')
+    expect(buttonTexts).not.toContain('24h')
+
+    const todayButton = wrapper.findAll('button').find((button) => button.text() === 'Today')
+    expect(todayButton).toBeTruthy()
+    await todayButton!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'Apply')!.trigger('click')
+    await flushPromises()
+
+    const latestParams = requestRecordsList.mock.calls.at(-1)?.[0]
+    expect(latestParams).toEqual(expect.objectContaining({
+      page: 1,
+      start_time: expect.any(String),
+      end_time: expect.any(String),
+    }))
+    expect(latestParams).not.toHaveProperty('time_range')
+
+    const startTime = new Date(String(latestParams.start_time))
+    const endTime = new Date(String(latestParams.end_time))
+    expect(startTime.getFullYear()).toBe(2026)
+    expect(startTime.getMonth()).toBe(4)
+    expect(startTime.getDate()).toBe(29)
+    expect(startTime.getHours()).toBe(0)
+    expect(startTime.getMinutes()).toBe(0)
+    expect(endTime.getFullYear()).toBe(2026)
+    expect(endTime.getMonth()).toBe(4)
+    expect(endTime.getDate()).toBe(29)
+    expect(endTime.getHours()).toBe(23)
+    expect(endTime.getMinutes()).toBe(59)
+  })
+
+  it('groups filters into usage-style categorized sections', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const filterButton = wrapper.findAll('button').find((button) => button.text().includes('Filters'))
+    expect(filterButton).toBeTruthy()
+    await filterButton!.trigger('click')
+    await flushPromises()
+
+    const timeGroup = wrapper.find('[data-test="request-log-filter-time"]')
+    const resultGroup = wrapper.find('[data-test="request-log-filter-result"]')
+    const identityGroup = wrapper.find('[data-test="request-log-filter-identity"]')
+    const routingGroup = wrapper.find('[data-test="request-log-filter-routing"]')
+
+    expect(timeGroup.text()).toContain('Time Range')
+    expect(timeGroup.text()).toContain('Control the request-record query window')
+    expect(timeGroup.text()).toContain('Start Time')
+    expect(timeGroup.text()).toContain('End Time')
+    expect(resultGroup.text()).toContain('Status & Result')
+    expect(resultGroup.text()).toContain('Status Code')
+    expect(resultGroup.text()).toContain('Sort')
+    expect(resultGroup.text()).not.toContain('Billing')
+    expect(identityGroup.text()).toContain('Identity & Source')
+    expect(identityGroup.text()).toContain('User')
+    expect(identityGroup.text()).toContain('API Key')
+    expect(identityGroup.text()).toContain('Account')
+    expect(identityGroup.text()).toContain('Group')
+    expect(routingGroup.text()).toContain('Request & Routing')
+    await routingGroup.find('button').trigger('click')
+    await flushPromises()
+    expect(routingGroup.text()).toContain('Platform')
+    expect(routingGroup.text()).toContain('Model')
+    expect(routingGroup.text()).toContain('Request ID')
+    expect(routingGroup.text()).toContain('Session')
+  })
+
+  it('uses text inputs for request log filters so browser-native search clear buttons are not duplicated', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const filterButton = wrapper.findAll('button').find((button) => button.text().includes('Filters'))
+    expect(filterButton).toBeTruthy()
+    await filterButton!.trigger('click')
+    await flushPromises()
+
+    const identityGroup = wrapper.find('[data-test="request-log-filter-identity"]')
+    const routingGroup = wrapper.find('[data-test="request-log-filter-routing"]')
+    await routingGroup.find('button').trigger('click')
+    await flushPromises()
+
+    const filterInputs = [
+      ...identityGroup.findAll('input'),
+      ...routingGroup.findAll('input'),
+    ]
+    expect(filterInputs.length).toBeGreaterThanOrEqual(7)
+    expect(filterInputs.every((input) => input.attributes('type') === 'text')).toBe(true)
+  })
+
+  it('passes status code, model, and exclude-200 filters to the API', async () => {
     const wrapper = mountRequestLogsView()
     await flushPromises()
 
     const vm = wrapper.vm as any
-    vm.filters.kind = 'error'
     vm.filters.statusPreset = '503'
     vm.filters.model = '5.4-mini'
     vm.applyFilters()
@@ -433,7 +686,6 @@ describe('RequestLogsView', () => {
 
     expect(requestRecordsList).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        kind: 'error',
         status_codes: '503',
         model: '5.4-mini',
       }),
@@ -446,30 +698,50 @@ describe('RequestLogsView', () => {
 
     const latestParams = requestRecordsList.mock.calls.at(-1)?.[0]
     expect(latestParams).toEqual(expect.objectContaining({
-      kind: 'error',
       status_codes_other: true,
       model: '5.4-mini',
     }))
     expect(latestParams).not.toHaveProperty('status_codes')
+    expect(latestParams).not.toHaveProperty('kind')
   })
 
-  it('passes session and billable filters to the request records API', async () => {
+  it('passes session filters to the request records API', async () => {
     const wrapper = mountRequestLogsView()
     await flushPromises()
 
     const vm = wrapper.vm as any
     vm.filters.session_id = 'sess-success'
-    vm.filters.billable = 'true'
     vm.applyFilters()
     await flushPromises()
 
     expect(requestRecordsList).toHaveBeenLastCalledWith(
       expect.objectContaining({
         session_id: 'sess-success',
-        billable: true,
       }),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+    expect(requestRecordsList.mock.calls.at(-1)?.[0]).not.toHaveProperty('billable')
+  })
+
+  it('refreshes every five seconds when auto refresh is enabled', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    expect(requestRecordsList).toHaveBeenCalledTimes(1)
+    const autoRefreshButton = wrapper.findAll('button').find((button) => button.attributes('title') === 'usage.autoRefresh')
+    expect(autoRefreshButton).toBeTruthy()
+    await autoRefreshButton!.trigger('click')
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    expect(requestRecordsList).toHaveBeenCalledTimes(2)
+
+    await autoRefreshButton!.trigger('click')
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    expect(requestRecordsList).toHaveBeenCalledTimes(2)
   })
 
   it('filters by session immediately when a request record session is clicked', async () => {
@@ -528,9 +800,87 @@ describe('RequestLogsView', () => {
 
     const bodyText = wrapper.find('tbody').text()
     expect(bodyText).toContain('sess-error')
-    expect(bodyText).toContain('metadata_session_id')
+    expect(bodyText).not.toContain('metadata_session_id')
     expect(bodyText).not.toContain('Non-billable')
     expect(bodyText).not.toContain('Billable')
+  })
+
+  it('opens system request diagnostics from the table action', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const diagnosticsButtons = wrapper.findAll('tbody [data-testid="request-diagnostics-button"]')
+    expect(diagnosticsButtons.length).toBeGreaterThanOrEqual(2)
+    await diagnosticsButtons[1].trigger('click')
+    await flushPromises()
+
+    const dialogText = document.body.textContent || ''
+    expect(dialogText).toContain('Request Diagnostics')
+    expect(dialogText).toContain('Overview')
+    expect(dialogText).toContain('Identity & Source')
+    expect(dialogText).toContain('Routing & Model')
+    expect(dialogText).toContain('Session Linkage')
+    expect(dialogText).toContain('Resources & Billing')
+    expect(dialogText).toContain('Upstream Attempts Timeline')
+    expect(dialogText).toContain('req-success')
+    expect(dialogText).not.toContain('prompt-cache-key-demo')
+  })
+
+  it('keeps the final status successful while showing failed upstream attempts in diagnostics', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const diagnosticsButtons = wrapper.findAll('tbody [data-testid="request-diagnostics-button"]')
+    await diagnosticsButtons[1].trigger('click')
+    await flushPromises()
+
+    const finalStatus = document.body.querySelector('[data-testid="diagnostics-final-status"]')
+    expect(finalStatus?.textContent).toContain('200')
+    const dialogText = document.body.textContent || ''
+    expect(dialogText).toContain('Upstream failed mid-flight, final response recovered')
+    expect(dialogText).toContain('The final client response succeeded')
+    expect(dialogText).toContain('401')
+    expect(dialogText).toContain('401 unauthorized')
+    expect(dialogText).toContain('200')
+    expect(dialogText).not.toContain('Final error')
+  })
+
+  it('shows non-billable requests as diagnostic facts instead of missing price', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const diagnosticsButtons = wrapper.findAll('tbody [data-testid="request-diagnostics-button"]')
+    await diagnosticsButtons[0].trigger('click')
+    await flushPromises()
+
+    const dialogText = document.body.textContent || ''
+    expect(dialogText).toContain('This is a non-billable request')
+    expect(dialogText).toContain('resource facts remain useful')
+    expect(dialogText).toContain('Final error')
+    expect(dialogText).toContain('503 service unavailable')
+  })
+
+  it('filters by session from the diagnostics dialog', async () => {
+    const wrapper = mountRequestLogsView()
+    await flushPromises()
+
+    const diagnosticsButtons = wrapper.findAll('tbody [data-testid="request-diagnostics-button"]')
+    await diagnosticsButtons[1].trigger('click')
+    await flushPromises()
+
+    const filterButton = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Filter by this Session'))
+    expect(filterButton).toBeTruthy()
+    filterButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(requestRecordsList).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        session_id: 'sess-success',
+        page: 1,
+      }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 
   it('shows pending request records as in progress without stream badges', async () => {
@@ -555,6 +905,14 @@ describe('RequestLogsView', () => {
     expect(bodyText).toContain('Pending')
     expect(bodyText).not.toContain('Error')
     expect(bodyText).not.toContain('Stream')
+
+    const diagnosticsButtons = wrapper.findAll('tbody [data-testid="request-diagnostics-button"]')
+    await diagnosticsButtons[0].trigger('click')
+    await flushPromises()
+    const dialogText = document.body.textContent || ''
+    expect(dialogText).toContain('Request is still running')
+    expect(dialogText).toContain('This record is still pending')
+    expect(dialogText).not.toContain('Final error')
   })
 
   it('renders usage-aligned default columns and lets hidden fields be toggled on', async () => {

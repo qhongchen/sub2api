@@ -134,11 +134,25 @@ func firstNonEmpty(values ...string) string {
 func parseRelativeTimeRange(raw string) (time.Time, time.Time, bool) {
 	now := time.Now()
 	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "", "today":
+		return startOfLocalDay(now), now, true
+	case "this_week", "week":
+		return startOfLocalWeek(now), now, true
+	case "last_7_days", "7d":
+		start := startOfLocalDay(now)
+		start = start.AddDate(0, 0, -6)
+		return start, now, true
+	case "this_month", "month":
+		return startOfLocalMonth(now), now, true
+	case "last_30_days", "30d":
+		start := startOfLocalDay(now)
+		start = start.AddDate(0, 0, -29)
+		return start, now, true
 	case "5m":
 		return now.Add(-5 * time.Minute), now, true
 	case "30m":
 		return now.Add(-30 * time.Minute), now, true
-	case "", "1h":
+	case "1h":
 		return now.Add(-1 * time.Hour), now, true
 	case "6h":
 		return now.Add(-6 * time.Hour), now, true
@@ -147,6 +161,22 @@ func parseRelativeTimeRange(raw string) (time.Time, time.Time, bool) {
 	default:
 		return time.Time{}, time.Time{}, false
 	}
+}
+
+func startOfLocalWeek(now time.Time) time.Time {
+	start := startOfLocalDay(now)
+	day := start.Weekday()
+	diff := time.Monday - day
+	if day == time.Sunday {
+		diff = -6
+	}
+	start = start.AddDate(0, 0, int(diff))
+	return start
+}
+
+func startOfLocalMonth(now time.Time) time.Time {
+	start := startOfLocalDay(now)
+	return time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
 }
 
 func parseStatusCodes(c *gin.Context, filter *Filter) error {

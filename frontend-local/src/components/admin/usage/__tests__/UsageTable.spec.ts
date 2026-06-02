@@ -289,11 +289,12 @@ describe('admin UsageTable tooltip', () => {
     expect(wrapper.find('button[aria-label="Cost Breakdown"]').exists()).toBe(false)
   })
 
-  it('emits the session id when clicking a session cell', async () => {
+  it('middle-truncates session id and emits the full value when clicked', async () => {
     const row = {
       request_id: 'req-admin-session-1',
-      session_id: 'session-from-request-record',
+      session_id: '019e6eb8-b7e1-7483-a147-724f1bc99d31',
       session_source: 'header_session_id',
+      prompt_cache_key: 'prompt-cache-key-should-not-render',
       actual_cost: null,
       total_cost: null,
       account_rate_multiplier: 1,
@@ -321,10 +322,11 @@ describe('admin UsageTable tooltip', () => {
     })
 
     const sessionButton = wrapper.find('tbody button')
-    expect(sessionButton.text()).toContain('session-from-request-record')
+    expect(sessionButton.text()).toContain('019e6eb8-b7e...1bc99d31')
+    expect(sessionButton.text()).not.toContain('prompt-cache-key-should-not-render')
     await sessionButton.trigger('click')
 
-    expect(wrapper.emitted('session-click')).toEqual([['session-from-request-record']])
+    expect(wrapper.emitted('session-click')).toEqual([['019e6eb8-b7e1-7483-a147-724f1bc99d31']])
   })
 
   it('keeps error details in the status tooltip instead of rendering an extra line', async () => {
@@ -615,7 +617,7 @@ describe('admin UsageTable tooltip', () => {
     expect(wrapper.find('[role="tooltip"]').exists()).toBe(false)
   })
 
-  it('only forces the session tooltip when extra client session details exist', async () => {
+  it('always shows full session details in the session tooltip on hover', async () => {
     vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(80)
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(120)
     vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(20)
@@ -658,7 +660,97 @@ describe('admin UsageTable tooltip', () => {
 
     const tooltip = wrapper.find('[role="tooltip"]')
     expect(tooltip.exists()).toBe(true)
+    expect(tooltip.text()).toContain('visible-session')
     expect(tooltip.text()).toContain('client-session-from-header')
+  })
+
+  it('renders the vendor model icon and keeps reasoning under the model text', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          {
+            request_id: 'req-admin-model-icon',
+            model: '5.4-mini',
+            upstream_model: 'gpt-5.5-20260601',
+            model_mapping_chain: '5.4-mini→gpt-5.5',
+            reasoning_effort: 'xhigh',
+            actual_cost: 0,
+            total_cost: 0,
+            account_rate_multiplier: 1,
+            rate_multiplier: 1,
+            input_cost: 0,
+            output_cost: 0,
+            cache_creation_cost: 0,
+            cache_read_cost: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+          },
+        ],
+        loading: false,
+        columns: [{ key: 'model', label: 'Model' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+          ModelIcon: {
+            props: ['model'],
+            template: '<span data-testid="model-icon">{{ model }}</span>',
+          },
+        },
+      },
+    })
+
+    const modelCell = wrapper.find('tbody td')
+    const textColumn = modelCell.find('.min-w-0')
+    expect(modelCell.find('[data-testid="model-icon"]').text()).toBe('gpt-5.5-20260601')
+    expect(textColumn.text()).toContain('5.4-mini')
+    expect(textColumn.text()).toContain('gpt-5.5-20260601')
+    expect(textColumn.text()).toContain('XHigh')
+  })
+
+  it('uses the actual billing model as the primary model text for mapped rows', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          {
+            request_id: 'req-admin-mapped-billing-model',
+            model: 'gpt-5.4',
+            requested_model: 'gpt-5.4',
+            upstream_model: 'gpt-5.5',
+            billing_model: 'gpt-5.5',
+            model_mapping_chain: 'gpt-5.4→gpt-5.5',
+            actual_cost: 0.026144,
+            total_cost: 0.026144,
+            account_rate_multiplier: 1,
+            rate_multiplier: 1,
+            input_cost: 0.01,
+            output_cost: 0.02,
+            cache_creation_cost: 0,
+            cache_read_cost: 0,
+            input_tokens: 100,
+            output_tokens: 50,
+          },
+        ],
+        loading: false,
+        columns: [{ key: 'model', label: 'Model' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+          ModelIcon: {
+            props: ['model'],
+            template: '<span data-testid="model-icon">{{ model }}</span>',
+          },
+        },
+      },
+    })
+
+    const primaryModel = wrapper.find('tbody td .model-primary-text')
+    expect(primaryModel.text()).toBe('gpt-5.5')
+    expect(wrapper.find('tbody td').text()).toContain('gpt-5.4')
+    expect(wrapper.find('[data-testid="model-icon"]').text()).toBe('gpt-5.5')
   })
 
   it.each([

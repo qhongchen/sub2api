@@ -18,6 +18,21 @@ func (r SessionResolver) ResolveOpenAI(req *http.Request, body []byte) SessionId
 		if v := strings.TrimSpace(req.Header.Get("conversation_id")); v != "" {
 			return SessionIdentity{SessionID: v, Source: SessionSourceHeaderConversationID, ClientSessionID: v}
 		}
+		if v := strings.TrimSpace(req.Header.Get("x-session-id")); v != "" {
+			return SessionIdentity{SessionID: v, Source: SessionSourceHeaderXSessionID, ClientSessionID: v}
+		}
+		if v := strings.TrimSpace(req.Header.Get("x-conversation-id")); v != "" {
+			return SessionIdentity{SessionID: v, Source: SessionSourceHeaderXConversationID, ClientSessionID: v}
+		}
+	}
+	metadataUserID := strings.TrimSpace(gjson.GetBytes(body, "metadata.user_id").String())
+	if metadataUserID != "" {
+		if sessionID := extractSessionIDFromMetadataUserID(metadataUserID); sessionID != "" {
+			return SessionIdentity{SessionID: sessionID, Source: SessionSourceMetadataUserID, ClientSessionID: sessionID}
+		}
+	}
+	if v := strings.TrimSpace(gjson.GetBytes(body, "metadata.session_id").String()); v != "" {
+		return SessionIdentity{SessionID: v, Source: SessionSourceMetadataSessionID, ClientSessionID: v}
 	}
 	if v := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()); v != "" {
 		return SessionIdentity{SessionID: v, Source: SessionSourcePromptCacheKey, ClientSessionID: v}
