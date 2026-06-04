@@ -1,5 +1,37 @@
 <template>
-  <div ref="rootRef" v-if="showUsageWindows">
+  <div
+    ref="rootRef"
+    v-if="showUsageWindows"
+    :class="[
+      'relative',
+      showCompactRefreshButton ? 'pr-5' : ''
+    ]"
+  >
+    <button
+      v-if="showCompactRefreshButton"
+      type="button"
+      class="account-usage-refresh-button"
+      :disabled="refreshButtonLoading"
+      :aria-label="t('common.refresh')"
+      :title="t('common.refresh')"
+      @click.stop="handleRefreshClick"
+    >
+      <svg
+        class="h-3 w-3"
+        :class="{ 'animate-spin': refreshButtonLoading }"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
+      </svg>
+    </button>
+
     <!-- Anthropic OAuth and Setup Token accounts: fetch real usage data -->
     <template
       v-if="
@@ -114,7 +146,7 @@
         <UsageProgressBar
           v-if="usageInfo?.five_hour"
           label="5h"
-          :utilization="usageInfo.five_hour.utilization"
+          :utilization="openAIFiveHourUsedUtilization"
           :resets-at="usageInfo.five_hour.resets_at"
           :window-stats="usageInfo.five_hour.window_stats"
           :show-now-when-idle="true"
@@ -630,6 +662,25 @@ const hasOpenAIUsageFallback = computed(() => {
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
 })
 
+const openAIFiveHourUsedUtilization = computed(() => {
+  const remaining = usageInfo.value?.five_hour?.utilization
+  if (remaining == null) return 0
+  return Math.max(0, 100 - remaining)
+})
+
+const supportsActiveUsageQuery = computed(() => {
+  if (props.account.platform === 'openai' && props.account.type === 'oauth') return true
+  return isAnthropicOAuthOrSetupToken.value
+})
+
+const showCompactRefreshButton = computed(() => {
+  return props.compact && shouldFetchUsage.value
+})
+
+const refreshButtonLoading = computed(() => {
+  return loading.value || activeQueryLoading.value
+})
+
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
 
 const shouldAutoLoadUsageOnMount = computed(() => {
@@ -1135,14 +1186,32 @@ const attachVisibilityObserver = () => {
 }
 
 const loadActiveUsage = async () => {
+  const hadUsageInfo = !!usageInfo.value
   activeQueryLoading.value = true
+  error.value = null
   try {
-    usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    const result = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    usageInfo.value = result
+    _usageCache.set(props.account.id, { data: result, ts: Date.now() })
   } catch (e: any) {
+    if (!hadUsageInfo) {
+      error.value = t('common.error')
+    }
     console.error('Failed to load active usage:', e)
   } finally {
     activeQueryLoading.value = false
   }
+}
+
+const handleRefreshClick = async () => {
+  if (supportsActiveUsageQuery.value) {
+    await loadActiveUsage()
+    return
+  }
+
+  _usageCache.delete(props.account.id)
+  const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
+  await loadUsage({ source, bypassCache: true })
 }
 
 // ===== API Key quota progress bars =====
@@ -1316,6 +1385,12 @@ onUnmounted(() => {
 
 .account-usage-key-popover {
   @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[180px] -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
+}
+
+.account-usage-refresh-button {
+  @apply absolute right-0 top-0 inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 transition-colors;
+  @apply hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300;
 }
 
 .account-usage-key-summary:hover .account-usage-key-popover,

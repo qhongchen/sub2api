@@ -1,35 +1,132 @@
 <template>
   <AppLayout>
-    <TablePageLayout class="users-page-layout">
-      <template #table>
-        <section class="users-management-card cch-panel-card overflow-visible">
-          <div class="users-card-header flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0 space-y-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
-                  {{ t('admin.users.title') }}
-                </h1>
-                <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
-                  {{ pagination.total }} {{ t('nav.users') }}
-                </span>
+    <div class="users-page-layout space-y-5">
+      <section class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="text-2xl font-semibold text-gray-950 dark:text-white">
+            {{ t('admin.users.title') }}
+          </h1>
+          <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-dark-300">
+            {{ t('admin.users.description') }}
+          </p>
+        </div>
+
+        <div class="flex shrink-0 items-center gap-2">
+          <button @click="showCreateModal = true" class="btn btn-primary">
+            <Icon name="plus" size="md" class="mr-2" />
+            {{ t('admin.users.createUser') }}
+          </button>
+          <button
+            @click="showAttributesModal = true"
+            class="btn btn-secondary px-2 md:px-3"
+            :aria-label="t('admin.users.attributes.configButton')"
+            :title="t('admin.users.attributes.configButton')"
+          >
+            <Icon name="cog" size="md" />
+          </button>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-950 dark:border-white/[0.08] dark:bg-dark-900/60 dark:text-dark-300 dark:hover:text-white"
+            @click="filtersOpen = !filtersOpen"
+          >
+            <Icon name="filter" size="sm" :stroke-width="2" />
+            <span>{{ t('usage.filterCriteria') }}</span>
+            <span
+              v-if="activeFilterCount > 0"
+              class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-300"
+            >
+              {{ activeFilterCount }}
+            </span>
+            <Icon
+              name="chevronDown"
+              size="xs"
+              class="transition-transform"
+              :class="{ 'rotate-180': filtersOpen }"
+            />
+          </button>
+
+          <div class="ml-auto flex items-center gap-2">
+            <div class="relative" ref="columnDropdownRef">
+              <button
+                type="button"
+                class="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]"
+                :aria-label="t('admin.requestLogs.columnSettings')"
+                :title="t('admin.requestLogs.columnSettings')"
+                @click.stop="showColumnDropdown = !showColumnDropdown"
+              >
+                <Icon name="grid" size="sm" />
+                <span>{{ visibleColumnCount }}/{{ allColumns.length }}</span>
+              </button>
+              <div
+                v-if="showColumnDropdown"
+                class="absolute right-0 top-full z-50 mt-2 max-h-96 w-60 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-dark-700 dark:bg-dark-800"
+              >
+                <div class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-dark-400">
+                  {{ t('admin.requestLogs.columnSettings') }}
+                </div>
+                <button
+                  v-for="col in toggleableColumns"
+                  :key="col.key"
+                  type="button"
+                  :disabled="isForcedVisibleColumn(col.key)"
+                  :class="[
+                    'flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                    isForcedVisibleColumn(col.key)
+                      ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white'
+                  ]"
+                  :title="isForcedVisibleColumn(col.key) ? t('admin.users.columnAlwaysVisible') : ''"
+                  @click="toggleColumn(col.key)"
+                >
+                  <span class="truncate">{{ col.label }}</span>
+                  <Icon
+                    v-if="isColumnVisible(col.key)"
+                    name="check"
+                    size="sm"
+                    :class="isForcedVisibleColumn(col.key) ? 'text-gray-400 dark:text-gray-500' : 'shrink-0 text-orange-500'"
+                    :stroke-width="2"
+                  />
+                </button>
+                <div class="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
+                  @click="resetColumnVisibility"
+                >
+                  <Icon name="refresh" size="xs" />
+                  {{ t('admin.requestLogs.resetColumns') }}
+                </button>
               </div>
-              <p class="max-w-2xl text-sm text-gray-500 dark:text-dark-300">
-                {{ t('admin.users.description') }}
-              </p>
             </div>
 
-            <button @click="showCreateModal = true" class="btn btn-primary">
-              <Icon name="plus" size="md" class="mr-2" />
-              {{ t('admin.users.createUser') }}
+            <button
+              @click="loadUsers"
+              :disabled="loading"
+              class="consumer-icon-btn"
+              :aria-label="t('common.refresh')"
+              :title="t('common.refresh')"
+            >
+              <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
             </button>
           </div>
+        </div>
 
-          <!-- Single Row: Search, Filters, and Actions -->
-          <div class="users-card-toolbar flex flex-wrap items-center gap-3 px-6 py-4">
-            <!-- Left: Search + Active Filters -->
-            <div class="flex flex-1 flex-wrap items-center gap-3">
-              <!-- Search Box -->
-              <div class="relative w-full md:w-64">
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="-translate-y-1 opacity-0"
+          enter-to-class="translate-y-0 opacity-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="translate-y-0 opacity-100"
+          leave-to-class="-translate-y-1 opacity-0"
+        >
+          <div v-if="filtersOpen" class="users-filter-card cch-panel-card p-4 md:p-5">
+            <div class="users-filter-row">
+              <div class="relative users-filter-search">
                 <Icon
                   name="search"
                   size="md"
@@ -40,180 +137,123 @@
                   type="text"
                   :placeholder="t('admin.users.searchUsers')"
                   class="input pl-10"
-                  @input="handleSearch"
+                  @keyup.enter="applyFilter"
                 />
               </div>
 
-            <!-- Role Filter (visible when enabled) -->
-            <div class="w-full sm:w-32">
               <Select
                 v-model="filters.role"
+                class="users-filter-select"
                 :options="[
                   { value: '', label: t('admin.users.allRoles') },
                   { value: 'admin', label: t('admin.users.admin') },
                   { value: 'user', label: t('admin.users.user') }
                 ]"
-                @change="applyFilter"
               />
-            </div>
 
-            <!-- Status Filter (visible when enabled) -->
-            <div class="w-full sm:w-32">
               <Select
                 v-model="filters.status"
+                class="users-filter-select"
                 :options="[
                   { value: '', label: t('admin.users.allStatus') },
                   { value: 'active', label: t('common.active') },
                   { value: 'disabled', label: t('admin.users.disabled') }
                 ]"
-                @change="applyFilter"
               />
-            </div>
 
-            <!-- Group Filter (visible when enabled) -->
-            <div class="w-full sm:w-44">
               <Select
                 v-model="filters.group"
+                class="users-filter-group"
                 :options="groupFilterOptions"
                 searchable
                 creatable
                 :creatable-prefix="t('admin.users.fuzzySearch')"
                 :search-placeholder="t('admin.users.searchGroups')"
-                @change="applyFilter"
               />
-            </div>
 
-            <!-- Dynamic Attribute Filters -->
-            <template v-for="attr in filterableAttributes" :key="attr.id">
-              <div class="relative w-full sm:w-36">
-                <!-- Text/Email/URL/Textarea/Date type: styled input -->
-                <input
-                  v-if="['text', 'textarea', 'email', 'url', 'date'].includes(attr.type || 'text')"
-                  :value="activeAttributeFilters[attr.id] ?? ''"
-                  @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
-                  @keyup.enter="applyFilter"
-                  :placeholder="attr.name"
-                  class="input w-full"
-                />
-                <!-- Number type: number input -->
-                <input
-                  v-else-if="attr.type === 'number'"
-                  :value="activeAttributeFilters[attr.id] ?? ''"
-                  type="number"
-                  @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
-                  @keyup.enter="applyFilter"
-                  :placeholder="attr.name"
-                  class="input w-full"
-                />
-                <!-- Select/Multi-select type -->
-                <template v-else-if="['select', 'multi_select'].includes(attr.type || '')">
-                  <div class="w-full">
-                    <Select
-                      :model-value="activeAttributeFilters[attr.id] ?? ''"
-                      :options="[
-                        { value: '', label: attr.name },
-                        ...(attr.options || [])
-                      ]"
-                      @update:model-value="(val) => { updateAttributeFilter(attr.id, String(val ?? '')); applyFilter() }"
-                    />
-                  </div>
-                </template>
-                <!-- Fallback -->
-                <input
-                  v-else
-                  :value="activeAttributeFilters[attr.id] ?? ''"
-                  @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
-                  @keyup.enter="applyFilter"
-                  :placeholder="attr.name"
-                  class="input w-full"
-                />
-              </div>
-            </template>
-          </div>
-
-          <!-- Right: Actions and Settings -->
-          <div class="flex flex-wrap items-center justify-end gap-2">
-            <!-- Mobile: Secondary buttons (icon only) -->
-            <div class="flex items-center gap-2 md:contents">
-              <!-- Refresh Button -->
-              <button
-                @click="loadUsers"
-                :disabled="loading"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('common.refresh')"
-              >
-                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-              </button>
-              <!-- Column Settings Dropdown -->
-              <div class="relative" ref="columnDropdownRef">
-                <button
-                  @click="showColumnDropdown = !showColumnDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.users.columnSettings')"
-                >
-                  <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                  </svg>
-                  <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-                </button>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showColumnDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                >
-                  <button
-                    v-for="col in toggleableColumns"
-                    :key="col.key"
-                    :disabled="isForcedVisibleColumn(col.key)"
-                    @click="toggleColumn(col.key)"
-                    :class="[
-                      'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
-                      isForcedVisibleColumn(col.key)
-                        ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'
+              <template v-for="attr in filterableAttributes" :key="attr.id">
+                <div class="relative users-filter-attribute">
+                  <input
+                    v-if="['text', 'textarea', 'email', 'url', 'date'].includes(attr.type || 'text')"
+                    :value="activeAttributeFilters[attr.id] ?? ''"
+                    :placeholder="attr.name"
+                    class="input w-full"
+                    @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
+                    @keyup.enter="applyFilter"
+                  />
+                  <input
+                    v-else-if="attr.type === 'number'"
+                    :value="activeAttributeFilters[attr.id] ?? ''"
+                    type="number"
+                    :placeholder="attr.name"
+                    class="input w-full"
+                    @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
+                    @keyup.enter="applyFilter"
+                  />
+                  <Select
+                    v-else-if="['select', 'multi_select'].includes(attr.type || '')"
+                    :model-value="activeAttributeFilters[attr.id] ?? ''"
+                    :options="[
+                      { value: '', label: attr.name },
+                      ...(attr.options || [])
                     ]"
-                    :title="isForcedVisibleColumn(col.key) ? t('admin.users.columnAlwaysVisible') : ''"
-                  >
-                    <span>{{ col.label }}</span>
-                    <Icon
-                      v-if="isColumnVisible(col.key)"
-                      name="check"
-                      size="sm"
-                      :class="isForcedVisibleColumn(col.key) ? 'text-gray-400 dark:text-gray-500' : 'text-primary-500'"
-                      :stroke-width="2"
-                    />
-                  </button>
+                    @update:model-value="(val) => updateAttributeFilter(attr.id, String(val ?? ''))"
+                  />
+                  <input
+                    v-else
+                    :value="activeAttributeFilters[attr.id] ?? ''"
+                    :placeholder="attr.name"
+                    class="input w-full"
+                    @input="(e) => updateAttributeFilter(attr.id, (e.target as HTMLInputElement).value)"
+                    @keyup.enter="applyFilter"
+                  />
                 </div>
+              </template>
+
+              <div class="users-filter-actions">
+                <button type="button" class="btn btn-primary" @click="applyFilter">
+                  {{ t('usage.applyFilters') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="activeFilterCount === 0"
+                  @click="resetFilters"
+                >
+                  {{ t('common.reset') }}
+                </button>
               </div>
-              <!-- Attributes Config Button -->
-              <button
-                @click="showAttributesModal = true"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('admin.users.attributes.configButton')"
-              >
-                <Icon name="cog" size="sm" class="md:mr-1.5" />
-                <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
-              </button>
             </div>
-
           </div>
-          </div>
+        </Transition>
+      </section>
 
-          <!-- Users Table -->
-          <div class="users-table">
-            <DataTable
-              :columns="columns"
-              :data="sortedUsers"
-              :loading="loading"
-              :actions-count="7"
-              :server-side-sort="true"
-              :virtualized="false"
-              default-sort-key="created_at"
-              default-sort-order="desc"
-              :sort-storage-key="USER_SORT_STORAGE_KEY"
-              @sort="handleSort"
-            >
-          <template #cell-email="{ value, row }">
+      <TablePanel
+        :summary="userTableSummary"
+        :summary-items="userTableSummaryItems"
+        :show-footer="users.length > 0 || loadingMore || hasMoreUsers"
+      >
+        <div class="users-table-card">
+          <DataTable
+            :columns="columns"
+            :data="users"
+            :loading="loading"
+            :actions-count="7"
+            :virtualized="false"
+            :sticky-first-column="false"
+            :sticky-actions-column="false"
+            wrapper-class="hidden overflow-x-auto md:block"
+            table-class="w-full min-w-[980px] divide-y divide-gray-200/70 dark:divide-white/[0.06]"
+            header-class="bg-gray-50/80 dark:bg-white/[0.03]"
+            header-cell-base-class="py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400"
+            cell-base-class="py-4 text-left"
+            padding-class="px-4"
+            row-class="transition-colors hover:bg-orange-50/40 dark:hover:bg-white/[0.035]"
+            mobile-list-class="divide-y divide-gray-100 md:hidden dark:divide-white/[0.06]"
+            mobile-card-class="space-y-3 p-4"
+            mobile-empty-class="flex min-h-[220px] flex-col items-center justify-center gap-3 p-6 text-center"
+          >
+            <template #cell-email="{ value, row }">
             <div class="flex items-center gap-2">
               <div
                 class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
@@ -381,85 +421,6 @@
             </div>
           </template>
 
-          <!-- 用量列自定义表头：列名 + 单个排序图标按钮，点击展开"今日/近30天"菜单。
-               column.sortable=false，DataTable 内置点击逻辑不会触发；
-               菜单项三态循环：desc → asc → off。 -->
-          <template
-            v-for="usageKey in USAGE_COLUMN_KEYS"
-            :key="usageKey"
-            #[`header-${usageKey}`]="{ column }"
-          >
-            <div class="flex items-center gap-1.5">
-              <span>{{ column.label }}</span>
-              <div class="usage-sort-trigger relative">
-                <button
-                  type="button"
-                  class="flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-gray-200 dark:hover:bg-dark-700"
-                  :class="usageSort && usageSort.key === usageKey
-                    ? 'text-primary-600 dark:text-primary-400'
-                    : 'text-gray-400 dark:text-dark-500'"
-                  :title="t('admin.users.sortBy')"
-                  @click.stop="toggleUsageSortMenu(usageKey)"
-                >
-                  <span
-                    v-if="usageSort && usageSort.key === usageKey"
-                    class="text-[10px] normal-case font-medium tracking-normal"
-                  >{{ usageSort.metric === 'today' ? t('admin.users.today') : t('admin.users.total') }}</span>
-                  <svg
-                    v-if="usageSort && usageSort.key === usageKey"
-                    class="h-3.5 w-3.5"
-                    :class="{ 'rotate-180': usageSort.order === 'desc' }"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  <svg v-else class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 3l-4 5h8l-4-5zM10 17l4-5H6l4 5z" />
-                  </svg>
-                </button>
-                <!-- 弹出菜单：今日 / 近30天，点击进行三态循环切换。 -->
-                <div
-                  v-if="openUsageSortMenu === usageKey"
-                  class="absolute right-0 top-full z-50 mt-1 min-w-[120px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                >
-                  <button
-                    v-for="metric in (['today', 'total'] as const)"
-                    :key="metric"
-                    type="button"
-                    class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs normal-case tracking-normal hover:bg-gray-100 dark:hover:bg-dark-700"
-                    :class="isUsageSortActive(usageKey, metric)
-                      ? 'font-medium text-primary-600 dark:text-primary-400'
-                      : 'text-gray-700 dark:text-gray-300'"
-                    @click.stop="toggleUsageSort(usageKey, metric)"
-                  >
-                    <span>{{ metric === 'today' ? t('admin.users.today') : t('admin.users.total') }}</span>
-                    <svg
-                      v-if="getUsageSortOrder(usageKey, metric)"
-                      class="h-3 w-3"
-                      :class="{ 'rotate-180': getUsageSortOrder(usageKey, metric) === 'desc' }"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  <div class="mt-1 border-t border-gray-100 px-3 py-1 text-[10px] normal-case tracking-normal text-gray-400 dark:border-dark-700 dark:text-dark-500">
-                    {{ t('admin.users.sortCurrentPageOnly') }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-
           <template #cell-usage="{ row }">
             <PlatformUsageBreakdown
               :today="usageStats[row.id]?.today_actual_cost ?? 0"
@@ -522,40 +483,43 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <!-- Edit Button -->
+            <div class="flex items-center gap-2">
               <button
+                type="button"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="admin-row-action"
+                :aria-label="t('common.edit')"
+                :title="t('common.edit')"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
+                <span class="admin-row-action-label">{{ t('common.edit') }}</span>
               </button>
 
-              <!-- Toggle Status Button (not for admin) -->
               <button
                 v-if="row.role !== 'admin'"
+                type="button"
                 @click="handleToggleStatus(row)"
-                :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors',
-                  row.status === 'active'
-                    ? 'hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400'
-                    : 'hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
-                ]"
+                class="admin-row-action"
+                :aria-label="row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable')"
+                :title="row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable')"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
                 <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}</span>
+                <span class="admin-row-action-label">
+                  {{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}
+                </span>
               </button>
 
-              <!-- More Actions Menu Trigger -->
               <button
+                type="button"
                 @click="openActionMenu(row, $event)"
-                class="action-menu-trigger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
+                class="action-menu-trigger admin-row-action"
                 :class="{ 'bg-gray-100 text-gray-900 dark:bg-dark-700 dark:text-white': activeMenuId === row.id }"
+                :aria-label="t('common.more')"
+                :title="t('common.more')"
               >
                 <Icon name="more" size="sm" />
-                <span class="text-xs">{{ t('common.more') }}</span>
+                <span class="admin-row-action-label">{{ t('common.more') }}</span>
               </button>
             </div>
           </template>
@@ -569,21 +533,25 @@
             />
           </template>
           </DataTable>
-          </div>
+        </div>
 
-          <!-- Pagination -->
-          <div v-if="pagination.total > 0" class="users-card-pagination">
-            <Pagination
-              :page="pagination.page"
-              :total="pagination.total"
-              :page-size="pagination.page_size"
-              @update:page="handlePageChange"
-              @update:pageSize="handlePageSizeChange"
-            />
+        <template #footer>
+          <div class="flex min-h-10 items-center justify-center text-sm text-gray-500 dark:text-dark-400">
+            <span v-if="loadingMore" class="inline-flex items-center gap-2">
+              <Icon name="refresh" size="sm" class="animate-spin" />
+              {{ t('admin.requestLogs.loadingMore') }}
+            </span>
+            <span v-else-if="hasMoreUsers">
+              {{ t('admin.requestLogs.scrollLoadMore') }}
+            </span>
+            <span v-else-if="users.length > 0">
+              {{ t('admin.requestLogs.allRecordsLoaded') }}
+            </span>
           </div>
-        </section>
-      </template>
-    </TablePageLayout>
+          <div ref="loadMoreSentinelRef" class="h-px" aria-hidden="true" />
+        </template>
+      </TablePanel>
+    </div>
 
     <!-- Action Menu (Teleported) -->
     <Teleport to="body">
@@ -595,64 +563,46 @@
         <div class="py-1">
           <template v-for="user in users" :key="user.id">
             <template v-if="user.id === activeMenuId">
-              <!-- View API Keys -->
               <button
                 @click="handleViewApiKeys(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
-                <Icon name="key" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.apiKeys') }}
               </button>
 
-              <!-- Allowed Groups -->
               <button
                 @click="handleAllowedGroups(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
-                <Icon name="users" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.groups') }}
               </button>
 
-              <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
-
-              <!-- Deposit -->
               <button
                 @click="handleDeposit(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
-                <Icon name="plus" size="sm" class="text-emerald-500" :stroke-width="2" />
                 {{ t('admin.users.deposit') }}
               </button>
 
-              <!-- Withdraw -->
               <button
                 @click="handleWithdraw(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
-                <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
-                </svg>
                 {{ t('admin.users.withdraw') }}
               </button>
 
-              <!-- Balance History -->
               <button
                 @click="handleBalanceHistory(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
-                <Icon name="dollar" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.balanceHistory') }}
               </button>
 
-              <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
-
-              <!-- Delete (not for admin) -->
               <button
                 v-if="user.role !== 'admin'"
                 @click="handleDelete(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
               >
-                <Icon name="trash" size="sm" :stroke-width="2" />
                 {{ t('common.delete') }}
               </button>
             </template>
@@ -678,18 +628,18 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatDateTime } from '@/utils/format'
+import { useInfinitePagedList } from '@/composables/useInfinitePagedList'
+import { formatDateTime, formatNumber } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, AdminGroup, UserAttributeDefinition } from '@/types'
+import type { AdminUser, AdminGroup, PaginatedResponse, UserAttributeDefinition } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import TablePanel from '@/components/common/TablePanel.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -714,8 +664,7 @@ const attributeColumns = computed<Column[]>(() =>
     .filter(def => def.enabled)
     .map(def => ({
       key: `attr_${def.id}`,
-      label: def.name,
-      sortable: false
+      label: def.name
     }))
 )
 
@@ -756,26 +705,26 @@ const getAttributeValue = (userId: number, attrId: number): string => {
 
 // All possible columns (for column settings)
 const allColumns = computed<Column[]>(() => [
-  { key: 'email', label: t('admin.users.columns.user'), sortable: true },
-  { key: 'id', label: t('admin.users.columns.id'), sortable: true },
-  { key: 'notes', label: t('admin.users.columns.notes'), sortable: false },
+  { key: 'email', label: t('admin.users.columns.user') },
+  { key: 'id', label: t('admin.users.columns.id') },
+  { key: 'notes', label: t('admin.users.columns.notes') },
   // Dynamic attribute columns
   ...attributeColumns.value,
-  { key: 'role', label: t('admin.users.columns.role'), sortable: true },
-  { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
-  { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
-  { key: 'balance', label: t('admin.users.columns.balance'), sortable: true },
-  { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
-  { key: 'usage_anthropic', label: t('admin.users.columns.usageAnthropic'), sortable: false },
-  { key: 'usage_openai', label: t('admin.users.columns.usageOpenAI'), sortable: false },
-  { key: 'usage_gemini', label: t('admin.users.columns.usageGemini'), sortable: false },
-  { key: 'usage_antigravity', label: t('admin.users.columns.usageAntigravity'), sortable: false },
-  { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
-  { key: 'status', label: t('admin.users.columns.status'), sortable: true },
-  { key: 'last_active_at', label: t('admin.users.columns.lastActive'), sortable: true },
-  { key: 'last_used_at', label: t('admin.users.columns.lastUsed'), sortable: true },
-  { key: 'created_at', label: t('admin.users.columns.created'), sortable: true },
-  { key: 'actions', label: t('admin.users.columns.actions'), sortable: false }
+  { key: 'role', label: t('admin.users.columns.role') },
+  { key: 'groups', label: t('admin.users.columns.groups') },
+  { key: 'subscriptions', label: t('admin.users.columns.subscriptions') },
+  { key: 'balance', label: t('admin.users.columns.balance') },
+  { key: 'usage', label: t('admin.users.columns.usage') },
+  { key: 'usage_anthropic', label: t('admin.users.columns.usageAnthropic') },
+  { key: 'usage_openai', label: t('admin.users.columns.usageOpenAI') },
+  { key: 'usage_gemini', label: t('admin.users.columns.usageGemini') },
+  { key: 'usage_antigravity', label: t('admin.users.columns.usageAntigravity') },
+  { key: 'concurrency', label: t('admin.users.columns.concurrency') },
+  { key: 'status', label: t('admin.users.columns.status') },
+  { key: 'last_active_at', label: t('admin.users.columns.lastActive') },
+  { key: 'last_used_at', label: t('admin.users.columns.lastUsed') },
+  { key: 'created_at', label: t('admin.users.columns.created') },
+  { key: 'actions', label: t('admin.users.columns.actions') }
 ])
 
 // Columns that can be toggled (exclude email and actions which are always visible)
@@ -882,28 +831,23 @@ const toggleColumn = (key: string) => {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
-    loadUsers()
+    void loadUsers()
   }
   if (wasHidden && key === 'groups') {
     loadAllGroups()
   }
 }
+const resetColumnVisibility = () => {
+  hiddenColumns.clear()
+  getDefaultHiddenColumns().forEach(key => hiddenColumns.add(key))
+  saveColumnsToStorage()
+  void loadUsers()
+}
 
 // Check if column is visible (not in hidden set)
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 // usage 主列或任意 usage_<platform> 子列可见时都需要批量拉取用量数据
-// 列 key → 平台名（'usage' 主列汇总所有平台时为 null）
-// 显式数组取代 Object.keys()：保证迭代顺序（决定列头排序按钮渲染顺序）
-// 不会因 JS 引擎差异或 USAGE_COLUMN_PLATFORMS 属性顺序调整而静默变化。
-const USAGE_COLUMN_KEYS: readonly string[] = ['usage', 'usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity']
-const USAGE_COLUMN_PLATFORMS: Record<string, string | null> = {
-  usage: null,
-  usage_anthropic: 'anthropic',
-  usage_openai: 'openai',
-  usage_gemini: 'gemini',
-  usage_antigravity: 'antigravity'
-}
-const PLATFORM_USAGE_COLUMNS = USAGE_COLUMN_KEYS.filter((k) => k !== 'usage')
+const PLATFORM_USAGE_COLUMNS = ['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity']
 const hasVisibleUsageColumn = computed(
   () => !hiddenColumns.has('usage') || PLATFORM_USAGE_COLUMNS.some((k) => !hiddenColumns.has(k))
 )
@@ -918,29 +862,13 @@ const columns = computed<Column[]>(() =>
     col.key === 'email' || col.key === 'actions' || !hiddenColumns.has(col.key)
   )
 )
+const visibleColumnCount = computed(() => columns.value.length)
 
-const users = ref<AdminUser[]>([])
-const loading = ref(false)
 const searchQuery = ref('')
-const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
-const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
-  const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
-  const sortable = new Set(['email', 'id', 'role', 'balance', 'concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
-  try {
-    const raw = localStorage.getItem(USER_SORT_STORAGE_KEY)
-    if (!raw) return fallback
-    const parsed = JSON.parse(raw) as { key?: string; order?: string }
-    const key = typeof parsed.key === 'string' ? parsed.key : ''
-    if (!sortable.has(key)) return fallback
-    return {
-      sort_by: key,
-      sort_order: parsed.order === 'asc' ? 'asc' : 'desc'
-    }
-  } catch {
-    return fallback
-  }
+const USER_DEFAULT_SORT = {
+  sort_by: 'created_at',
+  sort_order: 'desc' as const
 }
-const sortState = reactive(loadInitialSortState())
 
 // Groups data for the groups column
 const allGroups = ref<AdminGroup[]>([])
@@ -988,6 +916,27 @@ const filters = reactive({
   group: ''  // group name for fuzzy match, '' = all
 })
 const activeAttributeFilters = reactive<Record<number, string>>({})
+const loadMoreSentinelRef = ref<HTMLElement | null>(null)
+const filtersOpen = ref(false)
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (searchQuery.value.trim()) count += 1
+  if (filters.role) count += 1
+  if (filters.status) count += 1
+  if (filters.group) count += 1
+  count += Object.values(activeAttributeFilters).filter(Boolean).length
+  return count
+})
+const userTableSummary = computed(() =>
+  t('admin.requestLogs.loadedRecordsSummary', {
+    count: formatNumber(users.value.length),
+    total: formatNumber(pagination.total)
+  })
+)
+const userTableSummaryItems = computed(() => [
+  `${formatNumber(pagination.total)} ${t('nav.users')}`,
+  `${formatNumber(users.value.length)} ${t('common.visible')}`
+])
 
 // Dropdown states
 const showColumnDropdown = ref(false)
@@ -1043,102 +992,9 @@ const usageStats = ref<Record<string, BatchUserUsageStats>>({})
 const getPlatformUsage = (userId: number, platform: string) =>
   usageStats.value[userId]?.by_platform?.find((p) => p.platform === platform)
 
-// 用量列前端排序：DataTable 工作在 server-side-sort 模式，所有 sortable
-// 字段都会触发后端查询，而用量列数据是异步批量拉取后再合并到当前页，
-// 因此采用独立的前端排序状态对当前页 users 做本地排序。
-// 排序状态独立于后端 sortState 持久化；缺失数据按 0 处理（desc 沉底、asc 置顶）。
-type UsageMetric = 'today' | 'total'
-type UsageSortState = { key: string; metric: UsageMetric; order: 'asc' | 'desc' } | null
-const USAGE_SORT_STORAGE_KEY = 'admin-users-usage-sort'
-
-const loadInitialUsageSort = (): UsageSortState => {
-  try {
-    const raw = localStorage.getItem(USAGE_SORT_STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<{ key: string; metric: string; order: string }>
-    if (!parsed.key || !USAGE_COLUMN_KEYS.includes(parsed.key)) return null
-    const metric: UsageMetric = parsed.metric === 'total' ? 'total' : 'today'
-    const order: 'asc' | 'desc' = parsed.order === 'asc' ? 'asc' : 'desc'
-    return { key: parsed.key, metric, order }
-  } catch {
-    return null
-  }
-}
-const usageSort = ref<UsageSortState>(loadInitialUsageSort())
-const persistUsageSort = () => {
-  try {
-    if (usageSort.value) {
-      localStorage.setItem(USAGE_SORT_STORAGE_KEY, JSON.stringify(usageSort.value))
-    } else {
-      localStorage.removeItem(USAGE_SORT_STORAGE_KEY)
-    }
-  } catch (e) {
-    console.error('Failed to persist usage sort:', e)
-  }
-}
-
-const isUsageSortActive = (key: string, metric: UsageMetric) =>
-  !!usageSort.value && usageSort.value.key === key && usageSort.value.metric === metric
-const getUsageSortOrder = (key: string, metric: UsageMetric): 'asc' | 'desc' | null =>
-  isUsageSortActive(key, metric) ? usageSort.value!.order : null
-
-// 三态循环：desc → asc → off。选完即关闭菜单（用户大多希望"选中即应用"，
-// 想再切换 order 时重新打开菜单点同一项即可）。
-const toggleUsageSort = (key: string, metric: UsageMetric) => {
-  const cur = usageSort.value
-  if (cur && cur.key === key && cur.metric === metric) {
-    usageSort.value = cur.order === 'desc' ? { key, metric, order: 'asc' } : null
-  } else {
-    usageSort.value = { key, metric, order: 'desc' }
-  }
-  persistUsageSort()
-  openUsageSortMenu.value = null
-}
-
-// 列头排序按钮点击后弹出的"今日/近30天"选择菜单，同时只允许一个列展开。
-// 点击图标本身不触发排序，仅开关菜单；首次排序由用户在菜单内选择 metric 触发（默认 desc，详见 toggleUsageSort）。
-const openUsageSortMenu = ref<string | null>(null)
-const toggleUsageSortMenu = (key: string) => {
-  openUsageSortMenu.value = openUsageSortMenu.value === key ? null : key
-}
-
-const getUsageValue = (userId: number, key: string, metric: UsageMetric): number => {
-  const stats = usageStats.value[userId]
-  if (!stats) return 0
-  const platform = USAGE_COLUMN_PLATFORMS[key]
-  if (platform === null) {
-    return metric === 'today' ? stats.today_actual_cost ?? 0 : stats.total_actual_cost ?? 0
-  }
-  const p = stats.by_platform?.find((x) => x.platform === platform)
-  if (!p) return 0
-  return metric === 'today' ? p.today_actual_cost ?? 0 : p.total_actual_cost ?? 0
-}
-
-// 在 server-side 排序结果之上叠加用量列的本地排序；无 usageSort 时直接透传原数组。
-// 稳定排序：等值按原 index 保序，避免拉取新用量数据时表行抖动。
-const sortedUsers = computed(() => {
-  const s = usageSort.value
-  if (!s) return users.value
-  return [...users.value]
-    .map((row, index) => ({ row, index }))
-    .sort((a, b) => {
-      const av = getUsageValue(a.row.id, s.key, s.metric)
-      const bv = getUsageValue(b.row.id, s.key, s.metric)
-      if (av !== bv) return s.order === 'asc' ? av - bv : bv - av
-      return a.index - b.index
-    })
-    .map((x) => x.row)
-})
-
 // User attribute definitions and values
 const attributeDefinitions = ref<UserAttributeDefinition[]>([])
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0
-})
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -1148,7 +1004,6 @@ const showAttributesModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
 const viewingUser = ref<AdminUser | null>(null)
-let abortController: AbortController | null = null
 let secondaryDataSeq = 0
 
 const loadUsersSecondaryData = async (
@@ -1167,7 +1022,7 @@ const loadUsersSecondaryData = async (
           const usageResponse = await adminAPI.dashboard.getBatchUsersUsage(userIds)
           if (signal?.aborted) return
           if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
-          usageStats.value = usageResponse.stats
+          usageStats.value = { ...usageStats.value, ...usageResponse.stats }
         } catch (e) {
           if (signal?.aborted) return
           console.error('Failed to load usage stats:', e)
@@ -1183,7 +1038,7 @@ const loadUsersSecondaryData = async (
           const attrResponse = await adminAPI.userAttributes.getBatchUserAttributes(userIds)
           if (signal?.aborted) return
           if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
-          userAttributeValues.value = attrResponse.attributes
+          userAttributeValues.value = { ...userAttributeValues.value, ...attrResponse.attributes }
         } catch (e) {
           if (signal?.aborted) return
           console.error('Failed to load user attribute values:', e)
@@ -1197,10 +1052,86 @@ const loadUsersSecondaryData = async (
   }
 }
 
+const buildUserListFilters = () => {
+  const attrFilters: Record<number, string> = {}
+  for (const [attrId, value] of Object.entries(activeAttributeFilters)) {
+    if (value) {
+      attrFilters[Number(attrId)] = value
+    }
+  }
+
+  return {
+    role: filters.role as any,
+    status: filters.status as any,
+    search: searchQuery.value || undefined,
+    group_name: filters.group || undefined,
+    attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
+    include_subscriptions: hasVisibleSubscriptionsColumn.value,
+    sort_by: USER_DEFAULT_SORT.sort_by,
+    sort_order: USER_DEFAULT_SORT.sort_order
+  }
+}
+
+function isCanceled(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const errorInfo = error as { name?: string; code?: string }
+  return errorInfo.name === 'AbortError' || errorInfo.name === 'CanceledError' || errorInfo.code === 'ERR_CANCELED'
+}
+
+const {
+  items: users,
+  loading,
+  loadingMore,
+  pagination,
+  hasMore: hasMoreUsers,
+  reset: resetUsers,
+  startObserver: startLoadMoreObserver,
+  stopObserver: stopLoadMoreObserver
+} = useInfinitePagedList<AdminUser, PaginatedResponse<AdminUser>>({
+  pageSize: getPersistedPageSize(),
+  sentinelRef: loadMoreSentinelRef,
+  fetchPage: (pageState, options) =>
+    adminAPI.users.list(
+      pageState.page,
+      pageState.page_size,
+      buildUserListFilters(),
+      options
+    ),
+  onSuccess: (response, mode) => {
+    if (mode !== 'append') {
+      secondaryDataSeq += 1
+      usageStats.value = {}
+      userAttributeValues.value = {}
+    }
+    const userIds = (response.items || []).map((user) => user.id)
+    if (userIds.length === 0) return
+    const seq = secondaryDataSeq
+    window.setTimeout(() => {
+      if (seq !== secondaryDataSeq) return
+      void loadUsersSecondaryData(userIds, undefined, seq)
+    }, 50)
+  },
+  onError: (error) => {
+    const message = error && typeof error === 'object' && 'message' in error
+      ? String((error as { message?: unknown }).message || t('admin.users.failedToLoad'))
+      : t('admin.users.failedToLoad')
+    appStore.showError(message)
+    console.error('Error loading users:', error)
+  },
+  isCanceled
+})
+
+const loadUsers = () => {
+  secondaryDataSeq += 1
+  usageStats.value = {}
+  userAttributeValues.value = {}
+  return resetUsers()
+}
+
 const refreshCurrentPageSecondaryData = () => {
   const userIds = users.value.map((u) => u.id)
   if (userIds.length === 0) return
-  const seq = ++secondaryDataSeq
+  const seq = secondaryDataSeq
   void loadUsersSecondaryData(userIds, undefined, seq)
 }
 
@@ -1276,10 +1207,6 @@ const handleClickOutside = (event: MouseEvent) => {
   if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
     showColumnDropdown.value = false
   }
-  // Close usage sort dropdown when clicking outside any usage-sort-trigger
-  if (openUsageSortMenu.value !== null && !target.closest('.usage-sort-trigger')) {
-    openUsageSortMenu.value = null
-  }
   // Close expanded group dropdown when clicking outside
   if (expandedGroupUserId.value !== null) {
     expandedGroupUserId.value = null
@@ -1330,99 +1257,7 @@ const loadAttributeDefinitions = async () => {
 const handleAttributesModalClose = async () => {
   showAttributesModal.value = false
   await loadAttributeDefinitions()
-  loadUsers()
-}
-
-const loadUsers = async () => {
-  abortController?.abort()
-  const currentAbortController = new AbortController()
-  abortController = currentAbortController
-  const { signal } = currentAbortController
-  loading.value = true
-  try {
-    // Build attribute filters from active filters
-    const attrFilters: Record<number, string> = {}
-    for (const [attrId, value] of Object.entries(activeAttributeFilters)) {
-      if (value) {
-        attrFilters[Number(attrId)] = value
-      }
-    }
-
-    const response = await adminAPI.users.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        role: filters.role as any,
-        status: filters.status as any,
-        search: searchQuery.value || undefined,
-        group_name: filters.group || undefined,
-        attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
-        include_subscriptions: hasVisibleSubscriptionsColumn.value,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
-      { signal }
-    )
-    if (signal.aborted) {
-      return
-    }
-    users.value = response.items
-    pagination.total = response.total
-    pagination.pages = response.pages
-    usageStats.value = {}
-    userAttributeValues.value = {}
-
-    // Defer heavy secondary data so table can render first.
-    if (response.items.length > 0) {
-      const userIds = response.items.map((u) => u.id)
-      const seq = ++secondaryDataSeq
-      window.setTimeout(() => {
-        if (signal.aborted || seq !== secondaryDataSeq) return
-        void loadUsersSecondaryData(userIds, signal, seq)
-      }, 50)
-    }
-  } catch (error: any) {
-    const errorInfo = error as { name?: string; code?: string }
-    if (errorInfo?.name === 'AbortError' || errorInfo?.name === 'CanceledError' || errorInfo?.code === 'ERR_CANCELED') {
-      return
-    }
-    const message = error.response?.data?.detail || error.message || t('admin.users.failedToLoad')
-    appStore.showError(message)
-    console.error('Error loading users:', error)
-  } finally {
-    if (abortController === currentAbortController) {
-      loading.value = false
-    }
-  }
-}
-
-let searchTimeout: ReturnType<typeof setTimeout>
-const handleSearch = () => {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    pagination.page = 1
-    loadUsers()
-  }, 300)
-}
-
-const handlePageChange = (page: number) => {
-  // 确保页码在有效范围内
-  const validPage = Math.max(1, Math.min(page, pagination.pages || 1))
-  pagination.page = validPage
-  loadUsers()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadUsers()
-}
-
-const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key
-  sortState.sort_order = order
-  pagination.page = 1
-  loadUsers()
+  void loadUsers()
 }
 
 const updateAttributeFilter = (attrId: number, value: string) => {
@@ -1432,7 +1267,17 @@ const updateAttributeFilter = (attrId: number, value: string) => {
 // Apply filter and save to localStorage
 const applyFilter = () => {
   saveFiltersToStorage()
-  loadUsers()
+  void loadUsers()
+}
+const resetFilters = () => {
+  searchQuery.value = ''
+  filters.role = ''
+  filters.status = ''
+  filters.group = ''
+  for (const key of Object.keys(activeAttributeFilters)) {
+    delete activeAttributeFilters[Number(key)]
+  }
+  applyFilter()
 }
 
 const handleEdit = (user: AdminUser) => {
@@ -1452,7 +1297,7 @@ const handleToggleStatus = async (user: AdminUser) => {
     appStore.showSuccess(
       newStatus === 'active' ? t('admin.users.userEnabled') : t('admin.users.userDisabled')
     )
-    loadUsers()
+    void loadUsers()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.users.failedToToggle'))
     console.error('Error toggling user status:', error)
@@ -1504,7 +1349,7 @@ const confirmDelete = async () => {
     appStore.showSuccess(t('common.success'))
     showDeleteDialog.value = false
     deletingUser.value = null
-    loadUsers()
+    void loadUsers()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.users.failedToDelete'))
     console.error('Error deleting user:', error)
@@ -1561,147 +1406,81 @@ onMounted(async () => {
   await loadAttributeDefinitions()
   loadSavedFilters()
   loadSavedColumns()
-  loadUsers()
+  await loadUsers()
+  startLoadMoreObserver()
   loadAllGroups()
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('scroll', handleScroll, true)
 })
 
 onUnmounted(() => {
+  stopLoadMoreObserver()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
-  clearTimeout(searchTimeout)
-  abortController?.abort()
 })
 </script>
 
 <style scoped>
-.users-page-layout {
-  --users-management-height: calc(var(--cch-viewport-height, 100vh) - 6rem);
-  height: var(--users-management-height);
-  min-height: var(--users-management-height);
-  max-height: var(--users-management-height);
-  gap: 0;
-  overflow: hidden;
+.users-filter-row {
+  @apply grid gap-3 md:grid-cols-[14rem_8.5rem_8.5rem_11rem_auto];
 }
 
-.users-page-layout.mobile-mode {
-  height: var(--users-management-height);
-  min-height: var(--users-management-height);
-  max-height: var(--users-management-height);
+.users-filter-search,
+.users-filter-select,
+.users-filter-group,
+.users-filter-attribute {
+  @apply min-w-0 w-full;
 }
 
-.users-page-layout.table-page-layout.mobile-mode :deep(.layout-section-scrollable) {
-  flex: 1 1 auto;
-  min-height: 0;
+.users-filter-actions {
+  @apply flex shrink-0 items-center gap-2;
 }
 
-.users-page-layout.table-page-layout.mobile-mode :deep(.table-scroll-container) {
-  height: 100%;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
+.users-filter-actions .btn {
+  @apply whitespace-nowrap;
 }
 
-.users-page-layout :deep(.layout-section-scrollable),
-.users-page-layout :deep(.table-scroll-container) {
-  display: flex;
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+.users-table-card {
+  @apply overflow-hidden;
 }
 
-.users-management-card {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
+.admin-row-action {
+  @apply inline-flex min-w-[52px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium leading-none text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white;
 }
 
-.users-card-toolbar {
-  background: rgb(255 255 255 / 0.52);
+.admin-row-action-label {
+  @apply whitespace-nowrap text-[11px] leading-none;
 }
 
-.dark .users-card-toolbar {
-  background: rgb(15 23 42 / 0.28);
+.users-page-layout :deep(.users-table-card .table-wrapper),
+.users-page-layout :deep(.users-table-card .table-wrapper.is-natural-flow) {
+  @apply overflow-x-auto overflow-y-visible;
 }
 
-.users-table {
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
+.users-page-layout :deep(.users-table-card .cch-mobile-table-list) {
+  @apply p-4;
 }
 
-.users-page-layout :deep(.users-table .table-wrapper),
-.users-page-layout :deep(.users-table .table-wrapper.is-natural-flow) {
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-  overflow-x: auto;
-  overflow-y: auto;
-}
-
-.users-page-layout :deep(.users-table .cch-mobile-table-list) {
-  height: 100%;
-  overflow-y: auto;
-}
-
-.users-page-layout :deep(.users-table .cch-data-table-wrapper) {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.users-page-layout :deep(.users-table .cch-data-table) {
-  min-width: 100%;
-}
-
-.users-page-layout :deep(.users-table .table-header) {
-  border-bottom: 1px solid rgb(226 232 240 / 0.9);
-}
-
-.users-page-layout :deep(.users-table tbody tr + tr) {
+.users-page-layout :deep(.users-table-card tbody tr + tr) {
   border-top: 1px solid rgb(226 232 240 / 0.8);
 }
 
-.users-page-layout :deep(.users-table tbody td) {
+.users-page-layout :deep(.users-table-card tbody td) {
   border-top: 0;
 }
 
-.users-page-layout :deep(.users-table th),
-.users-page-layout :deep(.users-table td) {
-  padding-right: 1.5rem;
-  padding-left: 1.5rem;
-  padding-top: 0.875rem;
-  padding-bottom: 0.875rem;
-  vertical-align: middle;
-}
-
-.users-page-layout :deep(.users-table .sticky-col-left),
-.users-page-layout :deep(.users-table .sticky-col-right) {
+.users-page-layout :deep(.users-table-card .sticky-col-left),
+.users-page-layout :deep(.users-table-card .sticky-col-right) {
   position: static;
 }
 
-.users-page-layout :deep(.users-table .sticky-col-left::after),
-.users-page-layout :deep(.users-table .sticky-col-right::before) {
+.users-page-layout :deep(.users-table-card .sticky-col-left::after),
+.users-page-layout :deep(.users-table-card .sticky-col-right::before) {
   display: none;
 }
 
-.dark .users-page-layout :deep(.users-table .table-header) {
-  border-bottom-color: rgb(51 65 85 / 0.9);
-}
-
-.dark .users-page-layout :deep(.users-table tbody tr + tr) {
+.dark .users-page-layout :deep(.users-table-card tbody tr + tr) {
   border-top-color: rgb(51 65 85 / 0.75);
 }
 
-.users-page-layout :deep(.users-card-pagination > div) {
-  padding-right: 1.5rem;
-  padding-left: 1.5rem;
-  border-top: 0;
-  background: transparent;
-}
 </style>

@@ -1,7 +1,7 @@
 <template>
-  <div v-if="!isDesktopViewport" class="cch-mobile-table-list">
+  <div v-if="!isDesktopViewport" :class="mobileListClass">
     <template v-if="loading">
-      <div v-for="i in 5" :key="i" class="cch-mobile-table-card">
+      <div v-for="i in 5" :key="i" :class="mobileCardClass">
         <div class="space-y-3">
           <div v-for="column in dataColumns" :key="column.key" class="flex justify-between">
             <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
@@ -15,7 +15,7 @@
     </template>
 
     <template v-else-if="!data || data.length === 0">
-      <div class="cch-mobile-table-card p-12 text-center">
+      <div :class="mobileEmptyClass">
         <slot name="empty">
           <div class="flex flex-col items-center">
             <Icon
@@ -35,27 +35,36 @@
       <div
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
-        class="cch-mobile-table-card"
+        :class="mobileCardClass"
       >
-        <div class="space-y-3">
-          <div
-            v-for="column in dataColumns"
-            :key="column.key"
-            class="flex items-start justify-between gap-4"
-          >
-            <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
-              {{ column.label }}
-            </span>
-            <div class="text-right text-sm text-gray-900 dark:text-gray-100">
-              <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
-                {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
-              </slot>
+        <slot
+          name="mobile-row"
+          :row="row"
+          :index="index"
+          :expanded="actionsExpanded"
+        >
+          <div class="space-y-3">
+            <div
+              v-for="column in dataColumns"
+              :key="column.key"
+              class="flex items-start justify-between gap-4"
+            >
+              <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+                {{ column.label }}
+              </span>
+              <div class="text-right text-sm text-gray-900 dark:text-gray-100">
+                <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
+                  <slot name="cell" :row="row" :column="column" :value="row[column.key]" :expanded="actionsExpanded">
+                    {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
+                  </slot>
+                </slot>
+              </div>
+            </div>
+            <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
+              <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
             </div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
-            <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
-          </div>
-        </div>
+        </slot>
       </div>
     </template>
   </div>
@@ -63,22 +72,24 @@
   <div
     v-else
     ref="tableWrapperRef"
-    class="table-wrapper cch-data-table-wrapper"
-    :class="{
-      'actions-expanded': actionsExpanded,
-      'is-scrollable': isScrollable,
-      'is-natural-flow': !shouldVirtualizeRows
-    }"
+    :class="[
+      wrapperClass,
+      {
+        'actions-expanded': actionsExpanded,
+        'is-scrollable': isScrollable,
+        'is-natural-flow': !shouldVirtualizeRows
+      }
+    ]"
   >
-    <table class="cch-data-table w-full min-w-max divide-y divide-gray-200/70 dark:divide-white/[0.08]">
-      <thead class="table-header">
+    <table :class="tableClass">
+      <thead :class="headerClass">
         <tr>
           <th
             v-for="(column, index) in columns"
             :key="column.key"
             scope="col"
             :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-300',
+              headerCellBaseClass,
               getAdaptivePaddingClass(),
               { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
               getStickyColumnClass(column, index),
@@ -163,13 +174,13 @@
             :data-row-id="resolveRowKey(sortedData[virtualRow.index], virtualRow.index)"
             :data-index="virtualRow.index"
             :ref="measureElement"
-            class="transition-colors duration-150 hover:bg-primary-50/40 dark:hover:bg-white/[0.035]"
+            :class="rowClass"
           >
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
               :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                cellBaseClass,
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
@@ -179,9 +190,15 @@
                     :row="sortedData[virtualRow.index]"
                     :value="sortedData[virtualRow.index][column.key]"
                     :expanded="actionsExpanded">
-                {{ column.formatter
-                   ? column.formatter(sortedData[virtualRow.index][column.key], sortedData[virtualRow.index])
-                   : sortedData[virtualRow.index][column.key] }}
+                <slot name="cell"
+                      :row="sortedData[virtualRow.index]"
+                      :column="column"
+                      :value="sortedData[virtualRow.index][column.key]"
+                      :expanded="actionsExpanded">
+                  {{ column.formatter
+                     ? column.formatter(sortedData[virtualRow.index][column.key], sortedData[virtualRow.index])
+                     : sortedData[virtualRow.index][column.key] }}
+                </slot>
               </slot>
             </td>
           </tr>
@@ -199,13 +216,13 @@
             :key="resolveRowKey(row, index)"
             :data-row-id="resolveRowKey(row, index)"
             :data-index="index"
-            class="transition-colors duration-150 hover:bg-primary-50/40 dark:hover:bg-white/[0.035]"
+            :class="rowClass"
           >
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
               :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                cellBaseClass,
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
@@ -215,7 +232,9 @@
                     :row="row"
                     :value="row[column.key]"
                     :expanded="actionsExpanded">
-                {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
+                <slot name="cell" :row="row" :column="column" :value="row[column.key]" :expanded="actionsExpanded">
+                  {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
+                </slot>
               </slot>
             </td>
           </tr>
@@ -236,7 +255,9 @@ const { t } = useI18n()
 
 const desktopViewportQuery = '(min-width: 768px)'
 const isDesktopViewport = ref(
-  typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
+  typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+    ? true
+    : window.matchMedia(desktopViewportQuery).matches
 )
 
 const emit = defineEmits<{
@@ -336,7 +357,7 @@ const attachDesktopTableTracking = () => {
 }
 
 onMounted(() => {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
     desktopViewportListener = (event: MediaQueryListEvent) => {
@@ -393,6 +414,16 @@ interface Props {
   overscan?: number
   /** Disable when the table should render all rows in natural page flow */
   virtualized?: boolean
+  wrapperClass?: string
+  tableClass?: string
+  headerClass?: string
+  headerCellBaseClass?: string
+  cellBaseClass?: string
+  rowClass?: string
+  paddingClass?: string
+  mobileListClass?: string
+  mobileCardClass?: string
+  mobileEmptyClass?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -402,7 +433,17 @@ const props = withDefaults(defineProps<Props>(), {
   expandableActions: true,
   defaultSortOrder: 'asc',
   serverSideSort: false,
-  virtualized: true
+  virtualized: true,
+  wrapperClass: 'table-wrapper cch-data-table-wrapper',
+  tableClass: 'cch-data-table w-full min-w-max divide-y divide-gray-200/70 dark:divide-white/[0.08]',
+  headerClass: 'table-header',
+  headerCellBaseClass: 'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-300',
+  cellBaseClass: 'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+  rowClass: 'transition-colors duration-150 hover:bg-primary-50/40 dark:hover:bg-white/[0.035]',
+  paddingClass: '',
+  mobileListClass: 'cch-mobile-table-list',
+  mobileCardClass: 'cch-mobile-table-card',
+  mobileEmptyClass: 'cch-mobile-table-card p-12 text-center'
 })
 
 const sortKey = ref<string>('')
@@ -672,6 +713,8 @@ const getStickyColumnClass = (column: Column, index: number) => {
 
 // 根据列数自适应调整内边距
 const getAdaptivePaddingClass = () => {
+  if (props.paddingClass) return props.paddingClass
+
   const columnCount = props.columns.length
 
   // 列数越多，内边距越小

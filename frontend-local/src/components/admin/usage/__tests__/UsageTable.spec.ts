@@ -753,6 +753,51 @@ describe('admin UsageTable tooltip', () => {
     expect(wrapper.find('[data-testid="model-icon"]').text()).toBe('gpt-5.5')
   })
 
+  it('shows mapped models as a single requested-to-upstream relationship', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          {
+            request_id: 'req-admin-model-dedup',
+            model: 'gpt-5.5',
+            requested_model: 'gpt-5.4',
+            upstream_model: 'gpt-5.5',
+            billing_model: 'gpt-5.5',
+            model_mapping_chain: 'gpt-5.4→gpt-5.5',
+            reasoning_effort: 'xhigh',
+            actual_cost: 0.026144,
+            total_cost: 0.026144,
+            account_rate_multiplier: 1,
+            rate_multiplier: 1,
+            input_cost: 0.01,
+            output_cost: 0.02,
+            cache_creation_cost: 0,
+            cache_read_cost: 0,
+            input_tokens: 100,
+            output_tokens: 50,
+          },
+        ],
+        loading: false,
+        columns: [{ key: 'model', label: 'Model' }],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+          ModelIcon: {
+            props: ['model'],
+            template: '<span data-testid="model-icon">{{ model }}</span>',
+          },
+        },
+      },
+    })
+
+    const modelText = wrapper.find('tbody td .model-primary-text').element.parentElement?.textContent || ''
+    expect(wrapper.find('tbody td .model-primary-text').text()).toBe('gpt-5.5')
+    expect(wrapper.find('tbody td .model-secondary-text').text()).toBe('gpt-5.4 → gpt-5.5')
+    expect(modelText).toContain('XHigh')
+  })
+
   it.each([
     {
       name: 'defaulted row',

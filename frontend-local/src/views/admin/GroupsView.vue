@@ -1,127 +1,199 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #actions>
-        <section class="cch-panel-card overflow-hidden">
-          <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0 space-y-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
-                  {{ t("admin.groups.title") }}
-                </h1>
-                <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
-                  {{ pagination.total }} {{ t("common.total") }}
-                </span>
-                <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
-                  {{ groups.length }} {{ t("common.visible") }}
-                </span>
-                <span class="rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-200">
-                  {{ activeGroupCount }} {{ t("admin.accounts.status.active") }}
-                </span>
-                <span
-                  v-if="subscriptionGroupCount > 0"
-                  class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300"
-                >
-                  {{ subscriptionGroupCount }} {{ t("admin.groups.subscription.subscription") }}
-                </span>
-              </div>
-              <p class="max-w-2xl text-sm text-gray-500 dark:text-dark-300">
-                {{ t("admin.groups.description") }}
-              </p>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-              <button
-                @click="loadGroups"
-                :disabled="loading"
-                class="btn btn-secondary"
-                :title="t('common.refresh')"
-              >
-                <Icon
-                  name="refresh"
-                  size="md"
-                  :class="loading ? 'animate-spin' : ''"
-                />
-                <span>{{ t("common.refresh") }}</span>
-              </button>
-              <button
-                @click="openSortModal"
-                class="btn btn-secondary"
-                :title="t('admin.groups.sortOrder')"
-              >
-                <Icon name="arrowsUpDown" size="md" class="mr-2" />
-                {{ t("admin.groups.sortOrder") }}
-              </button>
-              <button
-                @click="showCreateModal = true"
-                class="btn btn-primary"
-                data-tour="groups-create-btn"
-              >
-                <Icon name="plus" size="md" class="mr-2" />
-                {{ t("admin.groups.createGroup") }}
-              </button>
-            </div>
-          </div>
-        </section>
-      </template>
-
-      <template #filters>
-        <div
-          class="cch-toolbar-card flex flex-col justify-between gap-4 lg:flex-row lg:items-start"
-        >
-          <!-- Left: fuzzy search + filters (can wrap to multiple lines) -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-64">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-              />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('admin.groups.searchGroups')"
-                class="input pl-10"
-                @input="handleSearch"
-              />
-            </div>
-            <Select
-              v-model="filters.platform"
-              :options="platformFilterOptions"
-              :placeholder="t('admin.groups.allPlatforms')"
-              class="w-44"
-              @change="loadGroups"
-            />
-            <Select
-              v-model="filters.status"
-              :options="statusOptions"
-              :placeholder="t('admin.groups.allStatus')"
-              class="w-40"
-              @change="loadGroups"
-            />
-            <Select
-              v-model="filters.is_exclusive"
-              :options="exclusiveOptions"
-              :placeholder="t('admin.groups.allGroups')"
-              class="w-44"
-              @change="loadGroups"
-            />
-          </div>
-
+    <div class="groups-page-layout space-y-5">
+      <section class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="text-2xl font-semibold text-gray-950 dark:text-white">
+            {{ t("admin.groups.title") }}
+          </h1>
+          <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-dark-300">
+            {{ t("admin.groups.description") }}
+          </p>
         </div>
-      </template>
 
-      <template #table>
-        <DataTable
-          :columns="columns"
-          :data="groups"
-          :loading="loading"
-          :server-side-sort="true"
-          default-sort-key="sort_order"
-          default-sort-order="asc"
-          @sort="handleSort"
+        <div class="flex shrink-0 items-center gap-2">
+          <button
+            @click="showCreateModal = true"
+            class="btn btn-primary"
+            data-tour="groups-create-btn"
+          >
+            <Icon name="plus" size="md" class="mr-2" />
+            {{ t("admin.groups.createGroup") }}
+          </button>
+          <button
+            @click="openSortModal"
+            class="btn btn-secondary px-2 md:px-3"
+            :aria-label="t('admin.groups.sortOrder')"
+            :title="t('admin.groups.sortOrder')"
+          >
+            <Icon name="arrowsUpDown" size="md" />
+          </button>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-950 dark:border-white/[0.08] dark:bg-dark-900/60 dark:text-dark-300 dark:hover:text-white"
+            @click="filtersOpen = !filtersOpen"
+          >
+            <Icon name="filter" size="sm" :stroke-width="2" />
+            <span>{{ t("usage.filterCriteria") }}</span>
+            <span
+              v-if="activeFilterCount > 0"
+              class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-300"
+            >
+              {{ activeFilterCount }}
+            </span>
+            <Icon
+              name="chevronDown"
+              size="xs"
+              class="transition-transform"
+              :class="{ 'rotate-180': filtersOpen }"
+            />
+          </button>
+
+          <div class="ml-auto flex items-center gap-2">
+            <div ref="columnDropdownRef" class="relative">
+              <button
+                type="button"
+                class="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]"
+                :aria-label="t('admin.requestLogs.columnSettings')"
+                :title="t('admin.requestLogs.columnSettings')"
+                @click.stop="showColumnDropdown = !showColumnDropdown"
+              >
+                <Icon name="grid" size="sm" />
+                <span>{{ visibleColumnCount }}/{{ allGroupColumns.length }}</span>
+              </button>
+
+              <div
+                v-if="showColumnDropdown"
+                class="absolute right-0 top-full z-50 mt-2 max-h-96 w-60 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-dark-700 dark:bg-dark-800"
+              >
+                <div class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-dark-400">
+                  {{ t("admin.requestLogs.columnSettings") }}
+                </div>
+                <button
+                  v-for="col in toggleableColumns"
+                  :key="col.key"
+                  type="button"
+                  class="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                  @click="toggleColumn(col.key)"
+                >
+                  <span class="truncate">{{ col.label }}</span>
+                  <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="shrink-0 text-orange-500" :stroke-width="2" />
+                </button>
+                <div class="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
+                  @click="resetColumnVisibility"
+                >
+                  <Icon name="refresh" size="xs" />
+                  {{ t("admin.requestLogs.resetColumns") }}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="consumer-icon-btn"
+              :aria-label="t('common.refresh')"
+              :title="t('common.refresh')"
+              :disabled="loading"
+              @click="loadGroups"
+            >
+              <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
+            </button>
+          </div>
+        </div>
+
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="-translate-y-1 opacity-0"
+          enter-to-class="translate-y-0 opacity-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="translate-y-0 opacity-100"
+          leave-to-class="-translate-y-1 opacity-0"
         >
-          <template #cell-name="{ value }">
+          <div v-if="filtersOpen" class="groups-filter-card cch-panel-card p-4 md:p-5">
+            <div class="groups-filter-row">
+              <div class="relative groups-filter-search">
+                <Icon
+                  name="search"
+                  size="md"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                />
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  :placeholder="t('admin.groups.searchGroups')"
+                  class="input pl-10"
+                  @keyup.enter="applyFilters"
+                />
+              </div>
+              <Select
+                v-model="filters.platform"
+                :options="platformFilterOptions"
+                :placeholder="t('admin.groups.allPlatforms')"
+                class="groups-filter-select"
+              />
+              <Select
+                v-model="filters.status"
+                :options="statusOptions"
+                :placeholder="t('admin.groups.allStatus')"
+                class="groups-filter-select"
+              />
+              <Select
+                v-model="filters.is_exclusive"
+                :options="exclusiveOptions"
+                :placeholder="t('admin.groups.allGroups')"
+                class="groups-filter-select"
+              />
+              <div class="groups-filter-actions">
+                <button type="button" class="btn btn-primary" @click="applyFilters">
+                  {{ t("usage.applyFilters") }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="activeFilterCount === 0"
+                  @click="resetFilters"
+                >
+                  {{ t("common.reset") }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </section>
+
+      <TablePanel
+        :summary="groupTableSummary"
+        :summary-items="groupTableSummaryItems"
+        :show-footer="groups.length > 0 || loadingMore || hasMoreGroups"
+      >
+        <div class="groups-table-card">
+          <DataTable
+            :columns="columns"
+            :data="groups"
+            :loading="loading"
+            :virtualized="false"
+            :sticky-first-column="false"
+            :sticky-actions-column="false"
+            wrapper-class="hidden overflow-x-auto md:block"
+            table-class="w-full min-w-[980px] divide-y divide-gray-200/70 dark:divide-white/[0.06]"
+            header-class="bg-gray-50/80 dark:bg-white/[0.03]"
+            header-cell-base-class="py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400"
+            cell-base-class="py-4 text-left"
+            padding-class="px-4"
+            row-class="transition-colors hover:bg-orange-50/40 dark:hover:bg-white/[0.035]"
+            mobile-list-class="divide-y divide-gray-100 md:hidden dark:divide-white/[0.06]"
+            mobile-card-class="space-y-3 p-4"
+            mobile-empty-class="flex min-h-[220px] flex-col items-center justify-center gap-3 p-6 text-center"
+          >
+            <template #cell-name="{ value }">
             <span class="font-medium text-gray-900 dark:text-white">{{
               value
             }}</span>
@@ -319,38 +391,46 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-2">
               <button
+                type="button"
                 @click="handleEdit(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="admin-row-action"
+                :aria-label="t('common.edit')"
+                :title="t('common.edit')"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t("common.edit") }}</span>
+                <span class="admin-row-action-label">{{ t("common.edit") }}</span>
               </button>
               <button
+                type="button"
                 @click="handleRateMultipliers(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-purple-600 dark:hover:bg-dark-700 dark:hover:text-purple-400"
+                class="admin-row-action"
+                :aria-label="t('admin.groups.rateMultipliers')"
+                :title="t('admin.groups.rateMultipliers')"
               >
                 <Icon name="dollar" size="sm" />
-                <span class="text-xs">{{
-                  t("admin.groups.rateMultipliers")
-                }}</span>
+                <span class="admin-row-action-label">{{ t("admin.groups.rateMultipliers") }}</span>
               </button>
               <button
+                type="button"
                 @click="handleRPMOverrides(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-orange-600 dark:hover:bg-dark-700 dark:hover:text-orange-400"
+                class="admin-row-action"
+                :aria-label="t('admin.groups.rpmOverrides')"
+                :title="t('admin.groups.rpmOverrides')"
               >
                 <Icon name="bolt" size="sm" />
-                <span class="text-xs">{{
-                  t("admin.groups.rpmOverrides")
-                }}</span>
+                <span class="admin-row-action-label">{{ t("admin.groups.rpmOverrides") }}</span>
               </button>
               <button
+                type="button"
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="admin-row-action admin-row-action-danger"
+                :aria-label="t('common.delete')"
+                :title="t('common.delete')"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t("common.delete") }}</span>
+                <span class="admin-row-action-label">{{ t("common.delete") }}</span>
               </button>
             </div>
           </template>
@@ -363,20 +443,26 @@
               @action="showCreateModal = true"
             />
           </template>
-        </DataTable>
-      </template>
+          </DataTable>
+        </div>
 
-      <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
-        />
-      </template>
-    </TablePageLayout>
+        <template #footer>
+          <div class="flex min-h-10 items-center justify-center text-sm text-gray-500 dark:text-dark-400">
+            <span v-if="loadingMore" class="inline-flex items-center gap-2">
+              <Icon name="refresh" size="sm" class="animate-spin" />
+              {{ t("admin.requestLogs.loadingMore") }}
+            </span>
+            <span v-else-if="hasMoreGroups">
+              {{ t("admin.requestLogs.scrollLoadMore") }}
+            </span>
+            <span v-else-if="groups.length > 0">
+              {{ t("admin.requestLogs.allRecordsLoaded") }}
+            </span>
+          </div>
+          <div ref="loadMoreSentinelRef" class="h-px" aria-hidden="true" />
+        </template>
+      </TablePanel>
+    </div>
 
     <!-- Create Group Modal -->
     <BaseDialog
@@ -2867,12 +2953,11 @@ import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
-import type { AdminGroup, GroupPlatform, SubscriptionType } from "@/types";
+import type { AdminGroup, GroupPlatform, PaginatedResponse, SubscriptionType } from "@/types";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
-import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
-import Pagination from "@/components/common/Pagination.vue";
+import TablePanel from "@/components/common/TablePanel.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -2886,6 +2971,8 @@ import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
+import { useInfinitePagedList } from "@/composables/useInfinitePagedList";
+import { formatNumber } from "@/utils/format";
 import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
@@ -2899,42 +2986,81 @@ const { t } = useI18n();
 const appStore = useAppStore();
 const onboardingStore = useOnboardingStore();
 
-const columns = computed<Column[]>(() => [
-  { key: "name", label: t("admin.groups.columns.name"), sortable: true },
+const allGroupColumns = computed<Column[]>(() => [
+  { key: "name", label: t("admin.groups.columns.name") },
   {
     key: "platform",
     label: t("admin.groups.columns.platform"),
-    sortable: true,
   },
   {
     key: "billing_type",
     label: t("admin.groups.columns.billingType"),
-    sortable: true,
   },
   {
     key: "rate_multiplier",
     label: t("admin.groups.columns.rateMultiplier"),
-    sortable: true,
   },
   {
     key: "is_exclusive",
     label: t("admin.groups.columns.type"),
-    sortable: true,
   },
   {
     key: "account_count",
     label: t("admin.groups.columns.accounts"),
-    sortable: true,
   },
   {
     key: "capacity",
     label: t("admin.groups.columns.capacity"),
-    sortable: false,
   },
-  { key: "usage", label: t("admin.groups.columns.usage"), sortable: false },
-  { key: "status", label: t("admin.groups.columns.status"), sortable: true },
-  { key: "actions", label: t("admin.groups.columns.actions"), sortable: false },
+  { key: "usage", label: t("admin.groups.columns.usage") },
+  { key: "status", label: t("admin.groups.columns.status") },
+  { key: "actions", label: t("admin.groups.columns.actions") },
 ]);
+const REQUIRED_GROUP_COLUMNS = new Set(["name", "actions"]);
+const GROUP_HIDDEN_COLUMNS_KEY = "admin-groups-hidden-columns";
+const hiddenColumns = reactive<Set<string>>(new Set());
+const columns = computed<Column[]>(() =>
+  allGroupColumns.value.filter(
+    (column) => REQUIRED_GROUP_COLUMNS.has(column.key) || !hiddenColumns.has(column.key),
+  ),
+);
+const toggleableColumns = computed(() =>
+  allGroupColumns.value.filter((column) => !REQUIRED_GROUP_COLUMNS.has(column.key)),
+);
+const visibleColumnCount = computed(() => columns.value.length);
+const isColumnVisible = (key: string) => !hiddenColumns.has(key);
+const saveColumnVisibility = () => {
+  try {
+    localStorage.setItem(GROUP_HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]));
+  } catch (error) {
+    console.error("Failed to save group column settings:", error);
+  }
+};
+const loadSavedColumnVisibility = () => {
+  try {
+    const saved = localStorage.getItem(GROUP_HIDDEN_COLUMNS_KEY);
+    if (!saved) return;
+    const keys = JSON.parse(saved) as string[];
+    keys
+      .filter((key) => !REQUIRED_GROUP_COLUMNS.has(key))
+      .forEach((key) => hiddenColumns.add(key));
+  } catch (error) {
+    console.error("Failed to load group column settings:", error);
+  }
+};
+const toggleColumn = (key: string) => {
+  if (REQUIRED_GROUP_COLUMNS.has(key)) return;
+  if (hiddenColumns.has(key)) {
+    hiddenColumns.delete(key);
+  } else {
+    hiddenColumns.add(key);
+  }
+  saveColumnVisibility();
+};
+const resetColumnVisibility = () => {
+  hiddenColumns.clear();
+  saveColumnVisibility();
+};
 
 // Filter options
 const statusOptions = computed(() => [
@@ -3074,8 +3200,6 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
   }));
 });
 
-const groups = ref<AdminGroup[]>([]);
-const loading = ref(false);
 const usageMap = ref<Map<number, { today_cost: number; total_cost: number }>>(
   new Map(),
 );
@@ -3099,16 +3223,14 @@ const filters = reactive({
   status: "",
   is_exclusive: "",
 });
-const pagination = reactive({
-  page: 1,
-  page_size: getPersistedPageSize(),
-  total: 0,
-  pages: 0,
-});
-const sortState = reactive({
+const filtersOpen = ref(false);
+const showColumnDropdown = ref(false);
+const columnDropdownRef = ref<HTMLElement | null>(null);
+const loadMoreSentinelRef = ref<HTMLElement | null>(null);
+const GROUP_DEFAULT_SORT = {
   sort_by: "sort_order",
-  sort_order: "asc" as "asc" | "desc",
-});
+  sort_order: "asc" as const,
+};
 const activeGroupCount = computed(() =>
   groups.value.filter((group) => group.status === "active").length,
 );
@@ -3116,8 +3238,31 @@ const subscriptionGroupCount = computed(() =>
   groups.value.filter((group) => group.subscription_type === "subscription")
     .length,
 );
-
-let abortController: AbortController | null = null;
+const activeFilterCount = computed(() => {
+  let count = 0;
+  if (searchQuery.value.trim()) count += 1;
+  if (filters.platform) count += 1;
+  if (filters.status) count += 1;
+  if (filters.is_exclusive) count += 1;
+  return count;
+});
+const groupTableSummary = computed(() =>
+  t("admin.requestLogs.loadedRecordsSummary", {
+    count: formatNumber(groups.value.length),
+    total: formatNumber(pagination.total),
+  }),
+);
+const groupTableSummaryItems = computed(() => {
+  const items = [
+    `${formatNumber(pagination.total)} ${t("common.total")}`,
+    `${formatNumber(groups.value.length)} ${t("common.visible")}`,
+    `${formatNumber(activeGroupCount.value)} ${t("admin.accounts.status.active")}`,
+  ];
+  if (subscriptionGroupCount.value > 0) {
+    items.push(`${formatNumber(subscriptionGroupCount.value)} ${t("admin.groups.subscription.subscription")}`);
+  }
+  return items;
+});
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
@@ -3532,53 +3677,6 @@ const deleteConfirmMessage = computed(() => {
   return t("admin.groups.deleteConfirm", { name: deletingGroup.value.name });
 });
 
-const loadGroups = async () => {
-  if (abortController) {
-    abortController.abort();
-  }
-  const currentController = new AbortController();
-  abortController = currentController;
-  const { signal } = currentController;
-  loading.value = true;
-  try {
-    const response = await adminAPI.groups.list(
-      pagination.page,
-      pagination.page_size,
-      {
-        platform: (filters.platform as GroupPlatform) || undefined,
-        status: filters.status as any,
-        is_exclusive: filters.is_exclusive
-          ? filters.is_exclusive === "true"
-          : undefined,
-        search: searchQuery.value.trim() || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order,
-      },
-      { signal },
-    );
-    if (signal.aborted) return;
-    groups.value = response.items;
-    pagination.total = response.total;
-    pagination.pages = response.pages;
-    loadUsageSummary();
-    loadCapacitySummary();
-  } catch (error: any) {
-    if (
-      signal.aborted ||
-      error?.name === "AbortError" ||
-      error?.code === "ERR_CANCELED"
-    ) {
-      return;
-    }
-    appStore.showError(t("admin.groups.failedToLoad"));
-    console.error("Error loading groups:", error);
-  } finally {
-    if (abortController === currentController && !signal.aborted) {
-      loading.value = false;
-    }
-  }
-};
-
 const formatCost = (cost: number): string => {
   if (cost >= 1000) return cost.toFixed(0);
   if (cost >= 100) return cost.toFixed(1);
@@ -3635,31 +3733,69 @@ const loadCapacitySummary = async () => {
   }
 };
 
-let searchTimeout: ReturnType<typeof setTimeout>;
-const handleSearch = () => {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    pagination.page = 1;
-    loadGroups();
-  }, 300);
+const buildGroupListFilters = () => ({
+  platform: (filters.platform as GroupPlatform) || undefined,
+  status: filters.status as any,
+  is_exclusive: filters.is_exclusive
+    ? filters.is_exclusive === "true"
+    : undefined,
+  search: searchQuery.value.trim() || undefined,
+  sort_by: GROUP_DEFAULT_SORT.sort_by,
+  sort_order: GROUP_DEFAULT_SORT.sort_order,
+});
+
+function isCanceled(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const errorInfo = error as { name?: string; code?: string };
+  return (
+    errorInfo.name === "AbortError" ||
+    errorInfo.name === "CanceledError" ||
+    errorInfo.code === "ERR_CANCELED"
+  );
+}
+
+const {
+  items: groups,
+  loading,
+  loadingMore,
+  pagination,
+  hasMore: hasMoreGroups,
+  reset: resetGroups,
+  startObserver: startLoadMoreObserver,
+  stopObserver: stopLoadMoreObserver,
+} = useInfinitePagedList<AdminGroup, PaginatedResponse<AdminGroup>>({
+  pageSize: getPersistedPageSize(),
+  sentinelRef: loadMoreSentinelRef,
+  fetchPage: (pageState, options) =>
+    adminAPI.groups.list(
+      pageState.page,
+      pageState.page_size,
+      buildGroupListFilters(),
+      options,
+    ),
+  onSuccess: () => {
+    void loadUsageSummary();
+    void loadCapacitySummary();
+  },
+  onError: (error) => {
+    appStore.showError(t("admin.groups.failedToLoad"));
+    console.error("Error loading groups:", error);
+  },
+  isCanceled,
+});
+
+const loadGroups = () => resetGroups();
+
+const applyFilters = () => {
+  void loadGroups();
 };
 
-const handlePageChange = (page: number) => {
-  pagination.page = page;
-  loadGroups();
-};
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize;
-  pagination.page = 1;
-  loadGroups();
-};
-
-const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key;
-  sortState.sort_order = order;
-  pagination.page = 1;
-  loadGroups();
+const resetFilters = () => {
+  searchQuery.value = "";
+  filters.platform = "";
+  filters.status = "";
+  filters.is_exclusive = "";
+  applyFilters();
 };
 
 const closeCreateModal = () => {
@@ -3772,7 +3908,7 @@ const handleCreateGroup = async () => {
     await adminAPI.groups.create(requestData);
     appStore.showSuccess(t("admin.groups.groupCreated"));
     closeCreateModal();
-    loadGroups();
+    void loadGroups();
     // Only advance tour if active, on submit step, and creation succeeded
     if (onboardingStore.isCurrentStep('[data-tour="group-form-submit"]')) {
       onboardingStore.nextStep(500);
@@ -3907,7 +4043,7 @@ const handleUpdateGroup = async () => {
     await adminAPI.groups.update(editingGroup.value.id, payload);
     appStore.showSuccess(t("admin.groups.groupUpdated"));
     closeEditModal();
-    loadGroups();
+    void loadGroups();
   } catch (error: any) {
     appStore.showError(
       error.response?.data?.detail || t("admin.groups.failedToUpdate"),
@@ -3965,7 +4101,7 @@ const confirmDelete = async () => {
     appStore.showSuccess(t("admin.groups.groupDeleted"));
     showDeleteDialog.value = false;
     deletingGroup.value = null;
-    loadGroups();
+    void loadGroups();
   } catch (error: any) {
     appStore.showError(
       error.response?.data?.detail || t("admin.groups.failedToDelete"),
@@ -4033,6 +4169,9 @@ watch(
 // 点击外部关闭账号搜索下拉框
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
+  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
+    showColumnDropdown.value = false;
+  }
   // 检查是否点击在下拉框或输入框内
   if (!target.closest(".account-search-container")) {
     Object.keys(showAccountDropdown.value).forEach((key) => {
@@ -4074,7 +4213,7 @@ const saveSortOrder = async () => {
     await adminAPI.groups.updateSortOrder(updates);
     appStore.showSuccess(t("admin.groups.sortOrderUpdated"));
     closeSortModal();
-    loadGroups();
+    void loadGroups();
   } catch (error: any) {
     appStore.showError(
       error.response?.data?.detail || t("admin.groups.failedToUpdateSortOrder"),
@@ -4085,14 +4224,70 @@ const saveSortOrder = async () => {
   }
 };
 
-onMounted(() => {
-  loadGroups();
+onMounted(async () => {
+  loadSavedColumnVisibility();
+  await loadGroups();
+  startLoadMoreObserver();
   document.addEventListener("click", handleClickOutside);
 });
 
 onUnmounted(() => {
+  stopLoadMoreObserver();
   document.removeEventListener("click", handleClickOutside);
   accountSearchRunner.clearAll();
   clearAllAccountSearchState();
 });
 </script>
+
+<style scoped>
+.groups-filter-row {
+  @apply grid gap-3 md:grid-cols-[14rem_8.5rem_8.5rem_11rem_auto];
+}
+
+.groups-filter-search,
+.groups-filter-select {
+  @apply min-w-0 w-full;
+}
+
+.groups-filter-actions {
+  @apply flex shrink-0 items-center gap-2;
+}
+
+.groups-filter-actions .btn {
+  @apply whitespace-nowrap;
+}
+
+.groups-table-card {
+  @apply overflow-hidden;
+}
+
+.admin-row-action {
+  @apply inline-flex min-w-[52px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium leading-none text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white;
+}
+
+.admin-row-action-label {
+  @apply whitespace-nowrap text-[11px] leading-none;
+}
+
+.admin-row-action-danger {
+  @apply hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400;
+}
+
+.groups-page-layout :deep(.groups-table-card .table-wrapper),
+.groups-page-layout :deep(.groups-table-card .table-wrapper.is-natural-flow) {
+  @apply overflow-x-auto overflow-y-visible;
+}
+
+.groups-page-layout :deep(.groups-table-card .cch-mobile-table-list) {
+  @apply p-4;
+}
+
+.groups-page-layout :deep(.groups-table-card tbody tr + tr) {
+  border-top: 1px solid rgb(226 232 240 / 0.8);
+}
+
+.dark .groups-page-layout :deep(.groups-table-card tbody tr + tr) {
+  border-top-color: rgb(51 65 85 / 0.75);
+}
+
+</style>

@@ -1,25 +1,24 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <section class="cch-panel-card overflow-hidden">
-        <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
-          <div class="min-w-0 space-y-2">
-            <div class="flex flex-wrap items-center gap-2">
-              <h1 class="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
-                {{ t('channelStatus.title') }}
-              </h1>
-              <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
-                {{ items.length }} {{ t('common.visible') }}
-              </span>
-            </div>
-            <p class="max-w-2xl text-sm text-gray-500 dark:text-dark-300">
-              {{ t('channelStatus.description') }}
-            </p>
+    <div class="space-y-5">
+      <section class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0 space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-2xl font-semibold text-gray-950 dark:text-white">
+              {{ t('channelStatus.title') }}
+            </h1>
+            <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
+              {{ items.length }} {{ t('common.visible') }}
+            </span>
           </div>
+          <p class="max-w-2xl text-sm text-gray-500 dark:text-dark-300">
+            {{ t('channelStatus.description') }}
+          </p>
         </div>
       </section>
 
       <MonitorHero
+        flat
         :overall-status="overallStatus"
         :interval-seconds="DEFAULT_INTERVAL_SECONDS"
         :window="currentWindow"

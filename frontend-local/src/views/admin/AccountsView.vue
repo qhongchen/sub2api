@@ -1,423 +1,439 @@
 <template>
   <AppLayout>
-    <TablePageLayout flow>
-      <template #table>
-        <section class="account-management-card cch-panel-card">
-          <div class="account-management-header flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0 space-y-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
-                  {{ t('admin.accounts.title') }}
-                </h1>
-                <span class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-300">
-                  {{ pagination.total }} {{ t('nav.accounts') }}
-                </span>
-                <span class="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
-                  {{ accounts.length }} {{ t('common.visible') }}
-                </span>
-              </div>
+    <div class="space-y-5">
+      <section class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="text-2xl font-semibold text-gray-950 dark:text-white">
+            {{ t('admin.accounts.title') }}
+          </h1>
+          <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-dark-300">
+            {{ t('admin.accounts.description') }}
+          </p>
+        </div>
 
-              <p class="max-w-2xl text-sm text-gray-500 dark:text-dark-300">
-                {{ t('admin.accounts.description') }}
-              </p>
+        <div class="flex shrink-0 items-center gap-2">
+          <button @click="showCreate = true" class="btn btn-primary">
+            <Icon name="plus" size="md" class="mr-2" />
+            {{ t('admin.accounts.createAccount') }}
+          </button>
+
+          <div class="relative" ref="accountToolsDropdownRef">
+            <button
+              @click="
+                showAccountToolsDropdown = !showAccountToolsDropdown;
+                showColumnDropdown = false
+              "
+              class="btn btn-secondary px-2 md:px-3"
+              :title="t('admin.accounts.moreActions')"
+            >
+              <Icon name="more" size="md" />
+            </button>
+            <div
+              v-if="showAccountToolsDropdown"
+              class="absolute right-0 z-50 mt-2 w-60 origin-top-right overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-dark-700 dark:bg-dark-800"
+            >
+              <button class="account-tools-menu-item" @click="openSyncFromCrs">
+                <span class="truncate">{{ t('admin.accounts.syncFromCrs') }}</span>
+              </button>
+              <button class="account-tools-menu-item" @click="openImportData">
+                <span class="truncate">{{ t('admin.accounts.dataImport') }}</span>
+              </button>
+              <button class="account-tools-menu-item" @click="openExportDataDialogFromMenu">
+                <span class="truncate">{{ t('admin.accounts.dataExport') }}</span>
+              </button>
+              <button class="account-tools-menu-item" @click="openErrorPassthrough">
+                <span class="truncate">{{ t('admin.errorPassthrough.title') }}</span>
+              </button>
+              <button class="account-tools-menu-item" @click="openTLSFingerprintProfiles">
+                <span class="truncate">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition-colors hover:border-gray-300 hover:text-gray-950 dark:border-white/[0.08] dark:bg-dark-900/60 dark:text-dark-300 dark:hover:text-white"
+            @click="filtersOpen = !filtersOpen"
+          >
+            <Icon name="filter" size="sm" :stroke-width="2" />
+            <span>{{ t('usage.filterCriteria') }}</span>
+            <span
+              v-if="activeFilterCount > 0"
+              class="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-300"
+            >
+              {{ activeFilterCount }}
+            </span>
+            <Icon
+              name="chevronDown"
+              size="xs"
+              class="transition-transform"
+              :class="{ 'rotate-180': filtersOpen }"
+            />
+          </button>
+
+          <div class="ml-auto flex items-center gap-2">
+            <div ref="columnDropdownRef" class="relative">
+              <button
+                type="button"
+                class="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]"
+                :title="t('admin.requestLogs.columnSettings')"
+                @click.stop="
+                  showColumnDropdown = !showColumnDropdown;
+                  showAccountToolsDropdown = false
+                "
+              >
+                <Icon name="grid" size="sm" />
+                <span>{{ visibleColumnSettingCount }}/{{ cardVisibilityOptions.length }}</span>
+              </button>
+
+              <div
+                v-if="showColumnDropdown"
+                class="absolute right-0 top-full z-50 mt-2 max-h-96 w-60 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-dark-700 dark:bg-dark-800"
+              >
+                <div class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-dark-400">
+                  {{ t('admin.requestLogs.columnSettings') }}
+                </div>
+                <button
+                  v-for="field in cardVisibilityOptions"
+                  :key="field.key"
+                  type="button"
+                  class="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white"
+                  @click="toggleCardField(field.key)"
+                >
+                  <span class="truncate">{{ field.label }}</span>
+                  <Icon v-if="isCardFieldVisible(field.key)" name="check" size="sm" class="shrink-0 text-orange-500" :stroke-width="2" />
+                </button>
+                <div class="my-1 border-t border-gray-100 dark:border-white/[0.06]" />
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-white"
+                  @click="resetCardVisibility"
+                >
+                  <Icon name="refresh" size="xs" />
+                  {{ t('admin.requestLogs.resetColumns') }}
+                </button>
+              </div>
             </div>
 
-            <button @click="showCreate = true" class="btn btn-primary">
-              <Icon name="plus" size="md" class="mr-2" />
-              {{ t('admin.accounts.createAccount') }}
+            <button
+              type="button"
+              class="consumer-icon-btn"
+              :title="t('common.refresh')"
+              :disabled="accountListRefreshing"
+              @click="handleManualRefresh"
+            >
+              <Icon name="refresh" size="sm" :class="{ 'animate-spin': accountListRefreshing }" />
+            </button>
+
+            <button
+              type="button"
+              class="inline-flex h-9 items-center gap-2 rounded-full px-2 text-sm text-gray-500 transition-colors hover:text-gray-950 dark:text-dark-300 dark:hover:text-white"
+              :title="autoRefreshTitle"
+              @click="toggleAutoRefresh"
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full"
+                :class="autoRefreshEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-600'"
+              />
+              <span
+                class="relative inline-flex h-6 w-10 items-center rounded-full transition-colors"
+                :class="autoRefreshEnabled ? 'bg-orange-500' : 'bg-gray-200 dark:bg-dark-700'"
+              >
+                <span
+                  class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
+                  :class="autoRefreshEnabled ? 'translate-x-4' : 'translate-x-0.5'"
+                />
+              </span>
             </button>
           </div>
+        </div>
 
-          <div class="account-management-toolbar flex flex-wrap items-center gap-3 px-6 py-4">
-            <div class="account-filter-row-wrap min-w-0 flex-1">
-              <AccountTableFilters
-                v-model:searchQuery="params.search"
-                :filters="params"
-                :groups="groups"
-                @update:filters="(newFilters) => Object.assign(params, newFilters)"
-                @change="debouncedReload"
-                @reset="resetFilters"
-                @update:searchQuery="debouncedReload"
-              />
-            </div>
-
-            <div class="account-action-row flex flex-wrap items-center justify-end gap-2">
-              <button
-                @click="handleManualRefresh"
-                :disabled="loading"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('common.refresh')"
-              >
-                <Icon name="refresh" size="md" :class="[loading ? 'animate-spin' : '']" />
-                <span class="hidden md:inline">{{ t('common.refresh') }}</span>
-              </button>
-
-              <div class="relative" ref="autoRefreshDropdownRef">
-                <button
-                  @click="
-                    showAutoRefreshDropdown = !showAutoRefreshDropdown;
-                    showAccountToolsDropdown = false
-                  "
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.accounts.autoRefresh')"
-                >
-                  <Icon name="refresh" size="md" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
-                  <span class="hidden md:inline">
-                    {{
-                      autoRefreshEnabled
-                        ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown })
-                        : t('admin.accounts.autoRefresh')
-                    }}
-                  </span>
-                </button>
-                <div
-                  v-if="showAutoRefreshDropdown"
-                  class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <div class="p-2">
-                    <button
-                      @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      <span>{{ t('admin.accounts.enableAutoRefresh') }}</span>
-                      <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
-                    </button>
-                    <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                    <button
-                      v-for="sec in autoRefreshIntervals"
-                      :key="sec"
-                      @click="setAutoRefreshInterval(sec)"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      <span>{{ autoRefreshIntervalLabel(sec) }}</span>
-                      <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="relative" ref="accountToolsDropdownRef">
-                <button
-                  @click="
-                    showAccountToolsDropdown = !showAccountToolsDropdown;
-                    showAutoRefreshDropdown = false
-                  "
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.accounts.moreActions')"
-                >
-                  <Icon name="more" size="md" class="md:mr-1.5" />
-                  <span class="hidden md:inline">{{ t('admin.accounts.moreActions') }}</span>
-                  <Icon name="chevronDown" size="xs" class="ml-1 hidden md:inline" />
-                </button>
-                <div
-                  v-if="showAccountToolsDropdown"
-                  class="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <div class="max-h-[56vh] overflow-y-auto p-2">
-                    <div class="px-2 py-2">
-                      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                        {{ t('admin.accounts.dataActions') }}
-                      </div>
-                    </div>
-                    <button class="account-tools-menu-item" @click="openSyncFromCrs">
-                      <span class="account-tools-menu-icon bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
-                        <Icon name="sync" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.accounts.syncFromCrs') }}</span>
-                    </button>
-                    <button class="account-tools-menu-item" @click="openImportData">
-                      <span class="account-tools-menu-icon bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                        <Icon name="upload" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.accounts.dataImport') }}</span>
-                    </button>
-                    <button class="account-tools-menu-item" @click="openExportDataDialogFromMenu">
-                      <span class="account-tools-menu-icon bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
-                        <Icon name="download" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.accounts.dataExport') }}</span>
-                    </button>
-
-                    <div class="my-2 border-t border-gray-100 dark:border-gray-700"></div>
-                    <div class="px-2 py-2">
-                      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                        {{ t('admin.accounts.toolActions') }}
-                      </div>
-                    </div>
-                    <button class="account-tools-menu-item" @click="openErrorPassthrough">
-                      <span class="account-tools-menu-icon bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
-                        <Icon name="shield" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.errorPassthrough.title') }}</span>
-                    </button>
-                    <button class="account-tools-menu-item" @click="openTLSFingerprintProfiles">
-                      <span class="account-tools-menu-icon bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-                        <Icon name="lock" size="sm" />
-                      </span>
-                      <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
-                    </button>
-
-                    <div class="my-2 border-t border-gray-100 dark:border-gray-700"></div>
-                    <div class="px-2 py-2">
-                      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                        {{ t('admin.accounts.cardDisplay') }}
-                      </div>
-                    </div>
-                    <button
-                      v-for="field in cardVisibilityOptions"
-                      :key="field.key"
-                      class="account-tools-menu-item"
-                      @click="toggleCardField(field.key)"
-                    >
-                      <span class="account-tools-menu-icon bg-gray-50 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-                        <Icon v-if="isCardFieldVisible(field.key)" name="check" size="sm" class="text-primary-500" />
-                      </span>
-                      <span class="flex-1 text-left">{{ field.label }}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-if="hasPendingListSync"
-              class="basis-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200 sm:flex sm:items-center sm:justify-between"
-            >
-              <span>{{ t('admin.accounts.listPendingSyncHint') }}</span>
-              <button
-                class="btn btn-secondary btn-sm px-2 py-1"
-                @click="syncPendingListChanges"
-              >
-                {{ t('admin.accounts.listPendingSyncAction') }}
-              </button>
-            </div>
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="-translate-y-1 opacity-0"
+          enter-to-class="translate-y-0 opacity-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="translate-y-0 opacity-100"
+          leave-to-class="-translate-y-1 opacity-0"
+        >
+          <div v-if="filtersOpen" class="account-filter-card cch-panel-card p-4 md:p-5">
+            <AccountTableFilters
+              v-model:searchQuery="params.search"
+              :filters="params"
+              :groups="groups"
+              @update:filters="(newFilters) => Object.assign(params, newFilters)"
+              @change="debouncedReload"
+              @reset="resetFilters"
+            />
           </div>
+        </Transition>
 
-          <div class="account-list-card">
-            <div v-if="loading && accounts.length === 0" class="account-list-loading">
-              <div v-for="index in 5" :key="index" class="account-rich-row account-rich-row-skeleton">
-                <div class="h-8 w-8 rounded bg-gray-100 dark:bg-dark-700"></div>
-                <div class="min-w-0 flex-1 space-y-2">
-                  <div class="h-4 w-48 rounded bg-gray-100 dark:bg-dark-700"></div>
-                  <div class="h-3 w-72 max-w-full rounded bg-gray-100 dark:bg-dark-700"></div>
-                </div>
-                <div class="hidden gap-2 md:grid md:grid-cols-3">
-                  <div class="h-12 w-20 rounded bg-gray-100 dark:bg-dark-700"></div>
-                  <div class="h-12 w-20 rounded bg-gray-100 dark:bg-dark-700"></div>
-                  <div class="h-12 w-20 rounded bg-gray-100 dark:bg-dark-700"></div>
-                </div>
-              </div>
-            </div>
+        <div
+          v-if="hasPendingListSync"
+          class="basis-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-200 sm:flex sm:items-center sm:justify-between"
+        >
+          <span>{{ t('admin.accounts.listPendingSyncHint') }}</span>
+          <button
+            class="btn btn-secondary btn-sm px-2 py-1"
+            @click="syncPendingListChanges"
+          >
+            {{ t('admin.accounts.listPendingSyncAction') }}
+          </button>
+        </div>
+      </section>
 
-            <div v-else-if="accounts.length === 0" class="account-empty-state">
-              <div class="account-empty-icon">
-                <Icon name="server" size="lg" />
-              </div>
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-                {{ t('admin.accounts.noAccountsYet') }}
-              </h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400">
-                {{ t('admin.accounts.createFirstAccount') }}
-              </p>
-            </div>
-
-            <div v-else class="account-rich-list">
-            <article
-              v-for="account in accounts"
-              :key="account.id"
-              :class="['account-rich-row', accountAccentClass(account)]"
-            >
-              <div class="account-card-main">
-                <div class="account-card-title-row">
-                  <span class="account-card-title" :title="account.name">{{ account.name }}</span>
-                  <PlatformTypeBadge
-                    v-if="isCardFieldVisible('platform_type')"
-                    mode="platformType"
-                    :platform="account.platform"
-                    :type="account.type"
-                  />
-                  <span
-                    v-if="isCardFieldVisible('platform_type') && getAntigravityTierLabel(account)"
-                    :class="['account-tiny-badge', getAntigravityTierClass(account)]"
-                  >
-                    {{ getAntigravityTierLabel(account) }}
-                  </span>
-                  <div
-                    v-if="isCardFieldVisible('platform_type') && getOpenAICompactMeta(account)"
-                    :class="[
-                      'account-compact-badge',
-                      getOpenAICompactMeta(account)?.className
-                    ]"
-                    :title="getOpenAICompactTitle(account)"
-                  >
-                    <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(account)?.dotClass]" />
-                    <span>{{ getOpenAICompactMeta(account)?.label }}</span>
-                  </div>
-                </div>
-
-                <div class="account-card-subline">
-                  <span v-if="getAccountEmail(account)" class="truncate" :title="getAccountEmail(account)">
-                    {{ getAccountEmail(account) }}
-                  </span>
-                  <span v-if="account.proxy" class="account-inline-meta">
-                    <Icon name="shield" size="xs" />
-                    <span class="truncate">{{ account.proxy.name }}</span>
-                    <span v-if="account.proxy.country_code">({{ account.proxy.country_code }})</span>
-                  </span>
-                  <span v-if="account.notes" class="truncate" :title="account.notes">
-                    {{ account.notes }}
-                  </span>
-                </div>
-
-                <div class="account-card-badges">
-                  <button
-                    v-if="isAccountTempUnschedulable(account)"
-                    type="button"
-                    :class="['account-status-chip', getAccountStatusClass(account)]"
-                    @mouseenter="showAccountStatusTooltip(account, $event)"
-                    @mouseleave="hideAccountStatusTooltip"
-                    @focus="showAccountStatusTooltip(account, $event)"
-                    @blur="hideAccountStatusTooltip"
-                    @click="handleShowTempUnsched(account)"
-                  >
-                    {{ getAccountStatusText(account) }}
-                  </button>
-                  <span
-                    v-else
-                    :class="['account-status-chip', getAccountStatusClass(account)]"
-                    tabindex="0"
-                    @mouseenter="showAccountStatusTooltip(account, $event)"
-                    @mouseleave="hideAccountStatusTooltip"
-                    @focus="showAccountStatusTooltip(account, $event)"
-                    @blur="hideAccountStatusTooltip"
-                  >
-                    {{ getAccountStatusText(account) }}
-                  </span>
-                  <AccountGroupsCell
-                    v-if="!authStore.isSimpleMode && isCardFieldVisible('groups')"
-                    :groups="account.groups"
-                    :max-display="3"
-                  />
-                  <PlatformTypeBadge
-                    v-if="isCardFieldVisible('account_plan') && hasAccountPlanDisplay(account)"
-                    mode="planPrivacy"
-                    :platform="account.platform"
-                    :type="account.type"
-                    :plan-type="getCredentialString(account, 'plan_type')"
-                    :privacy-mode="getExtraString(account, 'privacy_mode')"
-                    :subscription-expires-at="getCredentialString(account, 'subscription_expires_at')"
-                  />
-                  <span v-if="isExpired(account.expires_at)" class="account-state-badge account-state-badge-warning">
-                    {{ t('admin.accounts.expired') }}
-                  </span>
-                  <span
-                    v-if="account.auto_pause_on_expired && account.expires_at"
-                    class="account-state-badge account-state-badge-success"
-                  >
-                    {{ t('admin.accounts.autoPauseOnExpired') }}
-                  </span>
-                  <span v-if="account.expires_at" class="account-inline-meta">
-                    <Icon name="clock" size="xs" />
-                    {{ t('admin.accounts.columns.expiresAt') }} {{ formatExpiresAt(account.expires_at) }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="account-card-metrics">
-                <div
-                  v-if="isCardFieldVisible('usage_windows') && hasUsageWindowDisplay(account)"
-                  class="account-metric-tile account-metric-tile-usage"
-                  tabindex="0"
+      <TablePanel
+        :summary="accountTableSummary"
+        :summary-items="accountTableSummaryItems"
+      >
+        <div class="account-table-scroll">
+          <table class="account-table">
+            <thead class="account-table-header">
+              <tr>
+                <th
+                  v-for="column in accountTableColumns"
+                  :key="column.key"
+                  class="account-table-head-cell"
                 >
-                  <div class="account-metric-label">{{ t('admin.accounts.columns.usageWindows') }}</div>
-                  <AccountUsageCell
-                    :account="account"
-                    :today-stats="todayStatsByAccountId[String(account.id)] ?? null"
-                    :today-stats-loading="todayStatsLoading"
-                    :manual-refresh-token="usageManualRefreshToken"
-                    compact
-                  />
-                </div>
-                <div v-if="isCardFieldVisible('priority')" class="account-metric-tile">
-                  <div class="account-metric-label">{{ t('admin.accounts.columns.priority') }}</div>
-                  <div class="account-metric-value">{{ account.priority }}</div>
-                </div>
-                <div v-if="isCardFieldVisible('capacity')" class="account-metric-tile">
-                  <div class="account-metric-label">{{ t('admin.accounts.columns.capacity') }}</div>
-                  <div class="account-metric-value">
-                    {{ account.current_concurrency ?? 0 }}/{{ account.concurrency }}
-                  </div>
-                </div>
-                <div v-if="isCardFieldVisible('billing_rate')" class="account-metric-tile">
-                  <div class="account-metric-label">{{ t('admin.accounts.columns.billingRateMultiplier') }}</div>
-                  <div class="account-metric-value">{{ formatMultiplier(account.rate_multiplier) }}</div>
-                </div>
-                <div
-                  v-if="isCardFieldVisible('today_stats')"
-                  class="account-metric-tile account-metric-tile-wide"
-                  tabindex="0"
+                  {{ column.label }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-if="loading && accounts.length === 0">
+                <tr
+                  v-for="index in 5"
+                  :key="`skeleton-${index}`"
+                  class="account-table-row account-rich-row-skeleton"
                 >
-                  <div class="account-metric-label">{{ t('admin.accounts.columns.todayStats') }}</div>
-                  <div class="account-metric-value">
-                    {{ formatTodayCost(account) }}
-                  </div>
-                  <div class="account-metric-subvalue account-metric-subvalue-muted">
-                    {{ t('admin.accounts.columns.lastUsed') }} {{ formatRelativeTime(account.last_used_at) }}
-                  </div>
-                  <span class="account-metric-detail-popover">
-                    {{ formatTodayRequests(account) }} · {{ formatTodayTokens(account) }}
-                  </span>
-                </div>
-              </div>
+                  <td
+                    v-for="column in accountTableColumns"
+                    :key="`${column.key}-${index}`"
+                    class="account-table-cell"
+                  >
+                    <div
+                      class="h-4 rounded bg-gray-100 dark:bg-dark-700"
+                      :class="column.key === 'account' ? 'w-56' : 'w-20'"
+                    />
+                  </td>
+                </tr>
+              </template>
 
-              <div class="account-card-actions">
-                <button
-                  :disabled="togglingSchedulable === account.id"
-                  class="account-list-switch"
-                  :class="[account.schedulable ? 'account-list-switch-on' : 'account-list-switch-off']"
-                  :title="account.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')"
-                  @click="handleToggleSchedulable(account)"
+              <tr v-else-if="accounts.length === 0">
+                <td :colspan="accountTableColumnCount" class="account-table-empty-cell">
+                  <div class="account-empty-state">
+                    <div class="account-empty-icon">
+                      <Icon name="server" size="lg" />
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ t('admin.accounts.noAccountsYet') }}
+                    </h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t('admin.accounts.createFirstAccount') }}
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <template v-else>
+                <tr
+                  v-for="account in accounts"
+                  :key="account.id"
+                  :class="['account-table-row', accountAccentClass(account)]"
                 >
-                  <span :class="['account-list-switch-thumb', account.schedulable ? 'translate-x-4' : 'translate-x-0']" />
-                </button>
+                  <td class="account-table-cell account-table-account-cell">
+                    <div class="account-card-main">
+                      <div class="account-card-title-row">
+                        <span class="account-card-title" :title="account.name">{{ account.name }}</span>
+                      </div>
 
-                <div class="flex items-center justify-end gap-1">
-                  <button
-                    type="button"
-                    class="account-row-action"
-                    :aria-label="t('common.edit')"
-                    :title="t('common.edit')"
-                    @click="handleEdit(account)"
-                  >
-                    <Icon name="edit" size="sm" />
-                  </button>
-                  <button
-                    type="button"
-                    class="account-row-action account-row-action-danger"
-                    :aria-label="t('common.delete')"
-                    :title="t('common.delete')"
-                    @click="handleDelete(account)"
-                  >
-                    <Icon name="trash" size="sm" />
-                  </button>
-                  <button
-                    type="button"
-                    class="account-row-action"
-                    :aria-label="t('common.more')"
-                    :title="t('common.more')"
-                    @click="openMenu(account, $event)"
-                  >
-                    <Icon name="more" size="sm" />
-                  </button>
-                </div>
-              </div>
-            </article>
-            </div>
-          </div>
-        </section>
-      </template>
+                      <div class="account-card-subline">
+                        <span v-if="getAccountEmail(account)" class="truncate" :title="getAccountEmail(account)">
+                          {{ getAccountEmail(account) }}
+                        </span>
+                        <span v-if="account.proxy" class="account-inline-meta">
+                          <Icon name="shield" size="xs" />
+                          <span class="truncate">{{ account.proxy.name }}</span>
+                          <span v-if="account.proxy.country_code">({{ account.proxy.country_code }})</span>
+                        </span>
+                        <span v-if="account.notes" class="truncate" :title="account.notes">
+                          {{ account.notes }}
+                        </span>
+                      </div>
 
-    </TablePageLayout>
+                      <div class="account-card-badges">
+                        <button
+                          v-if="isAccountTempUnschedulable(account)"
+                          type="button"
+                          :class="['account-status-chip', getAccountStatusClass(account)]"
+                          @mouseenter="showAccountStatusTooltip(account, $event)"
+                          @mouseleave="hideAccountStatusTooltip"
+                          @focus="showAccountStatusTooltip(account, $event)"
+                          @blur="hideAccountStatusTooltip"
+                          @click="handleShowTempUnsched(account)"
+                        >
+                          {{ getAccountStatusText(account) }}
+                        </button>
+                        <span
+                          v-else
+                          :class="['account-status-chip', getAccountStatusClass(account)]"
+                          tabindex="0"
+                          @mouseenter="showAccountStatusTooltip(account, $event)"
+                          @mouseleave="hideAccountStatusTooltip"
+                          @focus="showAccountStatusTooltip(account, $event)"
+                          @blur="hideAccountStatusTooltip"
+                        >
+                          {{ getAccountStatusText(account) }}
+                        </span>
+                        <PlatformTypeBadge
+                          v-if="isCardFieldVisible('platform_type')"
+                          mode="platformType"
+                          :platform="account.platform"
+                          :type="account.type"
+                        />
+                        <span
+                          v-if="isCardFieldVisible('platform_type') && getAntigravityTierLabel(account)"
+                          :class="['account-tiny-badge', getAntigravityTierClass(account)]"
+                        >
+                          {{ getAntigravityTierLabel(account) }}
+                        </span>
+                        <div
+                          v-if="isCardFieldVisible('platform_type') && getOpenAICompactMeta(account)"
+                          :class="[
+                            'account-compact-badge',
+                            getOpenAICompactMeta(account)?.className
+                          ]"
+                          :title="getOpenAICompactTitle(account)"
+                        >
+                          <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(account)?.dotClass]" />
+                          <span>{{ getOpenAICompactMeta(account)?.label }}</span>
+                        </div>
+                        <AccountGroupsCell
+                          v-if="!authStore.isSimpleMode && isCardFieldVisible('groups')"
+                          :groups="account.groups"
+                          :max-display="3"
+                        />
+                        <PlatformTypeBadge
+                          v-if="isCardFieldVisible('account_plan') && hasAccountPlanDisplay(account)"
+                          mode="planPrivacy"
+                          :platform="account.platform"
+                          :type="account.type"
+                          :plan-type="getCredentialString(account, 'plan_type')"
+                          :privacy-mode="getExtraString(account, 'privacy_mode')"
+                          :subscription-expires-at="getCredentialString(account, 'subscription_expires_at')"
+                        />
+                        <span v-if="isExpired(account.expires_at)" class="account-state-badge account-state-badge-warning">
+                          {{ t('admin.accounts.expired') }}
+                        </span>
+                        <span
+                          v-if="account.auto_pause_on_expired && account.expires_at"
+                          class="account-state-badge account-state-badge-success"
+                        >
+                          {{ t('admin.accounts.autoPauseOnExpired') }}
+                        </span>
+                        <span v-if="account.expires_at" class="account-inline-meta">
+                          <Icon name="clock" size="xs" />
+                          {{ t('admin.accounts.columns.expiresAt') }} {{ formatExpiresAt(account.expires_at) }}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td v-if="isCardFieldVisible('usage_windows')" class="account-table-cell account-table-usage-cell">
+                    <AccountUsageCell
+                      v-if="hasUsageWindowDisplay(account)"
+                      :account="account"
+                      :today-stats="todayStatsByAccountId[String(account.id)] ?? null"
+                      :today-stats-loading="todayStatsLoading"
+                      :manual-refresh-token="usageManualRefreshToken"
+                      compact
+                    />
+                    <span v-else class="account-table-muted">-</span>
+                  </td>
+
+                  <td v-if="isCardFieldVisible('priority')" class="account-table-cell">
+                    <span class="account-table-metric-value">{{ account.priority }}</span>
+                  </td>
+
+                  <td v-if="isCardFieldVisible('capacity')" class="account-table-cell">
+                    <span class="account-table-metric-value">
+                      {{ account.current_concurrency ?? 0 }}/{{ account.concurrency }}
+                    </span>
+                  </td>
+
+                  <td v-if="isCardFieldVisible('billing_rate')" class="account-table-cell">
+                    <span class="account-table-metric-value">{{ formatMultiplier(account.rate_multiplier) }}</span>
+                  </td>
+
+                  <td v-if="isCardFieldVisible('today_stats')" class="account-table-cell">
+                    <div class="account-table-today-stat" tabindex="0">
+                      <div class="account-table-metric-value">{{ formatTodayCost(account) }}</div>
+                      <div class="account-metric-subvalue account-metric-subvalue-muted">
+                        {{ t('admin.accounts.columns.lastUsed') }} {{ formatRelativeTime(account.last_used_at) }}
+                      </div>
+                      <span class="account-metric-detail-popover">
+                        {{ formatTodayRequests(account) }} · {{ formatTodayTokens(account) }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td class="account-table-cell">
+                    <button
+                      :disabled="togglingSchedulable === account.id"
+                      class="account-list-switch"
+                      :class="[account.schedulable ? 'account-list-switch-on' : 'account-list-switch-off']"
+                      :title="account.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')"
+                      @click="handleToggleSchedulable(account)"
+                    >
+                      <span :class="['account-list-switch-thumb', account.schedulable ? 'translate-x-4' : 'translate-x-0']" />
+                    </button>
+                  </td>
+
+                  <td class="account-table-cell">
+                    <div class="account-table-actions">
+                      <button
+                        type="button"
+                        class="account-row-action"
+                        :aria-label="t('common.edit')"
+                        :title="t('common.edit')"
+                        @click="handleEdit(account)"
+                      >
+                        <Icon name="edit" size="sm" />
+                        <span class="account-row-action-label">{{ t('common.edit') }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="account-row-action account-row-action-danger"
+                        :aria-label="t('common.delete')"
+                        :title="t('common.delete')"
+                        @click="handleDelete(account)"
+                      >
+                        <Icon name="trash" size="sm" />
+                        <span class="account-row-action-label">{{ t('common.delete') }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="account-row-action"
+                        :aria-label="t('common.more')"
+                        :title="t('common.more')"
+                        @click="openMenu(account, $event)"
+                      >
+                        <Icon name="more" size="sm" />
+                        <span class="account-row-action-label">{{ t('common.more') }}</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </TablePanel>
+    </div>
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
@@ -471,8 +487,8 @@ import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useTableLoader } from '@/composables/useTableLoader'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import TablePanel from '@/components/common/TablePanel.vue'
 import { CreateAccountModal, EditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
@@ -489,7 +505,7 @@ import Icon from '@/components/icons/Icon.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
-import { formatCountdown, formatCurrency, formatDateTime, formatRelativeTime, formatTokensK } from '@/utils/format'
+import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
 import type { Account, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -522,6 +538,7 @@ const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
+const filtersOpen = ref(false)
 const accountStatusTooltip = reactive({
   show: false,
   content: '',
@@ -536,6 +553,8 @@ const exportingData = ref(false)
 // Account tools dropdown
 const showAccountToolsDropdown = ref(false)
 const accountToolsDropdownRef = ref<HTMLElement | null>(null)
+const showColumnDropdown = ref(false)
+const columnDropdownRef = ref<HTMLElement | null>(null)
 
 // Sorting settings
 type AccountSortOrder = 'asc' | 'desc'
@@ -546,8 +565,6 @@ type AccountSortState = {
 const sortState = reactive<AccountSortState>({ sort_by: 'priority', sort_order: 'asc' })
 
 // Auto refresh settings
-const showAutoRefreshDropdown = ref(false)
-const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
 const AUTO_REFRESH_STORAGE_KEY = 'account-auto-refresh'
 const autoRefreshIntervals = [5, 10, 15, 30] as const
 const autoRefreshEnabled = ref(false)
@@ -597,6 +614,57 @@ const cardVisibilityOptions = computed<Array<{ key: AccountCardFieldKey; label: 
   { key: 'usage_windows', label: t('admin.accounts.columns.usageWindows') }
 ])
 
+type AccountTableColumnKey =
+  | 'account'
+  | 'usage_windows'
+  | 'priority'
+  | 'capacity'
+  | 'billing_rate'
+  | 'today_stats'
+  | 'schedulable'
+  | 'actions'
+
+type AccountTableColumn = {
+  key: AccountTableColumnKey
+  label: string
+}
+
+const accountTableColumns = computed<AccountTableColumn[]>(() => [
+  { key: 'account', label: t('admin.accounts.columns.name') },
+  ...(isCardFieldVisible('usage_windows')
+    ? [{ key: 'usage_windows' as const, label: t('admin.accounts.columns.usageWindows') }]
+    : []),
+  ...(isCardFieldVisible('priority')
+    ? [{ key: 'priority' as const, label: t('admin.accounts.columns.priority') }]
+    : []),
+  ...(isCardFieldVisible('capacity')
+    ? [{ key: 'capacity' as const, label: t('admin.accounts.columns.capacity') }]
+    : []),
+  ...(isCardFieldVisible('billing_rate')
+    ? [{ key: 'billing_rate' as const, label: t('admin.accounts.columns.billingRateMultiplier') }]
+    : []),
+  ...(isCardFieldVisible('today_stats')
+    ? [{ key: 'today_stats' as const, label: t('admin.accounts.columns.todayStats') }]
+    : []),
+  { key: 'schedulable', label: t('admin.accounts.columns.schedulable') },
+  { key: 'actions', label: t('admin.accounts.columns.actions') }
+])
+
+const accountTableColumnCount = computed(() => accountTableColumns.value.length)
+const visibleColumnSettingCount = computed(() =>
+  cardVisibilityOptions.value.filter(field => isCardFieldVisible(field.key)).length
+)
+const accountTableSummary = computed(() =>
+  t('admin.requestLogs.loadedRecordsSummary', {
+    count: formatNumber(accounts.value.length),
+    total: formatNumber(pagination.total)
+  })
+)
+const accountTableSummaryItems = computed(() => [
+  `${formatNumber(pagination.total)} ${t('nav.accounts')}`,
+  `${formatNumber(accounts.value.length)} ${t('common.visible')}`
+])
+
 const isAccountCardFieldKey = (value: unknown): value is AccountCardFieldKey => {
   return typeof value === 'string' && CARD_VISIBLE_FIELD_KEYS.includes(value as AccountCardFieldKey)
 }
@@ -635,6 +703,11 @@ const toggleCardField = (key: AccountCardFieldKey) => {
     next.add(key)
   }
   cardVisibleFields.value = next
+  saveCardVisibility()
+}
+
+const resetCardVisibility = () => {
+  cardVisibleFields.value = new Set(DEFAULT_VISIBLE_CARD_FIELDS)
   saveCardVisibility()
 }
 
@@ -680,14 +753,6 @@ const refreshTodayStatsBatch = async () => {
   }
 }
 
-const autoRefreshIntervalLabel = (sec: number) => {
-  if (sec === 5) return t('admin.accounts.refreshInterval5s')
-  if (sec === 10) return t('admin.accounts.refreshInterval10s')
-  if (sec === 15) return t('admin.accounts.refreshInterval15s')
-  if (sec === 30) return t('admin.accounts.refreshInterval30s')
-  return `${sec}s`
-}
-
 const loadSavedAutoRefresh = () => {
   try {
     const saved = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY)
@@ -731,14 +796,6 @@ const setAutoRefreshEnabled = (enabled: boolean) => {
   } else {
     pauseAutoRefresh()
     autoRefreshCountdown.value = 0
-  }
-}
-
-const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) => {
-  autoRefreshIntervalSeconds.value = seconds
-  saveAutoRefreshToStorage()
-  if (autoRefreshEnabled.value) {
-    autoRefreshCountdown.value = seconds
   }
 }
 
@@ -812,6 +869,26 @@ const resetFilters = () => {
     search: '',
   })
   debouncedReload()
+}
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (params.search) count += 1
+  if (params.platform) count += 1
+  if (params.status) count += 1
+  if (params.group) count += 1
+  return count
+})
+
+const accountListRefreshing = computed(() => loading.value || autoRefreshFetching.value)
+const autoRefreshTitle = computed(() =>
+  autoRefreshEnabled.value
+    ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown.value })
+    : t('admin.accounts.autoRefresh')
+)
+
+const toggleAutoRefresh = () => {
+  setAutoRefreshEnabled(!autoRefreshEnabled.value)
 }
 
 watch(loading, (isLoading, wasLoading) => {
@@ -988,7 +1065,7 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
     if (document.hidden) return
     if (loading.value || autoRefreshFetching.value) return
     if (isAnyModalOpen.value) return
-    if (menu.show || showAccountToolsDropdown.value || showAutoRefreshDropdown.value) return
+    if (menu.show || showAccountToolsDropdown.value) return
     if (inAutoRefreshSilentWindow()) {
       autoRefreshCountdown.value = Math.max(
         0,
@@ -1599,8 +1676,8 @@ const handleClickOutside = (event: MouseEvent) => {
   if (accountToolsDropdownRef.value && !accountToolsDropdownRef.value.contains(target)) {
     showAccountToolsDropdown.value = false
   }
-  if (autoRefreshDropdownRef.value && !autoRefreshDropdownRef.value.contains(target)) {
-    showAutoRefreshDropdown.value = false
+  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
+    showColumnDropdown.value = false
   }
 }
 
@@ -1633,72 +1710,105 @@ onUnmounted(() => {
 
 <style scoped>
 .account-tools-menu-item {
-  @apply flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-xs text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700;
+  @apply flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:text-dark-300 dark:hover:bg-dark-700 dark:hover:text-white;
 }
 
-.account-tools-menu-icon {
-  @apply inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md;
+.account-filter-card :deep(.account-filter-row) {
+  @apply grid gap-3 md:grid-cols-[14rem_8.5rem_8.5rem_11rem_auto];
 }
 
-.account-management-card {
-  @apply overflow-visible;
+.account-filter-card :deep(.account-filter-search),
+.account-filter-card :deep(.account-filter-select),
+.account-filter-card :deep(.account-filter-group) {
+  @apply min-w-0 w-full;
 }
 
-.account-filter-row-wrap :deep(.account-filter-row) {
-  @apply flex-wrap items-center gap-3;
+.account-filter-card :deep(.account-filter-reset) {
+  @apply justify-self-start md:justify-self-end;
 }
 
-.account-filter-row-wrap :deep(.account-filter-search) {
-  @apply min-w-0 flex-none md:w-64;
+.account-table-scroll {
+  @apply overflow-x-auto;
 }
 
-.account-filter-row-wrap :deep(.account-filter-select) {
-  @apply w-full shrink-0 sm:w-32;
+.account-table {
+  @apply min-w-[980px] w-full divide-y divide-gray-200/70 dark:divide-white/[0.06];
 }
 
-.account-filter-row-wrap :deep(.account-filter-group) {
-  @apply sm:w-44;
+.account-table-header {
+  @apply bg-gray-50/80 dark:bg-white/[0.03];
 }
 
-.account-list-card {
-  @apply overflow-visible px-6 pb-5;
+.account-table-head-cell {
+  @apply px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400;
 }
 
-.account-list-loading {
-  @apply grid gap-3;
+.account-table-row {
+  @apply bg-white transition-colors hover:bg-gray-50/80 dark:bg-dark-900 dark:hover:bg-white/[0.035];
 }
 
-.account-rich-list {
-  @apply overflow-hidden rounded-lg border border-gray-200 dark:border-dark-700;
-}
-
-.account-rich-row {
-  @apply flex flex-col gap-3 border-0 border-l-[3px] bg-white px-4 py-5 transition-colors first:rounded-t-lg last:rounded-b-lg;
-  @apply hover:bg-gray-50/80 dark:bg-dark-900 dark:hover:bg-white/[0.035];
-  @apply md:flex-row md:items-center md:gap-4;
-}
-
-.account-rich-row + .account-rich-row {
+.account-table-row + .account-table-row .account-table-cell {
   border-top: 1px solid rgb(243 244 246);
 }
 
-.dark .account-rich-row + .account-rich-row {
+.dark .account-table-row + .account-table-row .account-table-cell {
   border-top-color: rgb(30 41 59);
 }
 
-.account-rich-row-active {
+.account-table-cell {
+  @apply px-4 py-4 text-left align-middle text-sm text-gray-700 dark:text-dark-200;
+}
+
+.account-table-cell:first-child {
+  @apply border-l-[3px] border-l-transparent;
+}
+
+.account-table-account-cell {
+  @apply min-w-[340px] max-w-[460px];
+}
+
+.account-table-usage-cell {
+  @apply min-w-[220px];
+}
+
+.account-table-muted {
+  @apply text-xs text-gray-400 dark:text-dark-500;
+}
+
+.account-table-metric-value {
+  @apply whitespace-nowrap text-sm font-semibold tabular-nums text-gray-950 dark:text-white;
+}
+
+.account-table-today-stat {
+  @apply relative inline-block min-w-[128px] text-left;
+}
+
+.account-table-today-stat:hover .account-metric-detail-popover,
+.account-table-today-stat:focus-within .account-metric-detail-popover {
+  @apply block;
+}
+
+.account-table-actions {
+  @apply flex items-center justify-start gap-2;
+}
+
+.account-table-empty-cell {
+  @apply px-4 py-0;
+}
+
+.account-table-row.account-rich-row-active .account-table-cell:first-child {
   @apply border-l-emerald-500;
 }
 
-.account-rich-row-warning {
+.account-table-row.account-rich-row-warning .account-table-cell:first-child {
   @apply border-l-amber-400 dark:border-l-amber-500;
 }
 
-.account-rich-row-error {
+.account-table-row.account-rich-row-error .account-table-cell:first-child {
   @apply border-l-rose-400 dark:border-l-rose-500;
 }
 
-.account-rich-row-muted {
+.account-table-row.account-rich-row-muted .account-table-cell:first-child {
   @apply border-l-gray-300 dark:border-l-gray-600;
 }
 
@@ -1805,35 +1915,6 @@ onUnmounted(() => {
   @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300;
 }
 
-.account-card-metrics {
-  @apply grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 md:flex md:shrink-0 md:items-stretch md:gap-x-4;
-}
-
-.account-metric-tile {
-  @apply relative min-w-[84px] rounded-md px-0 py-0.5 text-center;
-}
-
-.account-metric-tile-wide {
-  @apply sm:col-span-2 md:min-w-[118px];
-}
-
-.account-metric-tile-usage {
-  @apply col-span-2 min-w-[180px] text-left sm:col-span-3 md:min-w-[180px];
-}
-
-.account-metric-tile-usage :deep(.rounded.bg-gray-100),
-.account-metric-tile-usage :deep(.dark\:bg-gray-800) {
-  @apply bg-transparent px-0 dark:bg-transparent;
-}
-
-.account-metric-label {
-  @apply truncate text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500;
-}
-
-.account-metric-value {
-  @apply mt-0.5 truncate text-sm font-semibold tabular-nums text-gray-950 dark:text-white;
-}
-
 .account-metric-subvalue {
   @apply mt-0.5 truncate text-xs font-mono text-gray-500 dark:text-gray-400;
 }
@@ -1844,15 +1925,6 @@ onUnmounted(() => {
 
 .account-metric-detail-popover {
   @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[220px] -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
-}
-
-.account-metric-tile:hover .account-metric-detail-popover,
-.account-metric-tile:focus-within .account-metric-detail-popover {
-  @apply block;
-}
-
-.account-card-actions {
-  @apply flex shrink-0 items-center justify-end gap-2;
 }
 
 .account-list-switch {
@@ -1873,8 +1945,12 @@ onUnmounted(() => {
 }
 
 .account-row-action {
-  @apply inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors;
+  @apply inline-flex min-w-[52px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium leading-none text-gray-500 transition-colors;
   @apply hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-white;
+}
+
+.account-row-action-label {
+  @apply whitespace-nowrap text-[11px] leading-none;
 }
 
 .account-row-action-danger {

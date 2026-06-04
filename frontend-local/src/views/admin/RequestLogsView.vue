@@ -107,10 +107,10 @@
                 type="button"
                 class="consumer-icon-btn"
                 :title="t('admin.requestLogs.refresh')"
-                :disabled="loading"
+                :disabled="loading || refreshingSilently"
                 @click="refreshData"
               >
-                <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
+                <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading || refreshingSilently }" />
               </button>
 
               <button
@@ -145,22 +145,6 @@
             leave-to-class="-translate-y-1 opacity-0"
           >
             <div v-if="filtersOpen" class="cch-panel-card p-4 md:p-5">
-              <div class="mb-5 flex flex-wrap items-center gap-2">
-                <button
-                  v-for="option in timeRangeOptions"
-                  :key="option.value"
-                  type="button"
-                  class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold shadow-sm transition-colors"
-                  :class="filters.time_range === option.value
-                    ? 'border-orange-500 bg-orange-500 text-white'
-                    : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]'"
-                  @click="selectTimeRange(option.value)"
-                >
-                  <Icon :name="option.icon" size="sm" />
-                  {{ option.label }}
-                </button>
-              </div>
-
               <div class="grid gap-4 lg:grid-cols-2">
                 <div class="rounded-xl border border-gray-200/70 bg-white/50 dark:border-white/[0.06] dark:bg-white/[0.02]" data-test="request-log-filter-time">
                   <button
@@ -180,15 +164,33 @@
                     <Icon name="chevronDown" size="sm" class="text-gray-400 transition-transform" :class="{ 'rotate-180': timeFiltersOpen }" />
                   </button>
 
-                  <div v-if="timeFiltersOpen" class="grid gap-3 px-4 pb-4 sm:grid-cols-2">
-                    <label class="block">
-                      <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.startTime') }}</span>
-                      <input v-model="customStartTime" type="datetime-local" class="input" @change="onCustomTimeChange" @keyup.enter="applyFilters" />
-                    </label>
-                    <label class="block">
-                      <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.endTime') }}</span>
-                      <input v-model="customEndTime" type="datetime-local" class="input" @change="onCustomTimeChange" @keyup.enter="applyFilters" />
-                    </label>
+                  <div v-if="timeFiltersOpen" class="space-y-4 px-4 pb-4">
+                    <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                      <button
+                        v-for="option in timeRangeOptions"
+                        :key="option.value"
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold shadow-sm transition-colors"
+                        :class="filters.time_range === option.value
+                          ? 'border-orange-500 bg-orange-500 text-white'
+                          : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-100 dark:hover:bg-white/[0.04]'"
+                        @click="selectTimeRange(option.value)"
+                      >
+                        <Icon :name="option.icon" size="sm" />
+                        {{ option.label }}
+                      </button>
+                    </div>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <label class="block">
+                        <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.startTime') }}</span>
+                        <input v-model="customStartTime" type="datetime-local" class="input" @change="onCustomTimeChange" @keyup.enter="applyFilters" />
+                      </label>
+                      <label class="block">
+                        <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.endTime') }}</span>
+                        <input v-model="customEndTime" type="datetime-local" class="input" @change="onCustomTimeChange" @keyup.enter="applyFilters" />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -390,11 +392,6 @@
 
                   <div v-if="requestFiltersOpen" class="grid gap-3 px-4 pb-4 sm:grid-cols-2">
                     <label class="block">
-                      <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.platform') }}</span>
-                      <Select v-model="filters.platform" :options="platformFilterOptions" searchable />
-                    </label>
-
-                    <label class="block">
                       <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.model') }}</span>
                       <input
                         v-model.trim="filters.model"
@@ -426,17 +423,6 @@
                         @keyup.enter="applyFilters"
                       />
                     </label>
-
-                    <label class="block sm:col-span-2">
-                      <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.requestLogs.keyword') }}</span>
-                      <input
-                        v-model.trim="filters.q"
-                        type="text"
-                        class="input"
-                        :placeholder="t('admin.requestLogs.keywordPlaceholder')"
-                        @keyup.enter="applyFilters"
-                      />
-                    </label>
                   </div>
                 </div>
               </div>
@@ -453,36 +439,11 @@
           </Transition>
         </section>
 
-        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div
-            v-for="card in summaryCards"
-            :key="card.key"
-            class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-white/[0.08] dark:bg-dark-900"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-sm font-medium text-gray-500 dark:text-dark-300">{{ card.label }}</p>
-              <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.iconClass">
-                <Icon :name="card.icon" size="sm" :stroke-width="2" />
-              </span>
-            </div>
-            <p class="mt-3 text-2xl font-semibold text-gray-950 dark:text-white">{{ card.value }}</p>
-          </div>
-        </section>
-
-        <section class="cch-panel-card overflow-hidden">
-          <div v-if="errorMessage" class="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
-            {{ errorMessage }}
-          </div>
-
-          <div class="flex items-center justify-between gap-3 border-b border-gray-200/70 px-4 py-3 dark:border-white/[0.06]">
-            <span class="text-sm text-gray-500 dark:text-dark-400">
-              {{ t('usage.loadedRecords', { count: logs.length }) }}
-            </span>
-            <span class="text-xs text-gray-400 dark:text-dark-500">
-              {{ requestLogStatsSummary }}
-            </span>
-          </div>
-
+        <TablePanel
+          :error="errorMessage"
+          :summary="loadedRecordsSummary"
+          :summary-items="requestLogStatsSummaryItems"
+        >
           <UsageTable
             :data="logs"
             :loading="loading"
@@ -497,16 +458,22 @@
             @diagnostics-click="openDiagnostics"
           />
 
-          <div v-if="pagination.total > 0" class="border-t border-gray-200/70 p-4 dark:border-white/[0.06]">
-            <Pagination
-              :total="pagination.total"
-              :page="pagination.page"
-              :page-size="pagination.page_size"
-              @update:page="handlePageChange"
-              @update:page-size="handlePageSizeChange"
-            />
-          </div>
-        </section>
+          <template #footer>
+            <div class="flex min-h-10 items-center justify-center text-sm text-gray-500 dark:text-dark-400">
+              <span v-if="loadingMore" class="inline-flex items-center gap-2">
+                <Icon name="refresh" size="sm" class="animate-spin" />
+                {{ t('admin.requestLogs.loadingMore') }}
+              </span>
+              <span v-else-if="hasMoreLogs">
+                {{ t('admin.requestLogs.scrollLoadMore') }}
+              </span>
+              <span v-else-if="logs.length > 0">
+                {{ t('admin.requestLogs.allRecordsLoaded') }}
+              </span>
+            </div>
+            <div ref="loadMoreSentinelRef" class="h-px" aria-hidden="true" />
+          </template>
+        </TablePanel>
       </template>
     </div>
 
@@ -745,13 +712,15 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import TablePanel from '@/components/common/TablePanel.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
+import { useInfinitePagedList } from '@/composables/useInfinitePagedList'
 import { adminAPI } from '@/api'
 import type {
   AdminRequestLog,
   AdminRequestLogQueryParams,
+  AdminRequestLogResponse,
   AdminRequestLogSort,
   AdminRequestLogSummary,
   AdminRequestLogUpstreamAttempt
@@ -762,7 +731,7 @@ import { formatDateTime, formatNumber, formatReasoningEffort } from '@/utils/for
 import { getBillingModeLabel } from '@/utils/billingMode'
 import type { Column } from '@/components/common/types'
 
-type TimeRangePreset = 'today' | 'this_week' | 'last_7_days' | 'this_month' | 'last_30_days' | 'custom'
+type TimeRangePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom'
 type StatusPreset = '' | '200' | '!200' | '4xx' | '5xx' | '503' | '429' | 'custom'
 type RequestLogColumn = Column & { key: RequestLogColumnKey }
 type RequestLogColumnKey =
@@ -788,7 +757,6 @@ interface RequestLogFilters {
   time_range: TimeRangePreset | ''
   statusPreset: StatusPreset
   customStatusCode: string
-  platform: string
   model: string
   user_id?: number
   api_key_id?: number
@@ -796,7 +764,6 @@ interface RequestLogFilters {
   group_id: string
   request_id: string
   session_id: string
-  q: string
   sort: AdminRequestLogSort
 }
 
@@ -823,7 +790,6 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const adminSettingsStore = useAdminSettingsStore()
 
-const loading = ref(false)
 const errorMessage = ref('')
 const opsDisabled = ref(false)
 const filtersOpen = ref(false)
@@ -832,29 +798,22 @@ const resultFiltersOpen = ref(true)
 const identityFiltersOpen = ref(true)
 const requestFiltersOpen = ref(false)
 const autoRefreshEnabled = ref(false)
-const logs = ref<AdminRequestLog[]>([])
+const loadMoreSentinelRef = ref<HTMLElement | null>(null)
 const summary = ref<AdminRequestLogSummary>({
   total_requests: 0,
   success_requests: 0,
   error_requests: 0,
   error_rate: 0
 })
-const pagination = reactive({
-  page: 1,
-  page_size: 20,
-  total: 0
-})
 
 const filters = reactive<RequestLogFilters>({
   time_range: '',
   statusPreset: '',
   customStatusCode: '',
-  platform: '',
   model: '',
   group_id: '',
   request_id: '',
   session_id: '',
-  q: '',
   sort: 'created_at_desc'
 })
 
@@ -877,7 +836,42 @@ const columnDropdownRef = ref<HTMLElement | null>(null)
 const showColumnDropdown = ref(false)
 const selectedLog = ref<AdminRequestLog | null>(null)
 
-let abortController: AbortController | null = null
+const {
+  items: logs,
+  loading,
+  loadingMore,
+  refreshingSilently,
+  pagination,
+  hasMore: hasMoreLogs,
+  load: loadRequestLogs,
+  reset: resetRequestLogs,
+  refreshFirstPageSilently,
+  startObserver: startLoadMoreObserver,
+  stopObserver: stopLoadMoreObserver
+} = useInfinitePagedList<AdminRequestLog, AdminRequestLogResponse>({
+  pageSize: 20,
+  sentinelRef: loadMoreSentinelRef,
+  fetchPage: (pageState, options) => {
+    errorMessage.value = ''
+    return adminAPI.requestRecords.list(buildParams(pageState), options)
+  },
+  onSuccess: (result) => {
+    summary.value = result.summary || createEmptyRequestLogSummary()
+  },
+  onError: (error) => {
+    if (isOpsDisabledError(error)) {
+      opsDisabled.value = true
+      adminSettingsStore.setOpsMonitoringEnabledLocal(false)
+      return
+    }
+    console.error('[RequestLogsView] Failed to load request logs', error)
+    errorMessage.value = extractErrorMessage(error)
+    appStore.showError(errorMessage.value)
+  },
+  isCanceled,
+  canLoadMore: () => !opsDisabled.value
+})
+
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
 let apiKeySearchTimeout: ReturnType<typeof setTimeout> | null = null
 let accountSearchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -885,20 +879,11 @@ let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 const timeRangeOptions = computed<Array<{ value: TimeRangePreset; label: string; icon: 'calendar' }>>(() => [
   { value: 'today', label: t('admin.dashboard.rangeToday'), icon: 'calendar' },
+  { value: 'yesterday', label: t('admin.dashboard.rangeYesterday'), icon: 'calendar' },
   { value: 'this_week', label: t('admin.dashboard.rangeThisWeek'), icon: 'calendar' },
-  { value: 'last_7_days', label: t('admin.dashboard.rangeLast7Days'), icon: 'calendar' },
   { value: 'this_month', label: t('admin.dashboard.rangeThisMonth'), icon: 'calendar' },
-  { value: 'last_30_days', label: t('admin.dashboard.rangeLast30Days'), icon: 'calendar' },
   { value: 'custom', label: t('admin.requestLogs.custom'), icon: 'calendar' }
 ])
-
-const platformOptions = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'antigravity', label: 'Antigravity' },
-  { value: 'unknown', label: 'unknown' }
-]
 
 const statusCodeOptions = computed<SelectOption[]>(() => [
   { value: '', label: t('admin.requestLogs.allStatusCodes') },
@@ -922,11 +907,6 @@ const groupFilterOptions = computed<SelectOption[]>(() => [
     value: String(group.id),
     label: group.name
   }))
-])
-
-const platformFilterOptions = computed<SelectOption[]>(() => [
-  { value: '', label: t('admin.requestLogs.allPlatforms') },
-  ...platformOptions
 ])
 
 const DEFAULT_VISIBLE_COLUMNS: RequestLogColumnKey[] = [
@@ -969,6 +949,12 @@ const toggleableColumns = computed<RequestLogColumn[]>(() => allColumns.value)
 const visibleColumns = computed<RequestLogColumn[]>(() => allColumns.value.filter((column) => !hiddenColumns.has(column.key)))
 const visibleColumnCount = computed(() => visibleColumns.value.length)
 const allColumnKeys = computed(() => new Set(allColumns.value.map((column) => column.key)))
+const loadedRecordsSummary = computed(() =>
+  t('admin.requestLogs.loadedRecordsSummary', {
+    count: formatNumber(logs.value.length),
+    total: formatNumber(pagination.total)
+  })
+)
 
 function isRequestLogColumnKey(value: string): value is RequestLogColumnKey {
   return allColumnKeys.value.has(value as RequestLogColumnKey)
@@ -1024,46 +1010,26 @@ function resetColumns() {
   saveHiddenColumns()
 }
 
-const summaryCards = computed(() => [
-  {
-    key: 'total',
-    label: t('admin.requestLogs.totalRequests'),
-    value: formatNumber(summary.value.total_requests),
-    icon: 'chartBar' as const,
-    iconClass: 'bg-gray-100 text-gray-600 dark:bg-white/[0.06] dark:text-dark-200'
-  },
-  {
-    key: 'success',
-    label: t('admin.requestLogs.successRequests'),
-    value: formatNumber(summary.value.success_requests),
-    icon: 'checkCircle' as const,
-    iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
-  },
-  {
-    key: 'error',
-    label: t('admin.requestLogs.errorRequests'),
-    value: formatNumber(summary.value.error_requests),
-    icon: 'xCircle' as const,
-    iconClass: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300'
-  },
-  {
-    key: 'rate',
-    label: t('admin.requestLogs.errorRate'),
-    value: `${(summary.value.error_rate * 100).toFixed(2)}%`,
-    icon: 'exclamationTriangle' as const,
-    iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300'
-  }
+const requestLogStatsSummaryItems = computed(() => [
+  `${formatNumber(summary.value.total_requests)} ${t('admin.requestLogs.totalRequests')}`,
+  `${formatNumber(summary.value.success_requests)} ${t('admin.requestLogs.successRequests')}`,
+  `${formatNumber(summary.value.error_requests)} ${t('admin.requestLogs.errorRequests')}`,
+  `${(summary.value.error_rate * 100).toFixed(2)}% ${t('admin.requestLogs.errorRate')}`
 ])
 
-const requestLogStatsSummary = computed(() => (
-  `${formatNumber(summary.value.total_requests)} ${t('admin.requestLogs.totalRequests')} · ${formatNumber(summary.value.error_requests)} ${t('admin.requestLogs.errorRequests')} · ${(summary.value.error_rate * 100).toFixed(2)}%`
-))
+function createEmptyRequestLogSummary(): AdminRequestLogSummary {
+  return {
+    total_requests: 0,
+    success_requests: 0,
+    error_requests: 0,
+    error_rate: 0
+  }
+}
 
 const activeFilterCount = computed(() => {
   let count = 0
   if (filters.time_range || customStartTime.value || customEndTime.value) count += 1
   if (filters.statusPreset) count += 1
-  if (filters.platform) count += 1
   if (filters.model) count += 1
   if (filters.user_id) count += 1
   if (filters.api_key_id) count += 1
@@ -1071,7 +1037,6 @@ const activeFilterCount = computed(() => {
   if (filters.group_id) count += 1
   if (filters.request_id) count += 1
   if (filters.session_id) count += 1
-  if (filters.q) count += 1
   return count
 })
 
@@ -1418,37 +1383,39 @@ function getPresetDateRange(range: Exclude<TimeRangePreset, 'custom'>, now: Date
   if (range === 'today') {
     return { start: startOfLocalDay(now), end }
   }
+  if (range === 'yesterday') {
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    return { start: startOfLocalDay(yesterday), end: endOfLocalDay(yesterday) }
+  }
   if (range === 'this_week') {
     return { start: startOfLocalWeek(now), end }
-  }
-  if (range === 'last_7_days') {
-    const start = startOfLocalDay(now)
-    start.setDate(start.getDate() - 6)
-    return { start, end }
   }
   if (range === 'this_month') {
     return { start: startOfLocalMonth(now), end }
   }
-
-  const start = startOfLocalDay(now)
-  start.setDate(start.getDate() - 29)
-  return { start, end }
+  return { start: startOfLocalDay(now), end }
 }
 
-function buildParams(): AdminRequestLogQueryParams {
+function buildParams(pageState: { page: number; page_size: number }): AdminRequestLogQueryParams {
   const params: AdminRequestLogQueryParams = {
-    page: pagination.page,
-    page_size: pagination.page_size,
+    page: pageState.page,
+    page_size: pageState.page_size,
     sort: filters.sort
   }
+  const selectedTimeRange = filters.time_range
 
   if (customStartTime.value || customEndTime.value) {
     const startTime = toRFC3339(customStartTime.value)
     const endTime = toRFC3339(customEndTime.value)
     if (startTime) params.start_time = startTime
     if (endTime) params.end_time = endTime
-  } else if (filters.time_range && filters.time_range !== 'custom') {
-    params.time_range = filters.time_range
+  } else if (selectedTimeRange === 'yesterday') {
+    const { start, end } = getPresetDateRange('yesterday', new Date())
+    params.start_time = start.toISOString()
+    params.end_time = end.toISOString()
+  } else if (selectedTimeRange && selectedTimeRange !== 'custom') {
+    params.time_range = selectedTimeRange
   }
 
   if (filters.statusPreset === '!200') {
@@ -1459,7 +1426,6 @@ function buildParams(): AdminRequestLogQueryParams {
   } else if (filters.statusPreset) {
     params.status_codes = filters.statusPreset
   }
-  if (filters.platform) params.platform = filters.platform
   if (filters.model.trim()) params.model = filters.model.trim()
   if (filters.user_id) params.user_id = filters.user_id
   if (filters.api_key_id) params.api_key_id = filters.api_key_id
@@ -1467,7 +1433,6 @@ function buildParams(): AdminRequestLogQueryParams {
   if (filters.group_id) params.group_id = Number(filters.group_id)
   if (filters.request_id.trim()) params.request_id = filters.request_id.trim()
   if (filters.session_id.trim()) params.session_id = filters.session_id.trim()
-  if (filters.q.trim()) params.q = filters.q.trim()
 
   return params
 }
@@ -1490,44 +1455,6 @@ function isOpsDisabledError(error: unknown): boolean {
   return record.code === 'OPS_DISABLED' || record.message === 'Ops monitoring is disabled'
 }
 
-async function loadRequestLogs() {
-  abortController?.abort()
-  const controller = new AbortController()
-  abortController = controller
-  loading.value = true
-  errorMessage.value = ''
-
-  try {
-    const result = await adminAPI.requestRecords.list(buildParams(), { signal: controller.signal })
-    if (controller.signal.aborted) return
-    logs.value = result.items || []
-    pagination.total = result.total || 0
-    pagination.page = result.page || pagination.page
-    pagination.page_size = result.page_size || pagination.page_size
-    summary.value = result.summary || {
-      total_requests: 0,
-      success_requests: 0,
-      error_requests: 0,
-      error_rate: 0
-    }
-  } catch (error) {
-    if (isCanceled(error)) return
-    if (isOpsDisabledError(error)) {
-      opsDisabled.value = true
-      adminSettingsStore.setOpsMonitoringEnabledLocal(false)
-      return
-    }
-    console.error('[RequestLogsView] Failed to load request logs', error)
-    errorMessage.value = extractErrorMessage(error)
-    appStore.showError(errorMessage.value)
-  } finally {
-    if (abortController === controller) {
-      abortController = null
-      loading.value = false
-    }
-  }
-}
-
 async function loadGroupOptions() {
   try {
     const res = await adminAPI.groups.list(1, 1000)
@@ -1541,12 +1468,11 @@ async function loadGroupOptions() {
 }
 
 function applyFilters() {
-  pagination.page = 1
-  loadRequestLogs()
+  void resetRequestLogs()
 }
 
 function refreshData() {
-  loadRequestLogs()
+  void resetRequestLogs()
 }
 
 function stopAutoRefresh() {
@@ -1559,8 +1485,8 @@ function stopAutoRefresh() {
 function startAutoRefresh() {
   stopAutoRefresh()
   autoRefreshTimer = setInterval(() => {
-    if (!loading.value && !opsDisabled.value) {
-      loadRequestLogs()
+    if (!loading.value && !loadingMore.value && !refreshingSilently.value && !opsDisabled.value) {
+      void refreshFirstPageSilently()
     }
   }, 5000)
 }
@@ -1578,15 +1504,13 @@ function filterBySession(sessionId: string) {
   const normalized = sessionId.trim()
   if (!normalized) return
   filters.session_id = normalized
-  pagination.page = 1
-  loadRequestLogs()
+  void resetRequestLogs()
 }
 
 function resetFilters() {
   filters.time_range = ''
   filters.statusPreset = ''
   filters.customStatusCode = ''
-  filters.platform = ''
   filters.model = ''
   filters.user_id = undefined
   filters.api_key_id = undefined
@@ -1594,7 +1518,6 @@ function resetFilters() {
   filters.group_id = ''
   filters.request_id = ''
   filters.session_id = ''
-  filters.q = ''
   filters.sort = 'created_at_desc'
   customStartTime.value = ''
   customEndTime.value = ''
@@ -1605,17 +1528,6 @@ function resetFilters() {
   apiKeyResults.value = []
   accountResults.value = []
   applyFilters()
-}
-
-function handlePageChange(page: number) {
-  pagination.page = page
-  loadRequestLogs()
-}
-
-function handlePageSizeChange(pageSize: number) {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  loadRequestLogs()
 }
 
 function selectTimeRange(range: TimeRangePreset) {
@@ -1748,10 +1660,11 @@ onMounted(async () => {
   if (opsDisabled.value) return
   void loadGroupOptions()
   await loadRequestLogs()
+  startLoadMoreObserver()
 })
 
 onBeforeUnmount(() => {
-  abortController?.abort()
+  stopLoadMoreObserver()
   stopAutoRefresh()
   if (userSearchTimeout) clearTimeout(userSearchTimeout)
   if (apiKeySearchTimeout) clearTimeout(apiKeySearchTimeout)

@@ -1,19 +1,36 @@
 <template>
   <div :class="shellClass">
-    <div class="divide-y divide-gray-100 md:hidden dark:divide-white/[0.06]">
-      <div v-if="loading && data.length === 0" class="space-y-3 p-4">
-        <div v-for="idx in 4" :key="idx" class="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-white/[0.06]" />
-      </div>
-      <div v-else-if="data.length === 0" class="flex min-h-[220px] flex-col items-center justify-center gap-3 p-6 text-center">
-        <Icon name="inbox" size="xl" class="text-gray-300 dark:text-dark-500" />
-        <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('usage.noRecords') }}</p>
-      </div>
-      <article
-        v-for="row in data"
-        v-else
-        :key="rowKey(row)"
-        class="space-y-3 p-4"
-      >
+    <DataTable
+      :columns="tableColumns"
+      :data="data"
+      :loading="loading && data.length === 0"
+      :row-key="rowKey"
+      :server-side-sort="true"
+      :default-sort-key="defaultSortKey"
+      :default-sort-order="defaultSortOrder"
+      :sticky-first-column="false"
+      :sticky-actions-column="false"
+      :virtualized="false"
+      wrapper-class="hidden overflow-x-auto md:block"
+      table-class="w-full min-w-[980px] divide-y divide-gray-200/70 dark:divide-white/[0.06]"
+      header-class="bg-gray-50/80 dark:bg-white/[0.03]"
+      header-cell-base-class="py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-400"
+      cell-base-class="py-4 text-left"
+      padding-class="px-4"
+      row-class="transition-colors hover:bg-orange-50/40 dark:hover:bg-white/[0.035]"
+      mobile-list-class="divide-y divide-gray-100 md:hidden dark:divide-white/[0.06]"
+      mobile-card-class="space-y-3 p-4"
+      mobile-empty-class="flex min-h-[220px] flex-col items-center justify-center gap-3 p-6 text-center"
+      @sort="handleSort"
+    >
+      <template #empty>
+        <div>
+          <Icon name="inbox" size="xl" class="text-gray-300 dark:text-dark-500" />
+          <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('usage.noRecords') }}</p>
+        </div>
+      </template>
+
+      <template #mobile-row="{ row }">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div
@@ -87,79 +104,20 @@
           <Icon name="eye" size="xs" :stroke-width="2" />
           {{ t('usage.viewDiagnostics') }}
         </button>
-      </article>
-    </div>
+      </template>
 
-    <div class="hidden overflow-x-auto md:block">
-      <table class="w-full min-w-[980px] divide-y divide-gray-200/70 dark:divide-white/[0.06]">
-        <thead class="bg-gray-50/80 dark:bg-white/[0.03]">
-          <tr>
-            <th
-              v-for="column in visibleColumns"
-              :key="column.key"
-              class="px-4 py-3 text-xs font-medium text-gray-500 dark:text-dark-400"
-              :class="getHeaderClass(column.key)"
-            >
-              <button
-                v-if="column.sortable"
-                type="button"
-                class="inline-flex items-center gap-1 transition-colors hover:text-gray-950 dark:hover:text-white"
-                :class="isRightAligned(column.key) ? 'justify-end' : 'justify-start'"
-                @click="toggleSort(column.key)"
-              >
-                {{ column.label }}
-                <Icon
-                  name="chevronDown"
-                  size="xs"
-                  class="transition-transform"
-                  :class="{ 'rotate-180': currentSortKey === column.key && currentSortOrder === 'asc' }"
-                />
-              </button>
-              <span v-else>{{ column.label }}</span>
-            </th>
-            <th
-              v-if="showDiagnosticsAction"
-              class="w-12 px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-dark-400"
-            />
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 bg-white/40 dark:divide-white/[0.05] dark:bg-transparent">
-          <template v-if="loading && data.length === 0">
-            <tr v-for="idx in 5" :key="idx">
-              <td v-for="column in visibleColumns" :key="column.key" class="px-4 py-4">
-                <div class="h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-white/[0.08]" />
-              </td>
-              <td v-if="showDiagnosticsAction" class="px-4 py-4">
-                <div class="ml-auto h-8 w-8 animate-pulse rounded-lg bg-gray-200 dark:bg-white/[0.08]" />
-              </td>
-            </tr>
-          </template>
-          <tr v-else-if="data.length === 0">
-            <td :colspan="visibleColumns.length + (showDiagnosticsAction ? 1 : 0)" class="px-4 py-16 text-center">
-              <div class="flex flex-col items-center gap-3">
-                <Icon name="inbox" size="xl" class="text-gray-300 dark:text-dark-500" />
-                <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('usage.noRecords') }}</p>
-              </div>
-            </td>
-          </tr>
-          <tr
-            v-for="row in data"
-            v-else
-            :key="rowKey(row)"
-            class="transition-colors hover:bg-orange-50/40 dark:hover:bg-white/[0.035]"
+      <template #cell="{ row, column }">
+        <template v-if="column.key === 'user'">
+          <span
+            v-if="row.user"
+            class="block max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white"
+            @mouseenter="showLongTextTooltip($event, getUserTooltip(row), { force: hasExtraUserDetails(row) })"
+            @mouseleave="hideLongTextTooltip"
           >
-            <td v-for="column in visibleColumns" :key="column.key" class="px-4 py-4" :class="getCellClass(column.key)">
-              <template v-if="column.key === 'user'">
-                <span
-                  v-if="row.user"
-                  class="block max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white"
-                  @mouseenter="showLongTextTooltip($event, getUserTooltip(row), { force: hasExtraUserDetails(row) })"
-                  @mouseleave="hideLongTextTooltip"
-                >
-                  {{ getUserDisplayName(row) }}
-                </span>
-                <span v-else class="text-sm font-semibold text-gray-950 dark:text-white">#{{ row.user_id || '-' }}</span>
-              </template>
+            {{ getUserDisplayName(row) }}
+          </span>
+          <span v-else class="text-sm font-semibold text-gray-950 dark:text-white">#{{ row.user_id || '-' }}</span>
+        </template>
 
               <template v-else-if="column.key === 'time' || column.key === 'created_at'">
                 <span
@@ -232,9 +190,9 @@
                     v-if="getModelIconModel(row)"
                     class="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-white dark:bg-white"
                     aria-hidden="true"
-	                  >
-	                    <ModelIcon :model="getModelIconModel(row)" size="14px" />
-	                  </span>
+                  >
+                    <ModelIcon :model="getModelIconModel(row)" size="14px" />
+                  </span>
                   <div class="min-w-0">
                     <span
                       class="model-primary-text block max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white"
@@ -242,25 +200,20 @@
                       @mouseleave="hideLongTextTooltip"
                     >{{ getBillingModel(row) }}</span>
                     <div
-                      v-if="getRequestedModel(row) && getRequestedModel(row) !== getBillingModel(row)"
+                      v-if="getModelSecondaryText(row)"
+                      class="model-secondary-text mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500 dark:text-dark-400"
+                      @mouseenter="showLongTextTooltip($event, getModelSecondaryText(row))"
+                      @mouseleave="hideLongTextTooltip"
+                    >
+                      {{ getModelSecondaryText(row) }}
+                    </div>
+                    <div
+                      v-else-if="getRequestedModel(row) && getRequestedModel(row) !== getBillingModel(row)"
                       class="mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500 dark:text-dark-400"
                       @mouseenter="showLongTextTooltip($event, getRequestedModel(row))"
                       @mouseleave="hideLongTextTooltip"
                     >
                       {{ getRequestedModel(row) }}
-                    </div>
-                    <div v-if="getModelMappingSteps(row).length > 1" class="mt-0.5 space-y-0.5 text-[10px]">
-                      <div
-                        v-for="(step, i) in getModelMappingSteps(row)"
-                        :key="i"
-                        class="max-w-[180px] truncate"
-                        :class="i === 0 ? 'text-gray-500 dark:text-dark-400' : 'text-gray-400 dark:text-dark-500'"
-                        :style="i > 0 ? `padding-left: ${i * 0.5}rem` : ''"
-                        @mouseenter="showLongTextTooltip($event, step)"
-                        @mouseleave="hideLongTextTooltip"
-                      >
-                        <span v-if="i > 0" class="mr-0.5">↳</span>{{ step }}
-                      </div>
                     </div>
                     <div
                       v-else-if="getUpstreamModel(row) && getUpstreamModel(row) !== getBillingModel(row)"
@@ -279,7 +232,7 @@
 
               <template v-else-if="column.key === 'tokens'">
                 <span v-if="!hasUsageFacts(row)" class="text-sm text-gray-500 dark:text-dark-400">-</span>
-                <div v-else-if="isImageUsage(row)" class="inline-flex items-center justify-end gap-2">
+                <div v-else-if="isImageUsage(row)" class="inline-flex items-center justify-start gap-2">
                   <Icon name="sparkles" size="xs" class="text-pink-500 dark:text-pink-300" />
                   <div>
                     <div class="text-sm font-semibold text-gray-950 dark:text-white">
@@ -290,7 +243,7 @@
                     </div>
                   </div>
                 </div>
-                <div v-else class="inline-flex items-center justify-end gap-1.5">
+                <div v-else class="inline-flex items-center justify-start gap-1.5">
                   <div>
                     <div class="font-mono text-sm font-semibold text-gray-950 dark:text-white">{{ formatTokens(getTotalTokens(row)) }}</div>
                     <div class="text-xs text-gray-500 dark:text-dark-400">{{ formatTokens(num(row.output_tokens)) }}</div>
@@ -354,7 +307,7 @@
 
               <template v-else-if="column.key === 'cost'">
                 <span v-if="!hasBillableCost(row)" class="text-sm text-gray-500 dark:text-dark-400">-</span>
-                <div v-else class="inline-flex items-center justify-end gap-1.5">
+                <div v-else class="inline-flex items-center justify-start gap-1.5">
                   <span class="font-mono text-sm font-semibold text-gray-950 dark:text-white">${{ num(row.actual_cost).toFixed(6) }}</span>
                   <button
                     type="button"
@@ -414,25 +367,24 @@
                 </div>
               </template>
 
-              <template v-else>
-                <span class="text-sm text-gray-500 dark:text-dark-400">-</span>
+              <template v-else-if="column.key === 'actions'">
+                <button
+                  v-if="showDiagnosticsAction"
+                  type="button"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-300 dark:hover:border-orange-400/30 dark:hover:bg-orange-500/10 dark:hover:text-orange-200"
+                  :aria-label="t('usage.viewDiagnostics')"
+                  data-testid="request-diagnostics-button"
+                  @click.stop="emit('diagnostics-click', row)"
+                >
+                  <Icon name="eye" size="sm" :stroke-width="2" />
+                </button>
               </template>
-            </td>
-            <td v-if="showDiagnosticsAction" class="px-4 py-4 text-right">
-              <button
-                type="button"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-300 dark:hover:border-orange-400/30 dark:hover:bg-orange-500/10 dark:hover:text-orange-200"
-                :aria-label="t('usage.viewDiagnostics')"
-                data-testid="request-diagnostics-button"
-                @click.stop="emit('diagnostics-click', row)"
-              >
-                <Icon name="eye" size="sm" :stroke-width="2" />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+
+        <template v-else>
+          <span class="text-sm text-gray-500 dark:text-dark-400">-</span>
+        </template>
+      </template>
+    </DataTable>
   </div>
 
   <Teleport to="body">
@@ -603,6 +555,7 @@ import {
   formatImageSizeBreakdown,
   formatImageSizeSource,
 } from '@/utils/imageUsage'
+import DataTable from '@/components/common/DataTable.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { AdminUsageLog, UsageLog } from '@/types'
@@ -675,12 +628,12 @@ type UsageTableRow = Omit<
   status_code?: number | null
   kind?: 'success' | 'pending' | 'error'
   billable?: boolean
-	  outcome?: string
-	  requested_model?: string | null
-	  upstream_model?: string | null
-	  billing_model?: string | null
-	  model_mapping_chain?: string | null
-	  session_id?: string
+  outcome?: string
+  requested_model?: string | null
+  upstream_model?: string | null
+  billing_model?: string | null
+  model_mapping_chain?: string | null
+  session_id?: string
   session_source?: string
   client_session_id?: string
   error_message?: string
@@ -728,9 +681,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const visibleColumns = computed(() => props.columns)
-const currentSortKey = ref(props.defaultSortKey)
-const currentSortOrder = ref<'asc' | 'desc'>(props.defaultSortOrder)
+const tableColumns = computed<Column[]>(() => {
+  if (!props.showDiagnosticsAction) return props.columns
+  return [
+    ...props.columns,
+    { key: 'actions', label: '', sortable: false, class: 'w-12' },
+  ]
+})
 
 const tooltipVisible = ref(false)
 const tooltipPosition = ref({ x: 0, y: 0 })
@@ -757,21 +714,8 @@ const rowKey = (row: UsageTableRow): string | number => {
   return row.id ?? row.request_id ?? `${row.created_at || 'unknown'}:${row.model || 'unknown'}`
 }
 
-const isRightAligned = (key: string): boolean => ['tokens', 'cache', 'cost', 'performance'].includes(key)
-
-const getHeaderClass = (key: string): string => {
-  return isRightAligned(key) ? 'text-right' : 'text-left'
-}
-
-const getCellClass = (key: string): string => {
-  return isRightAligned(key) ? 'text-right' : ''
-}
-
-const toggleSort = (key: string) => {
-  const nextOrder = currentSortKey.value === key && currentSortOrder.value === 'desc' ? 'asc' : 'desc'
-  currentSortKey.value = key
-  currentSortOrder.value = nextOrder
-  emit('sort', key, nextOrder)
+const handleSort = (key: string, order: 'asc' | 'desc') => {
+  emit('sort', key, order)
 }
 
 const formatDuration = (ms: number | null | undefined): string => {
@@ -864,47 +808,64 @@ const modelIconHints = [
 ]
 
 const hasModelIconHint = (value: string): boolean => {
-	const normalized = value.toLowerCase()
-	return modelIconHints.some((hint) => normalized.startsWith(hint) || normalized.includes(hint))
+  const normalized = value.toLowerCase()
+  return modelIconHints.some((hint) => normalized.startsWith(hint) || normalized.includes(hint))
 }
 
 const trimModel = (value?: string | null): string => value?.trim() || ''
+const normalizeModelForCompare = (value?: string | null): string => trimModel(value).toLowerCase()
+const formatModelMapping = (from: string, to: string): string => `${from} → ${to}`
 
 const getRequestedModel = (row: UsageTableRow): string => {
-	return trimModel(row.requested_model) || trimModel(row.model)
+  return trimModel(row.requested_model) || trimModel(row.model)
 }
 
 const getUpstreamModel = (row: UsageTableRow): string => {
-	return trimModel(row.upstream_model)
+  return trimModel(row.upstream_model)
 }
 
 const getBillingModel = (row: UsageTableRow): string => {
-	return trimModel(row.billing_model) || getUpstreamModel(row) || trimModel(row.model) || getRequestedModel(row) || '-'
+  return trimModel(row.billing_model) || getUpstreamModel(row) || trimModel(row.model) || getRequestedModel(row) || '-'
 }
 
 const getModelMappingSteps = (row: UsageTableRow): string[] => {
-	const chainSteps = trimModel(row.model_mapping_chain)
-		.split('→')
-		.map((step) => step.trim())
-		.filter(Boolean)
-	if (chainSteps.length > 1) {
-		return chainSteps
-	}
-	const requested = getRequestedModel(row)
-	const upstream = getUpstreamModel(row)
-	if (requested && upstream && requested !== upstream) {
-		return [requested, upstream]
-	}
-	return []
+  const chainSteps = trimModel(row.model_mapping_chain)
+    .split('→')
+    .map((step) => step.trim())
+    .filter(Boolean)
+  if (chainSteps.length > 1) {
+    return chainSteps
+  }
+  const requested = getRequestedModel(row)
+  const upstream = getUpstreamModel(row)
+  if (requested && upstream && requested !== upstream) {
+    return [requested, upstream]
+  }
+  return []
+}
+
+const getModelSecondaryText = (row: UsageTableRow): string => {
+  const requested = getRequestedModel(row)
+  const target = getUpstreamModel(row) || getBillingModel(row)
+  if (requested && target && normalizeModelForCompare(requested) !== normalizeModelForCompare(target)) {
+    return formatModelMapping(requested, target)
+  }
+  const chainSteps = getModelMappingSteps(row)
+  const first = chainSteps[0]
+  const last = chainSteps[chainSteps.length - 1]
+  if (first && last && normalizeModelForCompare(first) !== normalizeModelForCompare(last)) {
+    return formatModelMapping(first, last)
+  }
+  return ''
 }
 
 const getModelIconModel = (row: UsageTableRow): string => {
-	const chainSteps = getModelMappingSteps(row)
-	const candidates = [
-		getBillingModel(row),
-		getUpstreamModel(row),
-		...chainSteps.slice().reverse(),
-	].filter((candidate): candidate is string => Boolean(candidate))
+  const chainSteps = getModelMappingSteps(row)
+  const candidates = [
+    getBillingModel(row),
+    getUpstreamModel(row),
+    ...chainSteps.slice().reverse(),
+  ].filter((candidate): candidate is string => Boolean(candidate))
 
   return candidates.find(hasModelIconHint) || candidates[0] || ''
 }

@@ -13,30 +13,36 @@
       class="account-filter-select"
       :options="pOpts"
       @update:model-value="updatePlatform"
-      @change="$emit('change')"
     />
     <Select
       :model-value="filters.status"
       class="account-filter-select"
       :options="sOpts"
       @update:model-value="updateStatus"
-      @change="$emit('change')"
     />
     <Select
       :model-value="filters.group"
       class="account-filter-select account-filter-group"
       :options="gOpts"
       @update:model-value="updateGroup"
-      @change="$emit('change')"
     />
-    <button
-      v-if="showReset"
-      type="button"
-      class="btn btn-secondary btn-sm account-filter-reset"
-      @click="$emit('reset')"
-    >
-      {{ t('common.reset') }}
-    </button>
+    <div class="account-filter-actions">
+      <button
+        type="button"
+        class="btn btn-primary account-filter-apply"
+        @click="$emit('change')"
+      >
+        {{ t('usage.applyFilters') }}
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary account-filter-reset"
+        :disabled="!showReset"
+        @click="$emit('reset')"
+      >
+        {{ t('common.reset') }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -80,7 +86,7 @@ const gOpts = computed(() => [
 }
 
 .account-filter-search {
-  @apply min-w-[220px] flex-1;
+  @apply min-w-[180px] flex-none sm:w-56;
 }
 
 .account-filter-select {
@@ -91,6 +97,11 @@ const gOpts = computed(() => [
   @apply sm:w-[148px];
 }
 
+.account-filter-actions {
+  @apply flex shrink-0 items-center gap-2;
+}
+
+.account-filter-apply,
 .account-filter-reset {
   @apply whitespace-nowrap;
 }

@@ -22,14 +22,18 @@ vi.mock('vue-chartjs', () => ({
 
 const {
   getSnapshotV2,
+  getModelStats,
   getUserUsageTrend,
   getUserSpendingRanking,
+  getAccountSpendingRanking,
   listAccounts,
   listUsage
 } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
+  getModelStats: vi.fn(),
   getUserUsageTrend: vi.fn(),
   getUserSpendingRanking: vi.fn(),
+  getAccountSpendingRanking: vi.fn(),
   listAccounts: vi.fn(),
   listUsage: vi.fn()
 }))
@@ -38,8 +42,10 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     dashboard: {
       getSnapshotV2,
+      getModelStats,
       getUserUsageTrend,
-      getUserSpendingRanking
+      getUserSpendingRanking,
+      getAccountSpendingRanking
     },
     accounts: {
       list: listAccounts
@@ -161,8 +167,10 @@ describe('admin DashboardView', () => {
   beforeEach(() => {
     push.mockReset()
     getSnapshotV2.mockReset()
+    getModelStats.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
+    getAccountSpendingRanking.mockReset()
     listAccounts.mockReset()
     listUsage.mockReset()
 
@@ -171,6 +179,11 @@ describe('admin DashboardView', () => {
       trend: [],
       models: []
     })
+    getModelStats.mockResolvedValue({
+      models: [],
+      start_date: '',
+      end_date: ''
+    })
     getUserUsageTrend.mockResolvedValue({
       trend: [],
       start_date: '',
@@ -178,6 +191,7 @@ describe('admin DashboardView', () => {
       granularity: 'hour'
     })
     getUserSpendingRanking.mockResolvedValue(createRankingResponse())
+    getAccountSpendingRanking.mockResolvedValue(createRankingResponse())
     listAccounts.mockResolvedValue({ items: [] })
     listUsage.mockResolvedValue({ items: [] as AdminUsageLog[] })
   })

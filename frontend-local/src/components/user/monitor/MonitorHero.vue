@@ -1,57 +1,55 @@
 <template>
-  <section class="cch-toolbar-card">
-    <div class="flex items-center justify-end gap-3 flex-wrap">
-      <div
-        role="tablist"
-        class="cch-segmented text-xs"
-      >
-        <button
-          v-for="opt in windowOptions"
-          :key="opt.value"
-          type="button"
-          role="tab"
-          :aria-selected="window === opt.value"
-          class="cch-segmented-button"
-          :class="window === opt.value
-            ? 'cch-segmented-button-active'
-            : 'cch-segmented-button-muted'"
-          @click="emit('update:window', opt.value)"
-        >
-          {{ opt.label }}
-        </button>
-      </div>
-
-      <span
-        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold tracking-wider uppercase"
-        :class="overallChipClass"
-      >
-        <span
-          class="w-1.5 h-1.5 rounded-full mr-1.5"
-          :class="overallDotClass"
-        ></span>
-        {{ overallLabel }}
-      </span>
-
+  <section :class="['monitor-hero', { 'cch-toolbar-card': !flat }]">
+    <div
+      role="tablist"
+      class="cch-segmented text-xs"
+    >
       <button
+        v-for="opt in windowOptions"
+        :key="opt.value"
         type="button"
-        class="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-700 transition-colors disabled:opacity-50"
-        :disabled="loading"
-        :title="t('common.refresh')"
-        @click="emit('refresh')"
+        role="tab"
+        :aria-selected="window === opt.value"
+        class="cch-segmented-button"
+        :class="window === opt.value
+          ? 'cch-segmented-button-active'
+          : 'cch-segmented-button-muted'"
+        @click="emit('update:window', opt.value)"
       >
-        <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+        {{ opt.label }}
       </button>
-
-      <AutoRefreshButton
-        v-if="autoRefresh"
-        :enabled="autoRefresh.enabled.value"
-        :interval-seconds="autoRefresh.intervalSeconds.value"
-        :countdown="autoRefresh.countdown.value"
-        :intervals="autoRefresh.intervals"
-        @update:enabled="autoRefresh.setEnabled"
-        @update:interval="autoRefresh.setInterval"
-      />
     </div>
+
+    <span
+      class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold tracking-wider uppercase"
+      :class="overallChipClass"
+    >
+      <span
+        class="w-1.5 h-1.5 rounded-full mr-1.5"
+        :class="overallDotClass"
+      ></span>
+      {{ overallLabel }}
+    </span>
+
+    <button
+      type="button"
+      class="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-700 transition-colors disabled:opacity-50"
+      :disabled="loading"
+      :title="t('common.refresh')"
+      @click="emit('refresh')"
+    >
+      <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+    </button>
+
+    <AutoRefreshButton
+      v-if="autoRefresh"
+      :enabled="autoRefresh.enabled.value"
+      :interval-seconds="autoRefresh.intervalSeconds.value"
+      :countdown="autoRefresh.countdown.value"
+      :intervals="autoRefresh.intervals"
+      @update:enabled="autoRefresh.setEnabled"
+      @update:interval="autoRefresh.setInterval"
+    />
   </section>
 </template>
 
@@ -68,6 +66,7 @@ const props = defineProps<{
   intervalSeconds: number
   window: MonitorWindow
   loading: boolean
+  flat?: boolean
   autoRefresh?: {
     enabled: { value: boolean }
     intervalSeconds: { value: number }
@@ -114,3 +113,9 @@ const overallDotClass = computed(() => {
 })
 
 </script>
+
+<style scoped>
+.monitor-hero {
+  @apply flex flex-wrap items-center justify-end gap-3;
+}
+</style>

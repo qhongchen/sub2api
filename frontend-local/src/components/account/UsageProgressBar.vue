@@ -119,7 +119,7 @@ const labelClass = computed(() => {
 const barClass = computed(() => {
   if (props.utilization >= 100) {
     return 'bg-red-500'
-  } else if (props.utilization >= 80) {
+  } else if (props.utilization > 80) {
     return 'bg-amber-500'
   } else {
     return 'bg-green-500'
@@ -130,7 +130,7 @@ const barClass = computed(() => {
 const textClass = computed(() => {
   if (props.utilization >= 100) {
     return 'text-red-600 dark:text-red-400'
-  } else if (props.utilization >= 80) {
+  } else if (props.utilization > 80) {
     return 'text-amber-600 dark:text-amber-400'
   } else {
     return 'text-gray-600 dark:text-gray-400'

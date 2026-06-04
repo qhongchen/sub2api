@@ -207,7 +207,7 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     expect(getUsage).toHaveBeenCalledWith(2000)
-    expect(wrapper.text()).toContain('5h|15|300')
+    expect(wrapper.text()).toContain('5h|85|300')
     expect(wrapper.text()).toContain('7d|77|300')
   })
 
@@ -269,7 +269,7 @@ describe('AccountUsageCell', () => {
 
     expect(getUsage).toHaveBeenCalledWith(2001)
     // 单一数据源：始终使用 /usage API 返回值，忽略 codex 快照
-    expect(wrapper.text()).toContain('5h|18|900')
+    expect(wrapper.text()).toContain('5h|82|900')
     expect(wrapper.text()).toContain('7d|36|900')
   })
 
@@ -340,7 +340,7 @@ describe('AccountUsageCell', () => {
     expect(getUsage).toHaveBeenCalledTimes(2)
     expect(getUsage).toHaveBeenCalledWith(2010)
     // 单一数据源：始终使用 /usage API 值
-    expect(wrapper.text()).toContain('5h|18|900')
+    expect(wrapper.text()).toContain('5h|82|900')
   })
 
   it('OpenAI OAuth 在无 codex 快照时会回退显示 usage 接口窗口', async () => {
@@ -394,7 +394,7 @@ describe('AccountUsageCell', () => {
 	await flushPromises()
 
 	expect(getUsage).toHaveBeenCalledWith(2002)
-	expect(wrapper.text()).toContain('5h|0|27700')
+	expect(wrapper.text()).toContain('5h|100|27700')
 	expect(wrapper.text()).toContain('7d|0|27700')
   })
 
@@ -453,7 +453,7 @@ describe('AccountUsageCell', () => {
 	})
 
 	await flushPromises()
-	expect(wrapper.text()).toContain('5h|0|100')
+	expect(wrapper.text()).toContain('5h|100|100')
 	expect(getUsage).toHaveBeenCalledTimes(1)
 
 	await wrapper.setProps({
@@ -468,7 +468,7 @@ describe('AccountUsageCell', () => {
 
 	await flushPromises()
 	expect(getUsage).toHaveBeenCalledTimes(2)
-	expect(wrapper.text()).toContain('5h|0|200')
+	expect(wrapper.text()).toContain('5h|100|200')
   })
 
   it('OpenAI OAuth 已限额时显示 /usage API 返回的限额数据', async () => {
@@ -526,7 +526,7 @@ describe('AccountUsageCell', () => {
 	await flushPromises()
 
   expect(getUsage).toHaveBeenCalledWith(2004)
-  expect(wrapper.text()).toContain('5h|100|106540000')
+  expect(wrapper.text()).toContain('5h|0|106540000')
   expect(wrapper.text()).toContain('7d|100|106540000')
   })
 

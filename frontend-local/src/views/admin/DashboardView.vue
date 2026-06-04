@@ -32,7 +32,7 @@
           :model-entries="modelRankingEntries"
           :user-loading="rankingLoading"
           :account-loading="accountRankingLoading"
-          :model-loading="chartsLoading"
+          :model-loading="modelRankingLoading"
           @view-usage="goToUsageList"
           @view-accounts="goToAccounts"
           @select-user="goToUserUsage"
@@ -80,6 +80,7 @@ const loading = ref(false)
 const chartsLoading = ref(false)
 const rankingLoading = ref(false)
 const accountRankingLoading = ref(false)
+const modelRankingLoading = ref(false)
 const showMoreMetrics = ref(false)
 
 const userTrend = ref<UserUsageTrendPoint[]>([])
@@ -91,6 +92,7 @@ let snapshotLoadSeq = 0
 let userTrendLoadSeq = 0
 let rankingLoadSeq = 0
 let accountRankingLoadSeq = 0
+let modelRankingLoadSeq = 0
 const rankingLimit = 12
 
 const comparisonClass = {
@@ -955,7 +957,7 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
       granularity: granularity.value,
       include_stats: includeStats,
       include_trend: true,
-      include_model_stats: true,
+      include_model_stats: false,
       include_group_stats: false,
       include_users_trend: false
     })
@@ -963,7 +965,6 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     if (includeStats && response.stats) {
       stats.value = response.stats
     }
-    modelStats.value = response.models || []
   } catch (error) {
     if (currentSeq !== snapshotLoadSeq) return
     appStore.showError(t('admin.dashboard.failedToLoad'))
@@ -972,6 +973,28 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     if (currentSeq === snapshotLoadSeq) {
       loading.value = false
       chartsLoading.value = false
+    }
+  }
+}
+
+const loadModelRanking = async () => {
+  const currentSeq = ++modelRankingLoadSeq
+  modelRankingLoading.value = true
+  try {
+    const response = await adminAPI.dashboard.getModelStats({
+      start_date: startDate.value,
+      end_date: endDate.value,
+      model_source: 'upstream'
+    })
+    if (currentSeq !== modelRankingLoadSeq) return
+    modelStats.value = response.models || []
+  } catch (error) {
+    if (currentSeq !== modelRankingLoadSeq) return
+    console.error('Error loading model ranking:', error)
+    modelStats.value = []
+  } finally {
+    if (currentSeq === modelRankingLoadSeq) {
+      modelRankingLoading.value = false
     }
   }
 }
@@ -1048,7 +1071,8 @@ const loadDashboardStats = async () => {
     loadDashboardSnapshot(true),
     loadUserTrend(),
     loadUserSpendingRanking(),
-    loadAccountRanking()
+    loadAccountRanking(),
+    loadModelRanking()
   ])
 }
 
@@ -1057,7 +1081,8 @@ const loadChartData = async () => {
     loadDashboardSnapshot(false),
     loadUserTrend(),
     loadUserSpendingRanking(),
-    loadAccountRanking()
+    loadAccountRanking(),
+    loadModelRanking()
   ])
 }
 

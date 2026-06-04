@@ -66,4 +66,26 @@ describe('UsageProgressBar', () => {
     expect(wrapper.text()).toContain('2h 30m')
     expect(wrapper.text()).not.toContain('现在')
   })
+
+  it('按已使用量上色：超过 80% 橙色，100% 红色', () => {
+    const warning = mount(UsageProgressBar, {
+      props: {
+        label: '5h',
+        utilization: 81,
+        color: 'indigo'
+      }
+    })
+    expect(warning.html()).toContain('bg-amber-500')
+    expect(warning.html()).toContain('text-amber-600')
+
+    const critical = mount(UsageProgressBar, {
+      props: {
+        label: '5h',
+        utilization: 100,
+        color: 'indigo'
+      }
+    })
+    expect(critical.html()).toContain('bg-red-500')
+    expect(critical.html()).toContain('text-red-600')
+  })
 })
