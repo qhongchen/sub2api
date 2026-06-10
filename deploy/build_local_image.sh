@@ -12,7 +12,7 @@ PLATFORM="${PLATFORM:-linux/amd64}"
 # 国内基础镜像源
 NODE_IMAGE="${NODE_IMAGE:-docker.1ms.run/library/node:24-alpine}"
 GOLANG_IMAGE="${GOLANG_IMAGE:-docker.1ms.run/library/golang:1.26.4-alpine}"
-ALPINE_IMAGE="${ALPINE_IMAGE:-docker.1ms.run/library/alpine:3.21}"
+ALPINE_IMAGE="${ALPINE_IMAGE:-docker.m.daocloud.io/library/alpine:3.21}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.1ms.run/library/postgres:18-alpine}"
 
 cd "${REPO_ROOT}"
