@@ -847,6 +847,7 @@ export interface UpdateSettingsRequest {
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
 
+  enable_claude_context_1m_force?: boolean;
   allow_user_view_error_requests?: boolean;
 }
 
