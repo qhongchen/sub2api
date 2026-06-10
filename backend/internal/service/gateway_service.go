@@ -5444,7 +5444,14 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	if c != nil && c.Request != nil {
 		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
 	}
-	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
+	modelID := gjson.GetBytes(body, "model").String()
+	passthroughDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
+	forceClaudeContext1M := s.isClaudeContext1MForceEnabled(ctx)
+	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
+		return nil, nil, err
+	}
+	finalBetaHeader, finalBetaShouldSet := computeForcedClaudeContextBeta(modelID, clientBeta, passthroughDropSet, forceClaudeContext1M)
+	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, finalBetaHeader); changed {
 		body = sanitized
 	}
 
@@ -5472,6 +5479,10 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
 	setHeaderRaw(req.Header, "x-api-key", token)
+	deleteHeaderAllForms(req.Header, "anthropic-beta")
+	if finalBetaShouldSet {
+		setHeaderRaw(req.Header, "anthropic-beta", finalBetaHeader)
+	}
 
 	if getHeaderRaw(req.Header, "content-type") == "" {
 		setHeaderRaw(req.Header, "content-type", "application/json")
@@ -6326,8 +6337,12 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	//   5) 透传白名单 / fingerprint / mimic header / 写入 finalBeta
 	policyFilterSet := s.getBetaPolicyFilterSet(ctx, c, account, modelID)
 	effectiveDropSet := mergeDropSets(policyFilterSet)
+	forceClaudeContext1M := s.isClaudeContext1MForceEnabled(ctx)
+	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
+		return nil, nil, err
+	}
 	finalBetaHeader, finalBetaShouldSet := s.computeFinalAnthropicBeta(
-		tokenType, mimicClaudeCode, modelID, clientHeaders, body, effectiveDropSet,
+		tokenType, mimicClaudeCode, modelID, clientHeaders, body, effectiveDropSet, forceClaudeContext1M,
 	)
 
 	// 能力维度 body sanitize：与最终 anthropic-beta header 对称
@@ -6560,6 +6575,99 @@ func defaultAPIKeyBetaHeader(body []byte) string {
 	return claude.APIKeyBetaHeader
 }
 
+// New API 的可借鉴点是按模型合并 header；这里用前缀列表表达 1m context 能力范围。
+var claudeContext1MModelPrefixes = []string{
+	"claude-sonnet-4",
+	"claude-opus-4-8",
+	"claude-fable-5",
+	"fable-5",
+}
+
+func shouldForceClaudeContext1M(modelID string) bool {
+	modelID = strings.ToLower(strings.TrimSpace(modelID))
+	modelID = strings.TrimSuffix(modelID, "-thinking")
+	for _, prefix := range claudeContext1MModelPrefixes {
+		if strings.HasPrefix(modelID, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func forcedClaudeContextBetasForModel(modelID string, enabled bool) []string {
+	if !enabled || !shouldForceClaudeContext1M(modelID) {
+		return nil
+	}
+	return []string{claude.BetaContext1M}
+}
+
+func appendForcedClaudeContextBetas(modelID string, betas []string, enabled bool) []string {
+	forcedBetas := forcedClaudeContextBetasForModel(modelID, enabled)
+	if len(forcedBetas) == 0 {
+		return betas
+	}
+	out := make([]string, 0, len(betas)+len(forcedBetas))
+	out = append(out, betas...)
+	out = append(out, forcedBetas...)
+	return out
+}
+
+func dropSetWithoutForcedClaudeContextBetas(modelID string, drop map[string]struct{}, enabled bool) map[string]struct{} {
+	forcedBetas := forcedClaudeContextBetasForModel(modelID, enabled)
+	if len(forcedBetas) == 0 || len(drop) == 0 {
+		return drop
+	}
+
+	forcedSet := make(map[string]struct{}, len(forcedBetas))
+	for _, beta := range forcedBetas {
+		forcedSet[beta] = struct{}{}
+	}
+
+	out := make(map[string]struct{}, len(drop))
+	for beta := range drop {
+		if _, forced := forcedSet[beta]; forced {
+			continue
+		}
+		out[beta] = struct{}{}
+	}
+	return out
+}
+
+func mergeAnthropicBetaDroppingForModel(modelID string, required []string, incoming string, drop map[string]struct{}, forceContext1M bool) string {
+	effectiveDropSet := dropSetWithoutForcedClaudeContextBetas(modelID, drop, forceContext1M)
+	return mergeAnthropicBetaDropping(appendForcedClaudeContextBetas(modelID, required, forceContext1M), incoming, effectiveDropSet)
+}
+
+func computeForcedClaudeContextBeta(modelID string, incoming string, drop map[string]struct{}, forceContext1M bool) (string, bool) {
+	forcedBetas := forcedClaudeContextBetasForModel(modelID, forceContext1M)
+	if len(forcedBetas) == 0 {
+		if incoming == "" {
+			return "", false
+		}
+		return stripBetaTokensWithSet(incoming, drop), true
+	}
+	finalBeta := mergeAnthropicBetaDropping(forcedBetas, incoming, dropSetWithoutForcedClaudeContextBetas(modelID, drop, forceContext1M))
+	return finalBeta, finalBeta != "" || incoming != ""
+}
+
+func (s *GatewayService) isClaudeContext1MForceEnabled(ctx context.Context) bool {
+	if s == nil || s.settingService == nil {
+		return true
+	}
+	return s.settingService.IsClaudeContext1MForceEnabled(ctx)
+}
+
+func (s *GatewayService) checkForcedClaudeContextBetaPolicy(ctx context.Context, account *Account, modelID string, forceContext1M bool) error {
+	forcedBetas := forcedClaudeContextBetasForModel(modelID, forceContext1M)
+	if len(forcedBetas) == 0 {
+		return nil
+	}
+	if blockErr := s.checkBetaPolicyBlockForTokens(ctx, forcedBetas, account, modelID); blockErr != nil {
+		return blockErr
+	}
+	return nil
+}
+
 func applyClaudeOAuthHeaderDefaults(req *http.Request) {
 	if req == nil {
 		return
@@ -6646,6 +6754,7 @@ func (s *GatewayService) computeFinalAnthropicBeta(
 	clientHeaders http.Header,
 	body []byte,
 	effectiveDropSet map[string]struct{},
+	forceContext1M bool,
 ) (string, bool) {
 	clientBeta := ""
 	if clientHeaders != nil {
@@ -6660,22 +6769,25 @@ func (s *GatewayService) computeFinalAnthropicBeta(
 			if !strings.Contains(strings.ToLower(modelID), "haiku") {
 				requiredBetas = claude.FullClaudeCodeMimicryBetas()
 			}
-			return mergeAnthropicBetaDropping(requiredBetas, "", effectiveDropSet), true
+			return mergeAnthropicBetaDroppingForModel(modelID, requiredBetas, "", effectiveDropSet, forceContext1M), true
 		}
 		// 真 Claude Code 客户端透传路径
-		return stripBetaTokensWithSet(s.getBetaHeader(modelID, clientBeta), effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, s.getBetaHeader(modelID, clientBeta), effectiveDropSet, forceContext1M), true
 	}
 
 	// API-key accounts
 	if clientBeta != "" {
-		return stripBetaTokensWithSet(clientBeta, effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, clientBeta, effectiveDropSet, forceContext1M), true
 	}
 	if s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey {
 		if requestNeedsBetaFeatures(body) {
 			if beta := defaultAPIKeyBetaHeader(body); beta != "" {
-				return beta, true
+				return mergeAnthropicBetaDroppingForModel(modelID, nil, beta, effectiveDropSet, forceContext1M), true
 			}
 		}
+	}
+	if finalBeta, shouldSet := computeForcedClaudeContextBeta(modelID, "", effectiveDropSet, forceContext1M); shouldSet {
+		return finalBeta, true
 	}
 	return "", false
 }
@@ -6697,6 +6809,7 @@ func (s *GatewayService) computeFinalCountTokensAnthropicBeta(
 	clientHeaders http.Header,
 	body []byte,
 	effectiveDropSet map[string]struct{},
+	forceContext1M bool,
 ) (string, bool) {
 	clientBeta := ""
 	if clientHeaders != nil {
@@ -6710,28 +6823,31 @@ func (s *GatewayService) computeFinalCountTokensAnthropicBeta(
 			// incomingBeta = req.Header[anthropic-beta] = 客户端透传过来的 client beta。
 			// 重构后直接从 clientHeaders 拿同一个值，保持行为一致。
 			requiredBetas := append(claude.FullClaudeCodeMimicryBetas(), claude.BetaTokenCounting)
-			return mergeAnthropicBetaDropping(requiredBetas, clientBeta, effectiveDropSet), true
+			return mergeAnthropicBetaDroppingForModel(modelID, requiredBetas, clientBeta, effectiveDropSet, forceContext1M), true
 		}
 		if clientBeta == "" {
-			return claude.CountTokensBetaHeader, true
+			return mergeAnthropicBetaDroppingForModel(modelID, nil, claude.CountTokensBetaHeader, effectiveDropSet, forceContext1M), true
 		}
 		beta := s.getBetaHeader(modelID, clientBeta)
 		if !strings.Contains(beta, claude.BetaTokenCounting) {
 			beta = beta + "," + claude.BetaTokenCounting
 		}
-		return stripBetaTokensWithSet(beta, effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, beta, effectiveDropSet, forceContext1M), true
 	}
 
 	// API-key accounts
 	if clientBeta != "" {
-		return stripBetaTokensWithSet(clientBeta, effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, clientBeta, effectiveDropSet, forceContext1M), true
 	}
 	if s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey {
 		if requestNeedsBetaFeatures(body) {
 			if beta := defaultAPIKeyBetaHeader(body); beta != "" {
-				return beta, true
+				return mergeAnthropicBetaDroppingForModel(modelID, nil, beta, effectiveDropSet, forceContext1M), true
 			}
 		}
+	}
+	if finalBeta, shouldSet := computeForcedClaudeContextBeta(modelID, "", effectiveDropSet, forceContext1M); shouldSet {
+		return finalBeta, true
 	}
 	return "", false
 }
@@ -9708,7 +9824,14 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	if c != nil && c.Request != nil {
 		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
 	}
-	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
+	modelID := gjson.GetBytes(body, "model").String()
+	passthroughDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
+	forceClaudeContext1M := s.isClaudeContext1MForceEnabled(ctx)
+	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
+		return nil, err
+	}
+	finalBetaHeader, finalBetaShouldSet := computeForcedClaudeContextBeta(modelID, clientBeta, passthroughDropSet, forceClaudeContext1M)
+	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, finalBetaHeader); changed {
 		body = sanitized
 	}
 
@@ -9735,6 +9858,10 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
 	req.Header.Set("x-api-key", token)
+	deleteHeaderAllForms(req.Header, "anthropic-beta")
+	if finalBetaShouldSet {
+		setHeaderRaw(req.Header, "anthropic-beta", finalBetaHeader)
+	}
 
 	if req.Header.Get("content-type") == "" {
 		req.Header.Set("content-type", "application/json")
@@ -9806,8 +9933,12 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 	// === 计算最终 anthropic-beta header（先于 body sanitize 与 CCH 签名）===
 	// 顺序约束同 buildUpstreamRequest。
 	ctEffectiveDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
+	forceClaudeContext1M := s.isClaudeContext1MForceEnabled(ctx)
+	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
+		return nil, nil, err
+	}
 	finalBetaHeader, finalBetaShouldSet := s.computeFinalCountTokensAnthropicBeta(
-		tokenType, mimicClaudeCode, modelID, clientHeaders, body, ctEffectiveDropSet,
+		tokenType, mimicClaudeCode, modelID, clientHeaders, body, ctEffectiveDropSet, forceClaudeContext1M,
 	)
 
 	// 能力维度 body sanitize：与最终 anthropic-beta header 对称

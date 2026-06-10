@@ -192,6 +192,7 @@ type SystemSettings struct {
 	EnableMetadataPassthrough          bool   // 是否透传客户端原始 metadata（默认 false）
 	EnableCCHSigning                   bool   // 是否对 billing header cch 进行签名（默认 false）
 	EnableAnthropicCacheTTL1hInjection bool   // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
+	EnableClaudeContext1MForce         bool   // 是否对指定 Claude 模型强制注入 1m context beta（默认 true）
 	RewriteMessageCacheControl         bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
 	AntigravityUserAgentVersion        string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
 	OpenAICodexUserAgent               string // OpenAI Codex 上游完整 User-Agent；空值使用内置默认
@@ -483,11 +484,6 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 		Rules: []BetaPolicyRule{
 			{
 				BetaToken: "fast-mode-2026-02-01",
-				Action:    BetaPolicyActionFilter,
-				Scope:     BetaPolicyScopeAll,
-			},
-			{
-				BetaToken: "context-1m-2025-08-07",
 				Action:    BetaPolicyActionFilter,
 				Scope:     BetaPolicyScopeAll,
 			},

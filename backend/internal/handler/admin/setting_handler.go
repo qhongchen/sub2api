@@ -253,6 +253,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableMetadataPassthrough:              settings.EnableMetadataPassthrough,
 		EnableCCHSigning:                       settings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:     settings.EnableAnthropicCacheTTL1hInjection,
+		EnableClaudeContext1MForce:             settings.EnableClaudeContext1MForce,
 		RewriteMessageCacheControl:             settings.RewriteMessageCacheControl,
 		AntigravityUserAgentVersion:            settings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                   settings.OpenAICodexUserAgent,
@@ -584,6 +585,7 @@ type UpdateSettingsRequest struct {
 	EnableMetadataPassthrough          *bool   `json:"enable_metadata_passthrough"`
 	EnableCCHSigning                   *bool   `json:"enable_cch_signing"`
 	EnableAnthropicCacheTTL1hInjection *bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClaudeContext1MForce         *bool   `json:"enable_claude_context_1m_force"`
 	RewriteMessageCacheControl         *bool   `json:"rewrite_message_cache_control"`
 	AntigravityUserAgentVersion        *string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent               *string `json:"openai_codex_user_agent"`
@@ -1649,6 +1651,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableAnthropicCacheTTL1hInjection
 		}(),
+		EnableClaudeContext1MForce: func() bool {
+			if req.EnableClaudeContext1MForce != nil {
+				return *req.EnableClaudeContext1MForce
+			}
+			return previousSettings.EnableClaudeContext1MForce
+		}(),
 		RewriteMessageCacheControl: func() bool {
 			if req.RewriteMessageCacheControl != nil {
 				return *req.RewriteMessageCacheControl
@@ -2046,6 +2054,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableMetadataPassthrough:              updatedSettings.EnableMetadataPassthrough,
 		EnableCCHSigning:                       updatedSettings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:     updatedSettings.EnableAnthropicCacheTTL1hInjection,
+		EnableClaudeContext1MForce:             updatedSettings.EnableClaudeContext1MForce,
 		RewriteMessageCacheControl:             updatedSettings.RewriteMessageCacheControl,
 		AntigravityUserAgentVersion:            updatedSettings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                   updatedSettings.OpenAICodexUserAgent,
@@ -2510,6 +2519,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.EnableAnthropicCacheTTL1hInjection != after.EnableAnthropicCacheTTL1hInjection {
 		changed = append(changed, "enable_anthropic_cache_ttl_1h_injection")
+	}
+	if before.EnableClaudeContext1MForce != after.EnableClaudeContext1MForce {
+		changed = append(changed, "enable_claude_context_1m_force")
 	}
 	if before.RewriteMessageCacheControl != after.RewriteMessageCacheControl {
 		changed = append(changed, "rewrite_message_cache_control")

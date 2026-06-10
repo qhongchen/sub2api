@@ -182,6 +182,7 @@ type SystemSettings struct {
 	EnableMetadataPassthrough          bool   `json:"enable_metadata_passthrough"`
 	EnableCCHSigning                   bool   `json:"enable_cch_signing"`
 	EnableAnthropicCacheTTL1hInjection bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClaudeContext1MForce         bool   `json:"enable_claude_context_1m_force"`
 	RewriteMessageCacheControl         bool   `json:"rewrite_message_cache_control"`
 	AntigravityUserAgentVersion        string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent               string `json:"openai_codex_user_agent"`

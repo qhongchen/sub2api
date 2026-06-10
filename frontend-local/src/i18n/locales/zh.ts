@@ -5920,6 +5920,8 @@ export default {
         cchSigningHint: '对转发请求的 billing header 进行 CCH 哈希签名。关闭时保留原始占位符。',
         anthropicCacheTTL1hInjection: 'Anthropic 缓存 TTL 注入',
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
+        claudeContext1MForce: '强制开启 Claude 1M 上下文',
+        claudeContext1MForceHint: '开启后，对 Sonnet 4、Opus 4.8、Fable 5 转发请求自动追加 context-1m-2025-08-07。关闭后不再自动追加，仅保留客户端显式传入或其他策略生成的 beta。',
         rewriteMessageCacheControl: '改写消息缓存断点',
         rewriteMessageCacheControlHint: '默认关闭，保留客户端在 messages 内容块中的 cache_control。开启后会清除客户端断点并注入代理断点，适合不自行管理缓存策略的客户端。',
         antigravityUserAgentVersion: 'Antigravity UA 版本',

@@ -3866,6 +3866,29 @@
                 />
               </div>
 
+              <!-- Claude 1M Context Force -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeContext1MForce",
+                      )
+                    }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeContext1MForceHint",
+                      )
+                    }}
+                  </p>
+                </div>
+                <Toggle v-model="form.enable_claude_context_1m_force" />
+              </div>
+
               <!-- messages cache_control 改写 -->
               <div class="flex items-center justify-between">
                 <div>
@@ -7201,6 +7224,7 @@ const form = reactive<SettingsForm>({
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
+  enable_claude_context_1m_force: true,
   rewrite_message_cache_control: false,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
@@ -8307,6 +8331,7 @@ async function saveSettings() {
       enable_cch_signing: form.enable_cch_signing,
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
+      enable_claude_context_1m_force: form.enable_claude_context_1m_force,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
       antigravity_user_agent_version:
         form.antigravity_user_agent_version?.trim() || "",

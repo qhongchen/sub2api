@@ -5763,6 +5763,8 @@ export default {
         cchSigningHint: 'Sign the billing header in forwarded requests with CCH hash. When disabled, the placeholder is preserved.',
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
+        claudeContext1MForce: 'Force Claude 1M Context',
+        claudeContext1MForceHint: 'When enabled, Sonnet 4, Opus 4.8, and Fable 5 forwarding automatically appends context-1m-2025-08-07. When disabled, the proxy no longer auto-appends it and only keeps client-provided or policy-generated beta tokens.',
         rewriteMessageCacheControl: 'Rewrite Message Cache Breakpoints',
         rewriteMessageCacheControlHint: 'Default off: preserve client cache_control on message content blocks. When enabled, client breakpoints are stripped and proxy breakpoints are injected for clients that do not manage caching themselves.',
         antigravityUserAgentVersion: 'Antigravity UA Version',

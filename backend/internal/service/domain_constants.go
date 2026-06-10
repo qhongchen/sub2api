@@ -423,6 +423,8 @@ const (
 	SettingKeyEnableCCHSigning = "enable_cch_signing"
 	// SettingKeyEnableAnthropicCacheTTL1hInjection 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
 	SettingKeyEnableAnthropicCacheTTL1hInjection = "enable_anthropic_cache_ttl_1h_injection"
+	// SettingKeyEnableClaudeContext1MForce 是否对指定 Claude 模型强制注入 1m context beta（默认 true）
+	SettingKeyEnableClaudeContext1MForce = "enable_claude_context_1m_force"
 	// SettingKeyRewriteMessageCacheControl 是否改写 messages[*].content[*].cache_control（默认 false）
 	SettingKeyRewriteMessageCacheControl = "rewrite_message_cache_control"
 	// SettingKeyAntigravityUserAgentVersion Antigravity 上游 User-Agent 版本号（空值使用环境变量/默认值）
