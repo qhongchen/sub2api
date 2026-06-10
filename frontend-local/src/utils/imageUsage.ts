@@ -1,5 +1,23 @@
 type Translate = (key: string) => string
 
+type ImageOutputTokenRow = {
+  output_tokens?: number | null
+  image_output_tokens?: number | null
+}
+
+type ImageOutputCostRow = {
+  image_output_cost?: number | null
+}
+
+export const hasImageOutputTokens = (row: ImageOutputTokenRow | null | undefined): boolean =>
+  (row?.image_output_tokens ?? 0) > 0
+
+export const textOutputTokens = (row: ImageOutputTokenRow | null | undefined): number =>
+  Math.max(0, (row?.output_tokens ?? 0) - (row?.image_output_tokens ?? 0))
+
+export const hasImageOutputCost = (row: ImageOutputCostRow | null | undefined): boolean =>
+  (row?.image_output_cost ?? 0) > 0
+
 const knownImageSizeSources = new Set(['output', 'input', 'default', 'legacy'])
 const knownImageBillingSizes = new Set(['1K', '2K', '4K', 'mixed'])
 

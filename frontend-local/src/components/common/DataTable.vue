@@ -246,7 +246,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import { useVirtualizer, observeElementRect as observeElementRectDefault } from '@tanstack/vue-virtual'
 import { useI18n } from 'vue-i18n'
 import type { Column } from './types'
 import Icon from '@/components/icons/Icon.vue'
@@ -268,6 +268,18 @@ const emit = defineEmits<{
 const tableWrapperRef = ref<HTMLElement | null>(null)
 const isScrollable = ref(false)
 const actionsColumnNeedsExpanding = ref(false)
+
+const estimatedViewportHeight = () => {
+  if (typeof window === 'undefined') return 600
+  return Math.max(window.innerHeight - 320, 400)
+}
+
+const observeElementRectNonZero = (
+  instance: any,
+  cb: (rect: { width: number; height: number }) => void
+) => observeElementRectDefault(instance, (rect) => {
+  if (rect.height > 0) cb(rect)
+})
 
 // 检查是否可滚动
 const checkScrollable = () => {
@@ -654,6 +666,9 @@ const rowVirtualizer = useVirtualizer(computed(() => ({
   getScrollElement: () => tableWrapperRef.value,
   estimateSize: () => props.estimateRowHeight ?? 56,
   overscan: props.overscan ?? 5,
+  initialRect: { width: 0, height: estimatedViewportHeight() },
+  observeElementRect: observeElementRectNonZero,
+  useAnimationFrameWithResizeObserver: true,
 })))
 
 const virtualItems = computed(() => rowVirtualizer.value.getVirtualItems())

@@ -146,7 +146,7 @@
         <UsageProgressBar
           v-if="usageInfo?.five_hour"
           label="5h"
-          :utilization="openAIFiveHourUsedUtilization"
+          :utilization="usageInfo.five_hour.utilization"
           :resets-at="usageInfo.five_hour.resets_at"
           :window-stats="usageInfo.five_hour.window_stats"
           :show-now-when-idle="true"
@@ -597,6 +597,10 @@ const props = withDefaults(
   }
 )
 
+const emit = defineEmits<{
+  (e: 'usage-refreshed', accountId: number): void
+}>()
+
 const { t } = useI18n()
 const desktopViewportQuery = '(min-width: 768px)'
 
@@ -660,12 +664,6 @@ const geminiUsageAvailable = computed(() => {
 const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
-})
-
-const openAIFiveHourUsedUtilization = computed(() => {
-  const remaining = usageInfo.value?.five_hour?.utilization
-  if (remaining == null) return 0
-  return Math.max(0, 100 - remaining)
 })
 
 const supportsActiveUsageQuery = computed(() => {
@@ -1102,7 +1100,7 @@ const isAnthropicOAuthOrSetupToken = computed(() => {
   return props.account.platform === 'anthropic' && (props.account.type === 'oauth' || props.account.type === 'setup-token')
 })
 
-const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean }) => {
+const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean; notifyParent?: boolean }) => {
   if (!shouldFetchUsage.value) return
 
   // Check cache
@@ -1124,6 +1122,9 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
     if (!unmounted.value) {
       usageInfo.value = result
       _usageCache.set(props.account.id, { data: result, ts: Date.now() })
+      if (options?.notifyParent) {
+        emit('usage-refreshed', props.account.id)
+      }
     }
   } catch (e: any) {
     if (!unmounted.value) {
@@ -1193,6 +1194,7 @@ const loadActiveUsage = async () => {
     const result = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
     usageInfo.value = result
     _usageCache.set(props.account.id, { data: result, ts: Date.now() })
+    emit('usage-refreshed', props.account.id)
   } catch (e: any) {
     if (!hadUsageInfo) {
       error.value = t('common.error')
@@ -1211,7 +1213,7 @@ const handleRefreshClick = async () => {
 
   _usageCache.delete(props.account.id)
   const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
-  await loadUsage({ source, bypassCache: true })
+  await loadUsage({ source, bypassCache: true, notifyParent: true })
 }
 
 // ===== API Key quota progress bars =====
@@ -1335,7 +1337,7 @@ watch(
 
     const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
     _usageCache.delete(props.account.id)
-    loadUsage({ source, bypassCache: true }).catch((e) => {
+    loadUsage({ source, bypassCache: true, notifyParent: true }).catch((e) => {
       console.error('Failed to refresh usage after manual refresh:', e)
     })
   }

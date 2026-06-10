@@ -1,5 +1,5 @@
 <template>
-  <div class="mt-4 pt-3 border-t border-gray-100 dark:border-dark-700/60">
+  <div class="mt-4 min-w-0 overflow-hidden pt-3 border-t border-gray-100 dark:border-dark-700/60">
     <div
       class="flex justify-between text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2"
     >
@@ -13,11 +13,15 @@
     >
       {{ t('monitorCommon.maintenancePaused') }}
     </div>
-    <div v-else class="flex items-end gap-[2px] h-5 w-full">
+    <div
+      v-else
+      class="grid h-5 w-full min-w-0 items-end overflow-hidden gap-px sm:gap-[2px]"
+      :style="timelineGridStyle"
+    >
       <div
         v-for="(bar, idx) in displayBars"
         :key="idx"
-        class="flex-1 min-w-[3px] rounded-sm"
+        class="min-w-0 rounded-sm"
         :class="bar.colorClass"
         :style="{ height: bar.heightPct + '%' }"
         :title="bar.title"
@@ -112,4 +116,8 @@ const displayBars = computed<Bar[]>(() => {
 
   return bars
 })
+
+const timelineGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${displayBars.value.length}, minmax(0, 1fr))`,
+}))
 </script>

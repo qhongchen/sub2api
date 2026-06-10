@@ -351,6 +351,7 @@
                       :today-stats-loading="todayStatsLoading"
                       :manual-refresh-token="usageManualRefreshToken"
                       compact
+                      @usage-refreshed="handleUsageRefreshed"
                     />
                     <span v-else class="account-table-muted">-</span>
                   </td>
@@ -581,6 +582,7 @@ const todayStatsError = ref<string | null>(null)
 const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
 const usageManualRefreshToken = ref(0)
+let usageRefreshedSyncTimer: ReturnType<typeof setTimeout> | null = null
 
 const ACCOUNT_CARD_VISIBILITY_KEY = 'account-card-visible-fields'
 const CARD_VISIBLE_FIELD_KEYS = [
@@ -1024,6 +1026,18 @@ const handleManualRefresh = async () => {
   usageManualRefreshToken.value += 1
 }
 
+const handleUsageRefreshed = () => {
+  if (usageRefreshedSyncTimer) {
+    clearTimeout(usageRefreshedSyncTimer)
+  }
+  usageRefreshedSyncTimer = setTimeout(() => {
+    usageRefreshedSyncTimer = null
+    refreshAccountsIncrementally().catch((error) => {
+      console.error('Failed to sync accounts after usage refresh:', error)
+    })
+  }, 150)
+}
+
 const closeAccountToolsDropdown = () => {
   showAccountToolsDropdown.value = false
 }
@@ -1313,12 +1327,46 @@ const getAccountStatusClass = (account: Account) => {
   return 'account-status-chip-success'
 }
 
+const parseFutureTimestamp = (value: unknown): number | null => {
+  if (!value) return null
+  const timestamp = new Date(String(value)).getTime()
+  if (!Number.isFinite(timestamp) || timestamp <= Date.now()) return null
+  return timestamp
+}
+
+const getOpenAIRateLimitResetAt = (account: Account): string | null => {
+  if (account.platform !== 'openai' || account.type !== 'oauth') {
+    return account.rate_limit_reset_at
+  }
+
+  const extra = account.extra ?? {}
+  const windows = [
+    {
+      usedPercent: typeof extra.codex_5h_used_percent === 'number' ? extra.codex_5h_used_percent : null,
+      resetAt: typeof extra.codex_5h_reset_at === 'string' ? extra.codex_5h_reset_at : null,
+    },
+    {
+      usedPercent: typeof extra.codex_7d_used_percent === 'number' ? extra.codex_7d_used_percent : null,
+      resetAt: typeof extra.codex_7d_reset_at === 'string' ? extra.codex_7d_reset_at : null,
+    },
+  ]
+
+  const activeWindowResetAt = windows
+    .filter((window) => window.usedPercent != null && window.usedPercent >= 100)
+    .map((window) => ({ raw: window.resetAt, ts: parseFutureTimestamp(window.resetAt) }))
+    .filter((window): window is { raw: string; ts: number } => !!window.raw && window.ts != null)
+    .sort((a, b) => a.ts - b.ts)[0]
+
+  return activeWindowResetAt?.raw || account.rate_limit_reset_at
+}
+
 const getAccountStatusDetail = (account: Account) => {
   if (!account.schedulable) return ''
   if (isAccountRateLimited(account)) {
-    const countdown = formatCountdown(account.rate_limit_reset_at)
+    const rateLimitResetAt = getOpenAIRateLimitResetAt(account)
+    const countdown = formatCountdown(rateLimitResetAt)
     const resumeText = countdown ? t('admin.accounts.status.rateLimitedAutoResume', { time: countdown }) : ''
-    return ['429', resumeText, formatDateTime(account.rate_limit_reset_at)].filter(Boolean).join(' · ')
+    return ['429', resumeText, formatDateTime(rateLimitResetAt)].filter(Boolean).join(' · ')
   }
   if (isAccountOverloaded(account)) {
     const countdown = formatCountdown(account.overload_until)
@@ -1353,8 +1401,10 @@ const showAccountStatusTooltip = (account: Account, event: MouseEvent | FocusEve
   const rect = target.getBoundingClientRect()
   const padding = 12
   const gap = 8
-  const tooltipWidth = Math.min(360, Math.max(240, window.innerWidth - padding * 2))
-  const tooltipHeightEstimate = 96
+  const estimatedTextWidth = Math.max(48, detail.length * 7)
+  const maxViewportWidth = Math.max(48, window.innerWidth - padding * 2)
+  const tooltipWidth = Math.min(360, maxViewportWidth, Math.max(48, estimatedTextWidth + 24))
+  const tooltipHeightEstimate = Math.min(160, Math.max(56, Math.ceil(detail.length / 40) * 18 + 28))
   const preferredLeft = rect.left + rect.width / 2 - tooltipWidth / 2
   const maxLeft = Math.max(padding, window.innerWidth - tooltipWidth - padding)
   const left = Math.max(padding, Math.min(preferredLeft, maxLeft))
@@ -1704,6 +1754,10 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll, true)
   document.removeEventListener('click', handleClickOutside)
+  if (usageRefreshedSyncTimer) {
+    clearTimeout(usageRefreshedSyncTimer)
+    usageRefreshedSyncTimer = null
+  }
   hideAccountStatusTooltip()
 })
 </script>
@@ -1874,9 +1928,10 @@ onUnmounted(() => {
 }
 
 .account-status-tooltip {
-  @apply pointer-events-none fixed z-[99999] w-[min(22.5rem,calc(100vw-1.5rem))] rounded-md bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-relaxed text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-700;
+  @apply pointer-events-none fixed z-[99999] max-w-[min(22.5rem,calc(100vw-1.5rem))] rounded-md bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-relaxed text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-700;
   overflow-wrap: anywhere;
-  white-space: normal;
+  white-space: pre-wrap;
+  width: max-content;
 }
 
 .account-status-tooltip-top {

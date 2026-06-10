@@ -246,7 +246,13 @@
                 <div v-else class="inline-flex items-center justify-start gap-1.5">
                   <div>
                     <div class="font-mono text-sm font-semibold text-gray-950 dark:text-white">{{ formatTokens(getTotalTokens(row)) }}</div>
-                    <div class="text-xs text-gray-500 dark:text-dark-400">{{ formatTokens(num(row.output_tokens)) }}</div>
+                    <div class="text-xs text-gray-500 dark:text-dark-400">
+                      {{ formatTokens(hasImageOutputTokens(row) ? textOutputTokens(row) : num(row.output_tokens)) }}
+                    </div>
+                    <div v-if="hasImageOutputTokens(row)" class="flex items-center gap-1 text-xs font-medium text-pink-600 dark:text-pink-300">
+                      <Icon name="sparkles" size="xs" />
+                      <span>{{ formatTokens(num(row.image_output_tokens)) }}</span>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -424,9 +430,17 @@
               <span class="text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
               <span class="font-medium text-white">{{ num(tokenTooltipData.input_tokens).toLocaleString() }}</span>
             </div>
-            <div v-if="tokenTooltipData && num(tokenTooltipData.output_tokens) > 0" class="flex items-center justify-between gap-4">
+            <div v-if="tokenTooltipData && num(tokenTooltipData.output_tokens) > 0 && !hasImageOutputTokens(tokenTooltipData)" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
               <span class="font-medium text-white">{{ num(tokenTooltipData.output_tokens).toLocaleString() }}</span>
+            </div>
+            <div v-if="tokenTooltipData && hasImageOutputTokens(tokenTooltipData) && textOutputTokens(tokenTooltipData) > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
+              <span class="font-medium text-white">{{ textOutputTokens(tokenTooltipData).toLocaleString() }}</span>
+            </div>
+            <div v-if="tokenTooltipData && hasImageOutputTokens(tokenTooltipData)" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('usage.imageOutputTokens') }}</span>
+              <span class="font-medium text-pink-300">{{ num(tokenTooltipData.image_output_tokens).toLocaleString() }}</span>
             </div>
             <div v-if="tokenTooltipData && num(tokenTooltipData.cache_creation_tokens) > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.cacheCreationTokens') }}</span>
@@ -457,6 +471,18 @@
         <div class="space-y-1.5">
           <div class="mb-2 border-b border-gray-700 pb-1.5">
             <div class="mb-1 text-xs font-semibold text-gray-300">{{ t('usage.costDetails') }}</div>
+            <div v-if="tooltipData && num(tooltipData.input_cost) > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.inputCost') }}</span>
+              <span class="font-medium text-white">${{ num(tooltipData.input_cost).toFixed(6) }}</span>
+            </div>
+            <div v-if="tooltipData && num(tooltipData.output_cost) > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.outputCost') }}</span>
+              <span class="font-medium text-white">${{ num(tooltipData.output_cost).toFixed(6) }}</span>
+            </div>
+            <div v-if="tooltipData && hasImageOutputCost(tooltipData)" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('usage.imageOutputCost') }}</span>
+              <span class="font-medium text-pink-300">${{ num(tooltipData.image_output_cost).toFixed(6) }}</span>
+            </div>
             <template v-if="tooltipData && isImageUsage(tooltipData)">
               <div class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.imageCount') }}</span>
@@ -492,9 +518,13 @@
                 <span class="text-gray-400">{{ t('usage.inputTokenPrice') }}</span>
                 <span class="font-medium text-sky-300">{{ formatTokenPricePerMillion(num(tooltipData.input_cost), num(tooltipData.input_tokens)) }} {{ t('usage.perMillionTokens') }}</span>
               </div>
-              <div v-if="tooltipData && num(tooltipData.output_tokens) > 0" class="flex items-center justify-between gap-4">
+              <div v-if="tooltipData && num(tooltipData.output_cost) > 0 && textOutputTokens(tooltipData) > 0" class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.outputTokenPrice') }}</span>
-                <span class="font-medium text-violet-300">{{ formatTokenPricePerMillion(num(tooltipData.output_cost), num(tooltipData.output_tokens)) }} {{ t('usage.perMillionTokens') }}</span>
+                <span class="font-medium text-violet-300">{{ formatTokenPricePerMillion(num(tooltipData.output_cost), textOutputTokens(tooltipData)) }} {{ t('usage.perMillionTokens') }}</span>
+              </div>
+              <div v-if="tooltipData && hasImageOutputTokens(tooltipData)" class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.imageOutputTokenPrice') }}</span>
+                <span class="font-medium text-pink-300">{{ formatTokenPricePerMillion(num(tooltipData.image_output_cost), num(tooltipData.image_output_tokens)) }} {{ t('usage.perMillionTokens') }}</span>
               </div>
             </template>
             <div v-if="tooltipData && num(tooltipData.cache_creation_cost) > 0" class="flex items-center justify-between gap-4">
@@ -547,13 +577,23 @@ import { formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
-import { getBillingModeBadgeClass, getBillingModeLabel, BILLING_MODE_IMAGE, BILLING_MODE_TOKEN } from '@/utils/billingMode'
+import {
+  BILLING_MODE_TOKEN,
+  getBillingModeBadgeClass,
+  getBillingModeLabel,
+  getDisplayBillingMode,
+  imageUnitPrice,
+  isImageUsage,
+} from '@/utils/billingMode'
 import {
   formatImageBillingSize,
   formatImageInputSize,
   formatImageOutputSize,
   formatImageSizeBreakdown,
   formatImageSizeSource,
+  hasImageOutputCost,
+  hasImageOutputTokens,
+  textOutputTokens,
 } from '@/utils/imageUsage'
 import DataTable from '@/components/common/DataTable.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
@@ -602,6 +642,8 @@ type NullableUsageNumberField =
   | 'billing_type'
   | 'duration_ms'
   | 'image_count'
+  | 'image_output_tokens'
+  | 'image_output_cost'
 
 type NullableUsageStringField =
   | 'inbound_endpoint'
@@ -905,28 +947,13 @@ const hasUsageFacts = (row: UsageTableRow): boolean => {
     row.cache_creation_tokens != null ||
     row.cache_read_tokens != null ||
     row.actual_cost != null ||
-    row.image_count != null
+    row.image_count != null ||
+    row.image_output_tokens != null
   )
 }
 
 const hasBillableCost = (row: UsageTableRow): boolean => {
   return row.billable !== false && row.kind !== 'error' && row.actual_cost != null
-}
-
-const isImageUsage = (row: Pick<UsageTableRow, 'image_count'> | null | undefined): boolean => {
-  return num(row?.image_count) > 0
-}
-
-const getDisplayBillingMode = (row: Pick<UsageTableRow, 'billing_mode' | 'image_count'> | null | undefined): string | null | undefined => {
-  if (isImageUsage(row)) return BILLING_MODE_IMAGE
-  return row?.billing_mode
-}
-
-const imageUnitPrice = (row: UsageTableRow | null): number => {
-  const count = num(row?.image_count)
-  if (!row || count <= 0) return 0
-  const price = num(row.total_cost) / count
-  return Number.isFinite(price) ? price : 0
 }
 
 const accountBilled = (row: UsageTableRow | null): number => {

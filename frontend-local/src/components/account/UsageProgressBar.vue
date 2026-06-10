@@ -205,7 +205,10 @@ const formatUserCost = computed(() => {
 
 <style scoped>
 .usage-progress-popover {
-  @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[220px] -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
+  @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden max-w-[min(22.5rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
+  white-space: pre-wrap;
+  width: max-content;
+  overflow-wrap: anywhere;
 }
 
 div:hover > .usage-progress-popover,

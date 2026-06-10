@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:remote": "PATH=/Users/qhongchen/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH VITE_DEV_PROXY_TARGET=http://100.94.253.126:8080 VITE_DEV_PORT=3000 vite --host 127.0.0.1",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",

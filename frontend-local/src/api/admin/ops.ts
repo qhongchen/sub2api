@@ -902,6 +902,8 @@ export interface OpsErrorLog {
   user_id?: number | null
   user_email: string
   api_key_id?: number | null
+  api_key_name?: string
+  api_key_deleted?: boolean
   account_id?: number | null
   account_name: string
   group_id?: number | null
@@ -935,6 +937,12 @@ export interface OpsErrorDetail extends OpsErrorLog {
   time_to_first_token_ms?: number | null
 
   is_business_limited: boolean
+
+  attempted_key_prefix?: string | null
+  deleted_key_owner_user_id?: number | null
+  deleted_key_owner_email?: string | null
+  deleted_key_name?: string | null
+  api_key_prefix?: string | null
 }
 
 export type OpsErrorLogsResponse = PaginatedResponse<OpsErrorLog>
@@ -1069,6 +1077,9 @@ export type OpsErrorListQueryParams = {
   platform?: string
   group_id?: number | null
   account_id?: number | null
+  user_id?: number
+  api_key_id?: number
+  model?: string
 
   phase?: string
   error_owner?: string

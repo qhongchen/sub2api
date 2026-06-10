@@ -15,6 +15,13 @@
 
 本设计作为阶段二和阶段三的低侵入扩展方案：新增独立 `requestrecord` 模块和 `request_records` 表，并以少量网关 hook 写入请求事实。阶段四增强项后续择机实现。
 
+当前实现状态：
+
+- 阶段二/三已进入主实现路径。
+- 管理员请求记录页只使用 `request_records` 数据源。
+- 阶段一 `usage_logs + ops_error_logs` 聚合接口和前端 fallback 已退场。
+- `/admin/request-logs` 仅作为前端页面 URL 保留；后端 API 为 `/api/v1/admin/request-records`。
+
 ## 目标
 
 新增内部请求流水事实源，让每一次网关请求都能形成持久记录，并能关联用户、API Key、账号、Session、请求结果、计费明细和错误明细。
@@ -214,8 +221,8 @@ trace/span tree
 idx_request_records_created_at_id
   (created_at desc, id desc)
 
-idx_request_records_request_id
-  (request_id)
+idx_request_records_request_id_unique
+  UNIQUE (request_id)
 
 idx_request_records_client_request_id
   (client_request_id)
@@ -475,10 +482,28 @@ sort
 request_records rr
 LEFT JOIN usage_logs ul
   ON ul.request_id = rr.request_id
+  OR ul.request_id = 'local:' || rr.request_id
+  OR ul.request_id = 'client:' || rr.client_request_id
+  OR match by request time window + request facts
 
 LEFT JOIN ops_error_logs o
   ON o.request_id = rr.request_id
   OR o.client_request_id = rr.client_request_id
+  OR match by request time window + request facts
+```
+
+关联优先级：
+
+```text
+强关联
+  request_id / client_request_id 派生出的稳定 ID。
+
+兜底关联
+  当强关联缺失或两侧 ID 语义不一致时，使用 request_records 的请求时间窗口和入参匹配：
+  - 时间：rr.created_at 到 rr.completed_at / rr.updated_at 后 5 分钟内
+  - 身份：user_id / api_key_id / account_id / group_id
+  - 请求：model / requested_model / upstream_model / request_type / stream / endpoint
+  - 错误：status_code / upstream_status_code
 ```
 
 字段优先级：
@@ -498,21 +523,13 @@ LEFT JOIN ops_error_logs o
 
 `RequestLogsView` 继续作为管理员请求记录入口。
 
-API 层支持两个数据源：
+API 层只保留 `records` 数据源：
 
 ```text
-aggregate  当前 usage_logs + ops_error_logs 聚合接口
-records    新 request_records 接口
+records    request_records 接口
 ```
 
-切换策略：
-
-```text
-默认使用 records。
-接口不可用或配置关闭时，可回退 aggregate。
-```
-
-`aggregate` fallback 是上线保护，不是长期产品能力。完成验证后应删除前端 fallback 分支，页面只保留 `records` 数据源，避免后续字段、筛选和状态展示在两套数据源之间分叉。
+`aggregate` fallback 属于阶段一观察窗口能力，阶段一退场后不再保留。页面只调用 `/api/v1/admin/request-records`，避免字段、筛选和状态展示在两套数据源之间分叉。
 
 页面新增能力：
 
@@ -522,6 +539,23 @@ records    新 request_records 接口
 - Outcome 展示。
 - Billable 展示。
 - 非计费和失败请求 cost 显示 `-`。
+- 请求诊断详情弹窗。
+
+请求诊断详情是系统级诊断视图，不是计费详情页。它应覆盖：
+
+- 最终返回客户端的状态、耗时和请求 ID。
+- 用户、API Key、账号、分组、来源 IP 和 User-Agent。
+- Session ID、Session 来源和客户端 Session ID，并支持复制和快捷筛选。
+- 入口、上游入口、平台、请求模型、计费模型、上游模型和模型映射链。
+- Token、图片、缓存、倍率和费用快照；非计费请求解释为“无计费事实”，不要展示成“价格缺失”。
+- 上游尝试 Timeline，用来区分“最终客户端状态”和“中途上游尝试状态”。
+
+状态展示规则：
+
+- `pending` 只展示请求中，不展示异常态。
+- 最终 `success` / `non_billable` 或 2xx 状态作为主成功态展示。
+- 如果最终成功但上游尝试中有 4xx / 5xx，主状态仍展示成功，Timeline 展示中途失败尝试。
+- 只有最终 `error` / `cancelled` / 非 2xx 客户端状态才展示最终错误摘要。
 
 页面仍然不展示 prompt / response。
 
@@ -552,13 +586,13 @@ records    新 request_records 接口
 上线后：
 
 - 新请求进入 `request_records`。
-- 老请求在回退窗口内仍可通过阶段一聚合接口查看。
-- 前端可以根据接口可用性选择 `records` 或 `aggregate`。
+- 老请求不做历史回填，默认不进入请求记录页。
+- 前端只使用 `records` 数据源。
 
 如果需要回滚：
 
+- 回退到阶段一代码版本或临时恢复 thin wrapper / aggregate 分支。
 - 停用 requestrecord hook。
-- 前端切回 aggregate 数据源。
 - `usage_logs` 和 `ops_error_logs` 不受影响。
 
 ## 阶段一退场策略
@@ -583,8 +617,8 @@ records    新 request_records 接口
 - 新请求都能稳定写入 `request_records`。
 - 管理员请求记录页已默认使用 `records`。
 - 常用筛选项在 `records` 数据源下可用。
-- 成功计费请求可通过 `request_id` 关联 `usage_logs`。
-- 失败请求可通过 `request_id` 或 `client_request_id` 关联 `ops_error_logs`。
+- 成功计费请求可通过强 ID 或请求时间窗口 + 入参关联 `usage_logs`。
+- 失败请求可通过强 ID 或请求时间窗口 + 入参关联 `ops_error_logs`。
 - 回退窗口内未发现必须依赖 aggregate 的缺口。
 
 ### 删除范围
@@ -719,7 +753,11 @@ request_id / client_request_id 关联能力
 - 点击同一 Session 后追加筛选。
 - `billable=false` 显示 `-`。
 - `success` / `non_billable` / `error` / `cancelled` 状态展示正确。
-- records 数据源不可用时能回退 aggregate。
+- 点击表格诊断入口打开请求诊断详情。
+- `pending` 请求诊断不显示最终错误。
+- 最终 200 但上游尝试有失败时，主状态显示成功，Timeline 展示失败尝试。
+- 诊断详情中的 Session 快捷筛选能写入 `session_id` 并重新查询。
+- records 数据源不可用时展示加载失败，不回退 aggregate。
 
 集成验证：
 
