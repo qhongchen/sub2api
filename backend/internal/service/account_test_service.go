@@ -70,6 +70,7 @@ type AccountTestService struct {
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+	settingService            *SettingService
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -81,6 +82,7 @@ func NewAccountTestService(
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
 ) *AccountTestService {
 	return &AccountTestService{
 		accountRepo:               accountRepo,
@@ -90,7 +92,19 @@ func NewAccountTestService(
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
+		settingService:            settingService,
 	}
+}
+
+func (s *AccountTestService) isClaudeContext1MForceEnabled(ctx context.Context) bool {
+	if s == nil || s.settingService == nil {
+		return true
+	}
+	return s.settingService.IsClaudeContext1MForceEnabled(ctx)
+}
+
+func claudeAccountTestBetaHeader(modelID string, baseBetaHeader string, forceContext1M bool) string {
+	return mergeAnthropicBetaDroppingForModel(modelID, nil, baseBetaHeader, nil, forceContext1M)
 }
 
 func (s *AccountTestService) validateUpstreamBaseURL(raw string) (string, error) {
@@ -284,11 +298,12 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 
 	// Set authentication header
+	forceContext1M := s.isClaudeContext1MForceEnabled(ctx)
 	if useBearer {
-		req.Header.Set("anthropic-beta", claude.DefaultBetaHeader)
+		req.Header.Set("anthropic-beta", claudeAccountTestBetaHeader(testModelID, claude.DefaultBetaHeader, forceContext1M))
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	} else {
-		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
+		req.Header.Set("anthropic-beta", claudeAccountTestBetaHeader(testModelID, claude.APIKeyBetaHeader, forceContext1M))
 		req.Header.Set("x-api-key", authToken)
 	}
 
