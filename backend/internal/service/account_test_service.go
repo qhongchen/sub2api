@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -600,11 +601,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	// Set common headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+authToken)
+	applyOpenAIResponsesAccountTestHeaders(req, account.ID)
 
 	// Set OAuth-specific headers for ChatGPT internal API
 	if isOAuth {
 		req.Host = "chatgpt.com"
-		req.Header.Set("accept", "text/event-stream")
 		if chatgptAccountID != "" {
 			req.Header.Set("chatgpt-account-id", chatgptAccountID)
 		}
@@ -1244,13 +1245,9 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 		"model": modelID,
 		"input": []map[string]any{
 			{
-				"role": "user",
-				"content": []map[string]any{
-					{
-						"type": "input_text",
-						"text": "hi",
-					},
-				},
+				"type":    "message",
+				"role":    "user",
+				"content": "hi",
 			},
 		},
 		"stream": true,
@@ -1265,6 +1262,25 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 	payload["instructions"] = openai.DefaultInstructions
 
 	return payload
+}
+
+func applyOpenAIResponsesAccountTestHeaders(req *http.Request, accountID int64) {
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("OpenAI-Beta", "responses=experimental")
+	req.Header.Set("Originator", "codex_cli_rs")
+	req.Header.Set("User-Agent", codexCLIUserAgent)
+	req.Header.Set("Version", codexCLIVersion)
+
+	probeSessionID := openAIResponsesProbeSessionID(accountID)
+	req.Header.Set("Session_ID", probeSessionID)
+	req.Header.Set("Conversation_ID", probeSessionID)
+}
+
+func openAIResponsesProbeSessionID(accountID int64) string {
+	if accountID <= 0 {
+		return "probe_responses"
+	}
+	return "probe_responses_" + strconv.FormatInt(accountID, 10)
 }
 
 func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
