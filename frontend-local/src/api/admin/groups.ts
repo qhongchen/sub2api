@@ -57,6 +57,13 @@ export async function getAll(platform?: GroupPlatform): Promise<AdminGroup[]> {
   return data
 }
 
+export async function getAllIncludingInactive(): Promise<AdminGroup[]> {
+  const { data } = await apiClient.get<AdminGroup[]>('/admin/groups/all', {
+    params: { include_inactive: true }
+  })
+  return data
+}
+
 /**
  * Get active groups by platform
  * @param platform - Platform to filter by
@@ -304,6 +311,7 @@ export async function getCapacitySummary(): Promise<
 export const groupsAPI = {
   list,
   getAll,
+  getAllIncludingInactive,
   getByPlatform,
   getById,
   create,

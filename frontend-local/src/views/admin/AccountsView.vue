@@ -260,6 +260,9 @@
                           <span class="truncate">{{ account.proxy.name }}</span>
                           <span v-if="account.proxy.country_code">({{ account.proxy.country_code }})</span>
                         </span>
+                        <span v-if="account.proxy && account.proxy.expires_at" :class="proxyExpiryBadge(account.proxy)">
+                          {{ proxyExpiryText(account.proxy) }}
+                        </span>
                         <span v-if="account.notes" class="truncate" :title="account.notes">
                           {{ account.notes }}
                         </span>
@@ -329,6 +332,21 @@
                         <span v-if="isExpired(account.expires_at)" class="account-state-badge account-state-badge-warning">
                           {{ t('admin.accounts.expired') }}
                         </span>
+                        <span
+                          v-if="account.proxy_fallback_origin_id"
+                          class="account-state-badge account-state-badge-warning"
+                          :title="t('admin.accounts.fallbackActiveTip', { origin: account.proxy_fallback_origin_name || '-' })"
+                        >
+                          {{ t('admin.accounts.fallbackActive') }}
+                        </span>
+                        <button
+                          v-if="account.proxy_fallback_origin_id"
+                          type="button"
+                          class="account-state-badge border border-amber-200 bg-white text-amber-700 transition hover:bg-amber-50 dark:border-amber-500/30 dark:bg-dark-900 dark:text-amber-300 dark:hover:bg-amber-500/10"
+                          @click.stop="onRevertFallback(account)"
+                        >
+                          {{ t('admin.accounts.revertProxy') }}
+                        </button>
                         <span
                           v-if="account.auto_pause_on_expired && account.expires_at"
                           class="account-state-badge account-state-badge-success"
@@ -507,6 +525,7 @@ import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRules
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
+import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import type { Account, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -1673,6 +1692,16 @@ const handleSetPrivacy = async (a: Account) => {
     appStore.showError(error?.response?.data?.message || t('admin.accounts.privacyFailed'))
   }
 }
+const onRevertFallback = async (a: Account) => {
+  try {
+    await adminAPI.accounts.revertProxyFallback(a.id)
+    appStore.showSuccess(t('admin.accounts.revertProxySuccess'))
+    reload()
+  } catch (error: any) {
+    console.error('Failed to revert proxy fallback:', error)
+    appStore.showError(error?.response?.data?.message || t('admin.accounts.revertProxyFailed'))
+  }
+}
 const handleDelete = (a: Account) => { deletingAcc.value = a; showDeleteDialog.value = true }
 const confirmDelete = async () => { if(!deletingAcc.value) return; try { await adminAPI.accounts.delete(deletingAcc.value.id); showDeleteDialog.value = false; deletingAcc.value = null; reload() } catch (error) { console.error('Failed to delete account:', error) } }
 const handleToggleSchedulable = async (a: Account) => {
@@ -1714,6 +1743,11 @@ const formatExpiresAt = (value: number | null) => {
 const isExpired = (value: number | null) => {
   if (!value) return false
   return value * 1000 <= Date.now()
+}
+const proxyExpiryBadge = (p: AccountProxy): string => proxyExpiryBadgeClass(p.expires_at, p.status)
+const proxyExpiryText = (p: AccountProxy): string => {
+  const { key, params } = proxyExpiryLabelKey(p.expires_at, p.status)
+  return params ? t(key, params) : t(key)
 }
 
 const handleScroll = () => {

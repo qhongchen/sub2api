@@ -505,7 +505,7 @@ export interface Group {
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   is_exclusive: boolean
-  status: 'active' | 'inactive'
+  status: 'active' | 'inactive' | 'expired'
   subscription_type: SubscriptionType
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
@@ -705,6 +705,10 @@ export interface Proxy {
   quality_grade?: string
   quality_summary?: string
   quality_checked?: number
+  expires_at: string | null
+  fallback_mode: 'none' | 'proxy' | 'direct'
+  backup_proxy_id?: number | null
+  expiry_warn_days: number
   created_at: string
   updated_at: string
 }
@@ -810,6 +814,8 @@ export interface Account {
     antigravity_credits_overages?: Record<string, { activated_at: string; active_until: string }>
   } & Record<string, unknown>)
   proxy_id: number | null
+  proxy_fallback_origin_id?: number | null
+  proxy_fallback_origin_name?: string | null
   concurrency: number
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
@@ -1057,6 +1063,10 @@ export interface CreateProxyRequest {
   port: number
   username?: string | null
   password?: string | null
+  expires_at?: number | null
+  fallback_mode?: 'none' | 'proxy' | 'direct'
+  backup_proxy_id?: number | null
+  expiry_warn_days?: number
 }
 
 export interface UpdateProxyRequest {
@@ -1067,6 +1077,10 @@ export interface UpdateProxyRequest {
   username?: string | null
   password?: string | null
   status?: 'active' | 'inactive'
+  expires_at?: number | null
+  fallback_mode?: 'none' | 'proxy' | 'direct'
+  backup_proxy_id?: number | null
+  expiry_warn_days?: number
 }
 
 export interface AdminDataPayload {

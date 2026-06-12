@@ -654,6 +654,11 @@ export async function setPrivacy(id: number): Promise<Account> {
   return data
 }
 
+export async function revertProxyFallback(id: number): Promise<{ message: string }> {
+  const { data } = await apiClient.post<{ message: string }>(`/admin/accounts/${id}/revert-proxy-fallback`)
+  return data
+}
+
 export const accountsAPI = {
   list,
   listWithEtag,
@@ -692,7 +697,8 @@ export const accountsAPI = {
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
-  setPrivacy
+  setPrivacy,
+  revertProxyFallback
 }
 
 export default accountsAPI

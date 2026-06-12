@@ -133,6 +133,8 @@ docs/*
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/CCH_SUB2API_FEATURE_MAPPING.md
+!docs/legal/
+!docs/legal/*.md
 .serena/
 .codex/
 frontend/coverage/

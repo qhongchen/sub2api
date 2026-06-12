@@ -168,7 +168,15 @@
                 searchable
                 creatable
                 :creatable-prefix="t('admin.users.fuzzySearch')"
-                :search-placeholder="t('admin.users.searchGroups')"
+                :search-placeholder="t('admin.users.searchAuthorizedGroups')"
+              />
+
+              <Select
+                v-model="filters.apiKeyGroup"
+                class="users-filter-api-key-group"
+                :options="apiKeyGroupFilterOptions"
+                searchable
+                :search-placeholder="t('admin.users.searchApiKeyGroups')"
               />
 
               <template v-for="attr in filterableAttributes" :key="attr.id">
@@ -644,6 +652,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import Select from '@/components/common/Select.vue'
+import type { SelectOption } from '@/components/common/Select.vue'
+import { buildApiKeyGroupFilterOptions } from './apiKeyGroupFilterOptions'
 import UserAttributesConfigModal from '@/components/user/UserAttributesConfigModal.vue'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
 import PlatformUsageBreakdown from '@/components/user/PlatformUsageBreakdown.vue'
@@ -880,6 +890,15 @@ const loadAllGroups = async () => {
     console.error('Failed to load groups:', e)
   }
 }
+const allGroupsForApiKeyFilter = ref<AdminGroup[]>([])
+const loadAllGroupsForApiKeyFilter = async () => {
+  if (allGroupsForApiKeyFilter.value.length > 0) return
+  try {
+    allGroupsForApiKeyFilter.value = await adminAPI.groups.getAllIncludingInactive()
+  } catch (e) {
+    console.error('Failed to load groups for API key filter:', e)
+  }
+}
 // Resolve user's accessible groups: exclusive groups first, then public groups
 const getUserGroups = (user: AdminUser) => {
   const exclusive: AdminGroup[] = []
@@ -900,7 +919,7 @@ const getUserGroups = (user: AdminUser) => {
 // Group filter options: "All Groups" + active exclusive groups (value = group name for fuzzy match)
 const groupFilterOptions = computed(() => {
   const options: { value: string; label: string }[] = [
-    { value: '', label: t('admin.users.allGroups') }
+    { value: '', label: t('admin.users.allAuthorizedGroups') }
   ]
   for (const g of allGroups.value) {
     if (g.status !== 'active' || !g.is_exclusive || g.subscription_type !== 'standard') continue
@@ -909,11 +928,22 @@ const groupFilterOptions = computed(() => {
   return options
 })
 
+const apiKeyGroupFilterOptions = computed(() =>
+  buildApiKeyGroupFilterOptions(allGroupsForApiKeyFilter.value, {
+    all: t('admin.users.allApiKeyGroups'),
+    exclusive: t('admin.users.apiKeyGroupExclusive'),
+    public: t('admin.users.apiKeyGroupPublic'),
+    subscription: t('admin.users.apiKeyGroupSubscription'),
+    disabled: t('admin.users.apiKeyGroupDisabled'),
+  }) as SelectOption[]
+)
+
 // Filter values (role, status, and custom attributes)
 const filters = reactive({
   role: '',
   status: '',
-  group: ''  // group name for fuzzy match, '' = all
+  group: '',  // group name for fuzzy match, '' = all
+  apiKeyGroup: null as number | null
 })
 const activeAttributeFilters = reactive<Record<number, string>>({})
 const loadMoreSentinelRef = ref<HTMLElement | null>(null)
@@ -924,6 +954,7 @@ const activeFilterCount = computed(() => {
   if (filters.role) count += 1
   if (filters.status) count += 1
   if (filters.group) count += 1
+  if (filters.apiKeyGroup !== null) count += 1
   count += Object.values(activeAttributeFilters).filter(Boolean).length
   return count
 })
@@ -962,6 +993,7 @@ const loadSavedFilters = () => {
       if (parsed.role) filters.role = parsed.role
       if (parsed.status) filters.status = parsed.status
       if (parsed.group) filters.group = parsed.group
+      if (typeof parsed.apiKeyGroup === 'number') filters.apiKeyGroup = parsed.apiKeyGroup
       if (parsed.attributes) {
         Object.assign(activeAttributeFilters, parsed.attributes)
       }
@@ -979,6 +1011,7 @@ const saveFiltersToStorage = () => {
       role: filters.role,
       status: filters.status,
       group: filters.group,
+      apiKeyGroup: filters.apiKeyGroup,
       attributes: activeAttributeFilters
     }
     localStorage.setItem(FILTER_VALUES_KEY, JSON.stringify(values))
@@ -1065,6 +1098,7 @@ const buildUserListFilters = () => {
     status: filters.status as any,
     search: searchQuery.value || undefined,
     group_name: filters.group || undefined,
+    api_key_group_id: filters.apiKeyGroup ?? undefined,
     attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
     include_subscriptions: hasVisibleSubscriptionsColumn.value,
     sort_by: USER_DEFAULT_SORT.sort_by,
@@ -1274,6 +1308,7 @@ const resetFilters = () => {
   filters.role = ''
   filters.status = ''
   filters.group = ''
+  filters.apiKeyGroup = null
   for (const key of Object.keys(activeAttributeFilters)) {
     delete activeAttributeFilters[Number(key)]
   }
@@ -1409,6 +1444,7 @@ onMounted(async () => {
   await loadUsers()
   startLoadMoreObserver()
   loadAllGroups()
+  loadAllGroupsForApiKeyFilter()
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('scroll', handleScroll, true)
 })
@@ -1422,12 +1458,13 @@ onUnmounted(() => {
 
 <style scoped>
 .users-filter-row {
-  @apply grid gap-3 md:grid-cols-[14rem_8.5rem_8.5rem_11rem_auto];
+  @apply grid gap-3 md:grid-cols-[14rem_8.5rem_8.5rem_11rem_11rem_auto];
 }
 
 .users-filter-search,
 .users-filter-select,
 .users-filter-group,
+.users-filter-api-key-group,
 .users-filter-attribute {
   @apply min-w-0 w-full;
 }

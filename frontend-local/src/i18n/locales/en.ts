@@ -903,6 +903,8 @@ export default {
     accountCost: 'Cost',
     userBilled: 'User billed',
     accountBilled: 'Account billed',
+    resetNow: 'Now',
+    resetPending: 'Pending refresh',
     accountMultiplier: 'Account rate',
     avgDuration: 'Avg Duration',
     inSelectedRange: 'in selected range',
@@ -1839,6 +1841,16 @@ export default {
       allGroups: 'All Groups',
       searchGroups: 'Search groups...',
       fuzzySearch: 'Fuzzy search',
+      apiKeyGroupFilter: 'API Key Group',
+      apiKeyGroupExclusive: 'Exclusive Groups',
+      apiKeyGroupPublic: 'Public Groups',
+      apiKeyGroupSubscription: 'Subscription Groups',
+      apiKeyGroupDisabled: 'Disabled Groups',
+      authorizedGroupFilter: 'Authorized Group',
+      allAuthorizedGroups: 'All Authorized Groups',
+      searchAuthorizedGroups: 'Search authorized groups...',
+      allApiKeyGroups: 'All API Key Groups',
+      searchApiKeyGroups: 'Search API Key groups...',
       admin: 'Admin',
       user: 'User',
       disabled: 'Disabled',
@@ -3262,6 +3274,11 @@ export default {
       recoverStateHint: 'Used to recover error, rate-limit, and temporary unschedulable runtime state.',
       recoverStateSuccess: 'Account state recovered successfully',
       recoverStateFailed: 'Failed to recover account state',
+      fallbackActive: 'Fallback',
+      fallbackActiveTip: 'Origin proxy {origin} expired',
+      revertProxy: 'Revert proxy',
+      revertProxySuccess: 'Successfully reverted to original proxy',
+      revertProxyFailed: 'Failed to revert proxy',
       resetStatus: 'Reset Status',
       statusReset: 'Account status reset successfully',
       failedToResetStatus: 'Failed to reset account status',
@@ -4112,6 +4129,8 @@ export default {
         status: 'Status',
         accounts: 'Accounts',
         latency: 'Latency',
+        expiry: 'Validity',
+        createdAt: 'Created',
         actions: 'Actions'
       },
       testConnection: 'Test Connection',
@@ -4209,7 +4228,21 @@ export default {
       hostRequired: 'Please enter host address',
       portInvalid: 'Port must be between 1-65535',
       deleteConfirm:
-        "Are you sure you want to delete '{name}'? Accounts using this proxy will have their proxy removed."
+        "Are you sure you want to delete '{name}'? Accounts using this proxy will have their proxy removed.",
+      neverExpires: 'Never',
+      expired: 'Expired',
+      overdueDays: 'Overdue {days}d',
+      expiringInDays: 'Expires in {days}d',
+      remainingDays: '{days}d left',
+      expiresAt: 'Validity',
+      nDays: '{days}d',
+      expiryDaysPlaceholder: 'Custom days, empty = never',
+      expiryWarnDays: 'Expiry warning (days)',
+      fallbackMode: 'Failure fallback',
+      fallbackNone: 'No fallback',
+      fallbackProxy: 'Backup proxy',
+      fallbackDirect: 'Direct connection',
+      backupProxy: 'Backup proxy'
     },
 
     // Redeem Codes
@@ -5156,6 +5189,7 @@ export default {
           accountRateLimitedCount: 'Rate-limited Accounts',
           accountErrorCount: 'Error Accounts (excluding temporarily unschedulable)',
           accountErrorRatio: 'Error Account Ratio (%)',
+          accountTempUnscheduledCount: 'Temporarily Unschedulable Accounts',
           overloadAccountCount: 'Overloaded Accounts'
         },
         metricDescriptions: {
@@ -5173,6 +5207,7 @@ export default {
           accountRateLimitedCount: 'Number of rate-limited accounts within the window.',
           accountErrorCount: 'Number of error accounts within the window (excluding temporarily unschedulable).',
           accountErrorRatio: 'Error account ratio within the window (0-100).',
+          accountTempUnscheduledCount: 'Number of accounts currently temporarily unschedulable (e.g. proxy/credential failure auto-eviction).',
           overloadAccountCount: 'Number of overloaded accounts within the window.'
         },
         hints: {
