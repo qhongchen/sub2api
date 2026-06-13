@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 )
 
@@ -158,7 +160,7 @@ func pingEndpointOrigin(ctx context.Context, endpoint string) *int {
 type providerAdapter struct {
 	buildPath    func(model string) string
 	buildBody    func(model, prompt string) ([]byte, error)
-	buildHeaders func(apiKey string) map[string]string
+	buildHeaders func(apiKey, model string) map[string]string
 	textPath     string // gjson 提取响应文本的 path
 }
 
@@ -176,7 +178,7 @@ var providerAdapters = map[string]providerAdapter{
 				"max_tokens": monitorChallengeMaxTokens,
 			})
 		},
-		buildHeaders: func(apiKey string) map[string]string {
+		buildHeaders: func(apiKey, _ string) map[string]string {
 			return map[string]string{
 				"x-api-key":         apiKey,
 				"anthropic-version": monitorAnthropicAPIVersion,
@@ -196,7 +198,7 @@ var providerAdapters = map[string]providerAdapter{
 			})
 		},
 		// 使用 x-goog-api-key header 而不是 ?key= query，避免 *url.Error 把 key 回填到错误日志。
-		buildHeaders: func(apiKey string) map[string]string {
+		buildHeaders: func(apiKey, _ string) map[string]string {
 			return map[string]string{"x-goog-api-key": apiKey}
 		},
 		textPath: "candidates.0.content.parts.0.text",
@@ -214,7 +216,7 @@ var providerOpenAIChatAdapter = providerAdapter{
 			"stream":     false,
 		})
 	},
-	buildHeaders: func(apiKey string) map[string]string {
+	buildHeaders: func(apiKey, _ string) map[string]string {
 		return map[string]string{"Authorization": "Bearer " + apiKey}
 	},
 	textPath: "choices.0.message.content",
@@ -224,6 +226,9 @@ var providerOpenAIChatAdapter = providerAdapter{
 var providerOpenAIResponsesAdapter = providerAdapter{
 	buildPath: func(string) string { return providerOpenAIResponsesPath },
 	buildBody: func(model, prompt string) ([]byte, error) {
+		if isOpenAIResponsesCodexMonitorModel(model) {
+			return json.Marshal(buildOpenAIResponsesCodexMonitorBody(model, prompt))
+		}
 		return json.Marshal(map[string]any{
 			"model":             model,
 			"instructions":      "You are a channel health-check endpoint. Answer the arithmetic challenge exactly and briefly.",
@@ -232,10 +237,87 @@ var providerOpenAIResponsesAdapter = providerAdapter{
 			"stream":            false,
 		})
 	},
-	buildHeaders: func(apiKey string) map[string]string {
-		return map[string]string{"Authorization": "Bearer " + apiKey}
+	buildHeaders: func(apiKey, model string) map[string]string {
+		headers := map[string]string{"Authorization": "Bearer " + apiKey}
+		if !isOpenAIResponsesCodexMonitorModel(model) {
+			return headers
+		}
+		headers["Accept"] = "text/event-stream"
+		headers["OpenAI-Beta"] = "responses=experimental"
+		headers["Originator"] = "codex_cli_rs"
+		headers["User-Agent"] = codexCLIUserAgent
+		headers["Version"] = codexCLIVersion
+		sessionID := uuid.NewString()
+		headers["Session_ID"] = sessionID
+		headers["Conversation_ID"] = sessionID
+		return headers
 	},
 	textPath: "output.0.content.0.text",
+}
+
+func isOpenAIResponsesCodexMonitorModel(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	return m == "gpt-5" || strings.HasPrefix(m, "gpt-5.") || strings.Contains(m, "codex")
+}
+
+func buildOpenAIResponsesCodexMonitorBody(model, prompt string) map[string]any {
+	return map[string]any{
+		"model":               model,
+		"instructions":        openai.CodexBaseInstructionsForModel(model),
+		"input":               buildOpenAIResponsesMonitorInput(prompt),
+		"stream":              true,
+		"store":               false,
+		"prompt_cache_key":    buildOpenAIResponsesMonitorPromptCacheKey(model),
+		"tools":               buildOpenAIResponsesMonitorTools(),
+		"tool_choice":         "auto",
+		"parallel_tool_calls": true,
+		"reasoning":           map[string]any{"effort": "low", "summary": "auto"},
+		"text":                map[string]any{"verbosity": "low"},
+		"include":             []string{"reasoning.encrypted_content"},
+	}
+}
+
+func buildOpenAIResponsesMonitorInput(prompt string) []map[string]any {
+	return []map[string]any{
+		{
+			"type": "message",
+			"role": "user",
+			"content": []map[string]any{
+				{"type": "input_text", "text": prompt},
+			},
+		},
+	}
+}
+
+func buildOpenAIResponsesMonitorPromptCacheKey(model string) string {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	if normalized == "" {
+		normalized = "unknown"
+	}
+	re := regexp.MustCompile(`[^a-z0-9._-]+`)
+	normalized = strings.Trim(re.ReplaceAllString(normalized, "-"), "-")
+	if normalized == "" {
+		normalized = "unknown"
+	}
+	return "channel-monitor-" + normalized
+}
+
+func buildOpenAIResponsesMonitorTools() []map[string]any {
+	return []map[string]any{
+		{
+			"type":        "function",
+			"name":        "shell",
+			"description": "Run a shell command",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"cmd": map[string]any{"type": "string"},
+				},
+				"required": []string{"cmd"},
+			},
+			"strict": false,
+		},
+	}
 }
 
 // providerAdapterFor 按 provider + api_mode 选择具体 adapter。
@@ -275,7 +357,7 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 	if err != nil {
 		return "", "", 0, err
 	}
-	headers := mergeHeaders(adapter.buildHeaders(apiKey), opts)
+	headers := mergeHeaders(adapter.buildHeaders(apiKey, model), opts)
 	full := joinURL(endpoint, adapter.buildPath(model))
 	respBytes, status, err := postRawJSON(ctx, full, body, headers)
 	if err != nil {
@@ -291,6 +373,52 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 // Responses 的 output 数组顺序由模型决定：reasoning / tool-call item 可能排在 message 前面，
 // 因此不能假设文本永远在 output.0.content.0.text。
 func extractOpenAIResponsesText(respBytes []byte) string {
+	if text := extractOpenAIResponsesTextFromSSE(respBytes); strings.TrimSpace(text) != "" {
+		return text
+	}
+	return extractOpenAIResponsesTextFromJSON(respBytes)
+}
+
+func extractOpenAIResponsesTextFromSSE(respBytes []byte) string {
+	var deltas []string
+	var completedText string
+
+	for _, rawLine := range strings.Split(string(respBytes), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" || !gjson.Valid(payload) {
+			continue
+		}
+
+		eventType := gjson.Get(payload, "type").String()
+		switch eventType {
+		case "response.output_text.delta":
+			if delta := gjson.Get(payload, "delta").String(); delta != "" {
+				deltas = append(deltas, delta)
+			}
+		case "response.output_text.done":
+			if text := gjson.Get(payload, "text").String(); strings.TrimSpace(text) != "" {
+				completedText = text
+			}
+		case "response.completed", "response.done":
+			if response := gjson.Get(payload, "response"); response.Exists() {
+				if text := extractOpenAIResponsesTextFromJSON([]byte(response.Raw)); strings.TrimSpace(text) != "" {
+					completedText = text
+				}
+			}
+		}
+	}
+
+	if len(deltas) > 0 {
+		return strings.Join(deltas, "")
+	}
+	return completedText
+}
+
+func extractOpenAIResponsesTextFromJSON(respBytes []byte) string {
 	if text := gjson.GetBytes(respBytes, "output_text").String(); strings.TrimSpace(text) != "" {
 		return text
 	}

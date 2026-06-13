@@ -64,6 +64,7 @@ type openAICaptureHandler struct {
 	lastHeaders               http.Header
 	lastPath                  string
 	status                    int
+	responsesSSE              bool
 	responsesLeadingReasoning bool
 }
 
@@ -78,11 +79,28 @@ func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	if h.status == 0 {
 		h.status = http.StatusOK
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(h.status)
 
 	answer := answerFromOpenAIRequest(parsed)
 	if h.lastPath == providerOpenAIResponsesPath {
+		if h.responsesSSE {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(h.status)
+			writeResponsesSSEEvent(w, map[string]any{
+				"type":  "response.output_text.delta",
+				"delta": answer,
+			})
+			writeResponsesSSEEvent(w, map[string]any{
+				"type": "response.completed",
+				"response": map[string]any{
+					"output_text": answer,
+				},
+			})
+			_, _ = w.Write([]byte("data: [DONE]\n\n"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(h.status)
 		output := []map[string]any{}
 		if h.responsesLeadingReasoning {
 			output = append(output, map[string]any{
@@ -103,9 +121,16 @@ func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(h.status)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"choices": []map[string]any{{"message": map[string]any{"content": answer}}},
 	})
+}
+
+func writeResponsesSSEEvent(w http.ResponseWriter, event map[string]any) {
+	payload, _ := json.Marshal(event)
+	_, _ = w.Write([]byte("data: " + string(payload) + "\n\n"))
 }
 
 func setupFakeOpenAI(t *testing.T, handler *openAICaptureHandler) string {
@@ -119,6 +144,9 @@ func setupFakeOpenAI(t *testing.T, handler *openAICaptureHandler) string {
 func answerFromOpenAIRequest(body map[string]any) string {
 	prompt, _ := body["input"].(string)
 	if prompt == "" {
+		prompt = promptFromOpenAIResponsesInput(body["input"])
+	}
+	if prompt == "" {
 		if messages, ok := body["messages"].([]any); ok && len(messages) > 0 {
 			if msg, ok := messages[0].(map[string]any); ok {
 				prompt, _ = msg["content"].(string)
@@ -126,6 +154,32 @@ func answerFromOpenAIRequest(body map[string]any) string {
 		}
 	}
 	return answerFromChallengePrompt(prompt)
+}
+
+func promptFromOpenAIResponsesInput(input any) string {
+	items, ok := input.([]any)
+	if !ok || len(items) == 0 {
+		return ""
+	}
+	msg, ok := items[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	switch content := msg["content"].(type) {
+	case string:
+		return content
+	case []any:
+		for _, item := range content {
+			block, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if text, _ := block["text"].(string); strings.TrimSpace(text) != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 var challengeQuestionRegex = regexp.MustCompile(`Q: (\d+) ([+-]) (\d+) = \?\nA:$`)
@@ -218,11 +272,133 @@ func TestRunCheckForModel_OpenAIResponses_DefaultRequest(t *testing.T) {
 	if _, ok := h.lastBody["messages"]; ok {
 		t.Error("responses body must not contain chat messages")
 	}
+	if h.lastBody["max_output_tokens"] != float64(monitorChallengeMaxTokens) {
+		t.Errorf("responses body should contain max_output_tokens=%d, got %v", monitorChallengeMaxTokens, h.lastBody["max_output_tokens"])
+	}
 	if h.lastBody["stream"] != false {
 		t.Errorf("responses body should set stream=false, got %v", h.lastBody["stream"])
 	}
+	if _, ok := h.lastBody["store"]; ok {
+		t.Error("non-codex responses monitor body should not contain store")
+	}
+	if _, ok := h.lastBody["tools"]; ok {
+		t.Error("non-codex responses monitor body should not contain tools")
+	}
 	if h.lastHeaders.Get("Authorization") != "Bearer sk-openai" {
 		t.Errorf("expected bearer auth header, got %q", h.lastHeaders.Get("Authorization"))
+	}
+	if h.lastHeaders.Get("OpenAI-Beta") != "" {
+		t.Errorf("non-codex responses monitor should not set OpenAI-Beta, got %q", h.lastHeaders.Get("OpenAI-Beta"))
+	}
+	if h.lastHeaders.Get("Originator") != "" {
+		t.Errorf("non-codex responses monitor should not set Originator, got %q", h.lastHeaders.Get("Originator"))
+	}
+}
+
+func TestRunCheckForModel_OpenAIResponses_CodexRequest(t *testing.T) {
+	h := &openAICaptureHandler{responsesSSE: true}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "gpt-5.5", &CheckOptions{
+		APIMode: MonitorAPIModeResponses,
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("codex responses request should pass challenge, got status=%s message=%q", res.Status, res.Message)
+	}
+	if h.lastBody["model"] != "gpt-5.5" {
+		t.Errorf("responses body should contain model=gpt-5.5, got %v", h.lastBody["model"])
+	}
+	inputItems, ok := h.lastBody["input"].([]any)
+	if !ok || len(inputItems) == 0 {
+		t.Fatalf("responses body should contain non-empty input array, got %T", h.lastBody["input"])
+	}
+	msg, ok := inputItems[0].(map[string]any)
+	if !ok {
+		t.Fatalf("responses input item should be an object, got %T", inputItems[0])
+	}
+	if msg["type"] != "message" || msg["role"] != "user" {
+		t.Errorf("responses input should be a user message, got type=%v role=%v", msg["type"], msg["role"])
+	}
+	content, ok := msg["content"].([]any)
+	if !ok || len(content) == 0 {
+		t.Fatalf("responses input message should contain content blocks, got %T", msg["content"])
+	}
+	block, ok := content[0].(map[string]any)
+	if !ok {
+		t.Fatalf("responses content block should be an object, got %T", content[0])
+	}
+	text, _ := block["text"].(string)
+	if block["type"] != "input_text" || strings.TrimSpace(text) == "" {
+		t.Errorf("responses content should contain non-empty input_text, got %v", block)
+	}
+	if _, ok := h.lastBody["messages"]; ok {
+		t.Error("responses body must not contain chat messages")
+	}
+	if _, ok := h.lastBody["max_output_tokens"]; ok {
+		t.Error("codex responses monitor body must not contain max_output_tokens")
+	}
+	if _, ok := h.lastBody["temperature"]; ok {
+		t.Error("codex responses monitor body must not contain temperature")
+	}
+	if h.lastBody["stream"] != true {
+		t.Errorf("responses body should set stream=true, got %v", h.lastBody["stream"])
+	}
+	if h.lastBody["store"] != false {
+		t.Errorf("responses body should set store=false, got %v", h.lastBody["store"])
+	}
+	if h.lastBody["prompt_cache_key"] != "channel-monitor-gpt-5.5" {
+		t.Errorf("unexpected prompt_cache_key: %v", h.lastBody["prompt_cache_key"])
+	}
+	if h.lastBody["tool_choice"] != "auto" {
+		t.Errorf("codex responses body should set tool_choice=auto, got %v", h.lastBody["tool_choice"])
+	}
+	if h.lastBody["parallel_tool_calls"] != true {
+		t.Errorf("codex responses body should enable parallel_tool_calls, got %v", h.lastBody["parallel_tool_calls"])
+	}
+	reasoning, ok := h.lastBody["reasoning"].(map[string]any)
+	if !ok {
+		t.Errorf("codex responses body should contain reasoning config, got %v", h.lastBody["reasoning"])
+	} else if effort := stringFromAny(reasoning["effort"]); effort != "low" {
+		t.Errorf("codex responses body should set reasoning.effort=low, got %q", effort)
+	}
+	textCfg, ok := h.lastBody["text"].(map[string]any)
+	if !ok || strings.TrimSpace(stringFromAny(textCfg["verbosity"])) == "" {
+		t.Errorf("codex responses body should contain text config, got %v", h.lastBody["text"])
+	}
+	tools, ok := h.lastBody["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		t.Fatalf("codex responses body should contain tools, got %T", h.lastBody["tools"])
+	}
+	if h.lastHeaders.Get("Authorization") != "Bearer sk-openai" {
+		t.Errorf("expected bearer auth header, got %q", h.lastHeaders.Get("Authorization"))
+	}
+	if h.lastHeaders.Get("OpenAI-Beta") != "responses=experimental" {
+		t.Errorf("expected codex beta header, got %q", h.lastHeaders.Get("OpenAI-Beta"))
+	}
+	if h.lastHeaders.Get("Accept") != "text/event-stream" {
+		t.Errorf("expected event-stream accept header, got %q", h.lastHeaders.Get("Accept"))
+	}
+	if h.lastHeaders.Get("Originator") != "codex_cli_rs" {
+		t.Errorf("expected codex originator, got %q", h.lastHeaders.Get("Originator"))
+	}
+	if h.lastHeaders.Get("User-Agent") != codexCLIUserAgent {
+		t.Errorf("expected codex user-agent, got %q", h.lastHeaders.Get("User-Agent"))
+	}
+	if h.lastHeaders.Get("Version") != codexCLIVersion {
+		t.Errorf("expected codex version, got %q", h.lastHeaders.Get("Version"))
+	}
+	sessionID := h.lastHeaders.Get("Session_ID")
+	conversationID := h.lastHeaders.Get("Conversation_ID")
+	if sessionID == "" || conversationID == "" {
+		t.Fatal("expected codex session headers")
+	}
+	if sessionID != conversationID {
+		t.Errorf("expected Session_ID and Conversation_ID to match, got %q and %q", sessionID, conversationID)
+	}
+	uuidLike := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	if !uuidLike.MatchString(sessionID) {
+		t.Errorf("expected UUID-like session id, got %q", sessionID)
 	}
 }
 
