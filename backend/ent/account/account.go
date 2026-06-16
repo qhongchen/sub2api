@@ -73,6 +73,8 @@ const (
 	FieldSessionWindowEnd = "session_window_end"
 	// FieldSessionWindowStatus holds the string denoting the session_window_status field in the database.
 	FieldSessionWindowStatus = "session_window_status"
+	// FieldForceClaudeContext1m holds the string denoting the force_claude_context_1m field in the database.
+	FieldForceClaudeContext1m = "force_claude_context_1m"
 	// EdgeGroups holds the string denoting the groups edge name in mutations.
 	EdgeGroups = "groups"
 	// EdgeProxy holds the string denoting the proxy edge name in mutations.
@@ -143,6 +145,7 @@ var Columns = []string{
 	FieldSessionWindowStart,
 	FieldSessionWindowEnd,
 	FieldSessionWindowStatus,
+	FieldForceClaudeContext1m,
 }
 
 var (
@@ -201,6 +204,8 @@ var (
 	DefaultSchedulable bool
 	// SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	SessionWindowStatusValidator func(string) error
+	// DefaultForceClaudeContext1m holds the default value on creation for the "force_claude_context_1m" field.
+	DefaultForceClaudeContext1m bool
 )
 
 // OrderOption defines the ordering options for the Account queries.
@@ -344,6 +349,11 @@ func BySessionWindowEnd(opts ...sql.OrderTermOption) OrderOption {
 // BySessionWindowStatus orders the results by the session_window_status field.
 func BySessionWindowStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSessionWindowStatus, opts...).ToFunc()
+}
+
+// ByForceClaudeContext1m orders the results by the force_claude_context_1m field.
+func ByForceClaudeContext1m(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldForceClaudeContext1m, opts...).ToFunc()
 }
 
 // ByGroupsCount orders the results by groups count.

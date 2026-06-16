@@ -1703,6 +1703,35 @@
         </div>
       </div>
 
+      <!-- Force Claude 1M Context (Anthropic accounts only) -->
+      <div v-if="account?.platform === 'anthropic'">
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{
+              t('admin.accounts.forceClaudeContext1M')
+            }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.forceClaudeContext1MDesc') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="forceClaudeContext1M = !forceClaudeContext1M"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              forceClaudeContext1M ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                forceClaudeContext1M ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
       <!-- 配额控制 (Anthropic OAuth/SetupToken: 亲和 + 窗口费用 + 会话 + RPM 等) -->
       <div
         v-if="account?.platform === 'anthropic' && (account?.type === 'oauth' || account?.type === 'setup-token')"
@@ -2320,6 +2349,7 @@ const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(false)
+const forceClaudeContext1M = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
@@ -2647,6 +2677,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   const credentials = newAccount.credentials as Record<string, unknown> | undefined
   interceptWarmupRequests.value = credentials?.intercept_warmup_requests === true
   autoPauseOnExpired.value = newAccount.auto_pause_on_expired === true
+  forceClaudeContext1M.value = newAccount.force_claude_context_1m === true
   editVertexProjectId.value = ''
   editVertexClientEmail.value = ''
   editVertexLocation.value = 'us-central1'
@@ -3372,6 +3403,7 @@ const handleSubmit = async () => {
       updatePayload.load_factor = 0
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
+    updatePayload.force_claude_context_1m = forceClaudeContext1M.value
 
     // For apikey type, handle credentials update
     if (props.account.type === 'apikey') {

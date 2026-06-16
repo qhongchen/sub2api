@@ -250,6 +250,11 @@ func CacheTTLOverridden(v bool) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCacheTTLOverridden, v))
 }
 
+// ClaudeContext1m applies equality check predicate on the "claude_context_1m" field. It's identical to ClaudeContext1mEQ.
+func ClaudeContext1m(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldClaudeContext1m, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCreatedAt, v))
@@ -2158,6 +2163,16 @@ func CacheTTLOverriddenEQ(v bool) predicate.UsageLog {
 // CacheTTLOverriddenNEQ applies the NEQ predicate on the "cache_ttl_overridden" field.
 func CacheTTLOverriddenNEQ(v bool) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNEQ(FieldCacheTTLOverridden, v))
+}
+
+// ClaudeContext1mEQ applies the EQ predicate on the "claude_context_1m" field.
+func ClaudeContext1mEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldClaudeContext1m, v))
+}
+
+// ClaudeContext1mNEQ applies the NEQ predicate on the "claude_context_1m" field.
+func ClaudeContext1mNEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldClaudeContext1m, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

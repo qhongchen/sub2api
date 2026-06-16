@@ -301,6 +301,7 @@ SELECT
   ul.account_rate_multiplier,
   ul.account_stats_cost,
   ul.cache_ttl_overridden,
+  ul.claude_context_1m,
   COALESCE(ul.model_mapping_chain, ''),
   COALESCE(ul.billing_tier, ''),
   COALESCE(ul.service_tier, ''),
@@ -533,7 +534,7 @@ func scanRecord(rows recordScanner) (*Record, error) {
 	var inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, cacheCreation5mTokens, cacheCreation1hTokens sql.NullInt64
 	var imageOutputTokens, imageCount, billingType sql.NullInt64
 	var imageOutputCost, inputCost, outputCost, cacheCreationCost, cacheReadCost, totalCost, actualCost, rateMultiplier, accountRateMultiplier, accountStatsCost sql.NullFloat64
-	var cacheTTLOverridden sql.NullBool
+	var cacheTTLOverridden, claudeContext1M sql.NullBool
 	var imageSizeBreakdown sql.NullString
 	var upstreamAttempts sql.NullString
 	var userEmail, userUsername, apiKeyName, accountName, groupName sql.NullString
@@ -591,6 +592,7 @@ func scanRecord(rows recordScanner) (*Record, error) {
 		&accountRateMultiplier,
 		&accountStatsCost,
 		&cacheTTLOverridden,
+		&claudeContext1M,
 		&item.ModelMappingChain,
 		&item.BillingTier,
 		&item.ServiceTier,
@@ -649,6 +651,7 @@ func scanRecord(rows recordScanner) (*Record, error) {
 	item.AccountRateMultiplier = nullFloat64Ptr(accountRateMultiplier)
 	item.AccountStatsCost = nullFloat64Ptr(accountStatsCost)
 	item.CacheTTLOverridden = nullBoolPtr(cacheTTLOverridden)
+	item.ClaudeContext1M = nullBoolPtr(claudeContext1M)
 	item.UpstreamAttempts = parseUpstreamAttempts(upstreamAttempts.String)
 	if !item.Billable {
 		clearBillingDisplayFields(&item)
@@ -683,7 +686,7 @@ func requestRecordListColumns() []string {
 		"image_size", "image_input_size", "image_output_size", "image_size_source", "image_size_breakdown",
 		"input_cost", "output_cost", "cache_creation_cost", "cache_read_cost", "total_cost", "actual_cost",
 		"rate_multiplier", "billing_type", "billing_mode", "account_rate_multiplier", "account_stats_cost",
-		"cache_ttl_overridden", "model_mapping_chain", "billing_tier", "service_tier", "reasoning_effort",
+		"cache_ttl_overridden", "claude_context_1m", "model_mapping_chain", "billing_tier", "service_tier", "reasoning_effort",
 		"ip_address", "user_agent", "error_message", "upstream_attempts", "user_email", "user_username", "api_key_name", "account_name", "group_name",
 	}
 }

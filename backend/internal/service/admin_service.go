@@ -290,6 +290,7 @@ type CreateAccountInput struct {
 	GroupIDs           []int64
 	ExpiresAt          *int64
 	AutoPauseOnExpired *bool
+	ForceClaudeContext1M *bool
 	// SkipDefaultGroupBind prevents auto-binding to platform default group when GroupIDs is empty.
 	SkipDefaultGroupBind bool
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
@@ -312,6 +313,7 @@ type UpdateAccountInput struct {
 	GroupIDs              *[]int64
 	ExpiresAt             *int64
 	AutoPauseOnExpired    *bool
+	ForceClaudeContext1M  *bool
 	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
 }
 
@@ -2606,6 +2608,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		Status:      StatusActive,
 		Schedulable: true,
 	}
+	if input.ForceClaudeContext1M != nil {
+		account.ForceClaudeContext1M = *input.ForceClaudeContext1M
+	}
 	// 预计算固定时间重置的下次重置时间
 	if account.Extra != nil {
 		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
@@ -2768,6 +2773,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	if input.AutoPauseOnExpired != nil {
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
+	}
+	if input.ForceClaudeContext1M != nil {
+		account.ForceClaudeContext1M = *input.ForceClaudeContext1M
 	}
 
 	// 先验证分组是否存在（在任何写操作之前）

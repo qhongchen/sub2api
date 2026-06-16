@@ -1,5 +1,23 @@
 <template>
   <div class="space-y-4">
+    <div
+      v-if="provider === PROVIDER_ANTHROPIC"
+      class="rounded-lg border border-orange-100 bg-orange-50/60 p-3 dark:border-orange-500/20 dark:bg-orange-500/10"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <label class="input-label !mb-0">{{ t('admin.channelMonitor.advanced.context1M') }}</label>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.channelMonitor.advanced.context1MHint') }}
+          </p>
+        </div>
+        <Toggle
+          :model-value="context1MEnabled"
+          @update:modelValue="setContext1MEnabled"
+        />
+      </div>
+    </div>
+
     <!-- Headers key-value rows -->
     <div>
       <label class="input-label">{{ t('admin.channelMonitor.advanced.headers') }}</label>
@@ -107,10 +125,15 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { APIMode, BodyOverrideMode, Provider } from '@/api/admin/channelMonitor'
+import Toggle from '@/components/common/Toggle.vue'
 import {
   API_MODE_RESPONSES,
+  PROVIDER_ANTHROPIC,
   PROVIDER_OPENAI,
 } from '@/constants/channelMonitor'
+
+const ANTHROPIC_BETA_HEADER = 'anthropic-beta'
+const CLAUDE_CONTEXT_1M_BETA = 'context-1m-2025-08-07'
 
 const props = defineProps<{
   provider?: Provider
@@ -127,6 +150,16 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const context1MEnabled = computed(() =>
+  betaTokensContain(getHeaderValue(props.extraHeaders, ANTHROPIC_BETA_HEADER), CLAUDE_CONTEXT_1M_BETA),
+)
+
+function setContext1MEnabled(enabled: boolean) {
+  commitHeaders()
+  if (headersError.value) return
+  emit('update:extraHeaders', setBetaToken(toMap(headerRows.value), CLAUDE_CONTEXT_1M_BETA, enabled))
+}
 
 // ---- Headers key-value rows ----
 interface HeaderRow {
@@ -173,6 +206,45 @@ function isSameHeaderMap(a: Record<string, string>, b: Record<string, string>): 
     if (a[k] !== b[k]) return false
   }
   return true
+}
+
+function getHeaderValue(headers: Record<string, string>, name: string): string {
+  const needle = name.toLowerCase()
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (key.trim().toLowerCase() === needle) return value
+  }
+  return ''
+}
+
+function splitBetaTokens(value: string): string[] {
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
+
+function betaTokensContain(value: string, token: string): boolean {
+  return splitBetaTokens(value).includes(token)
+}
+
+function setBetaToken(headers: Record<string, string>, token: string, enabled: boolean): Record<string, string> {
+  const out: Record<string, string> = {}
+  const betaTokens: string[] = []
+
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (key.trim().toLowerCase() === ANTHROPIC_BETA_HEADER) {
+      betaTokens.push(...splitBetaTokens(value))
+      continue
+    }
+    out[key] = value
+  }
+
+  const nextTokens = betaTokens.filter((v, index) => v !== token && betaTokens.indexOf(v) === index)
+  if (enabled) nextTokens.push(token)
+  if (nextTokens.length > 0) {
+    out[ANTHROPIC_BETA_HEADER] = nextTokens.join(',')
+  }
+  return out
 }
 
 function commitHeaders() {

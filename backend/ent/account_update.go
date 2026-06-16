@@ -530,6 +530,20 @@ func (_u *AccountUpdate) ClearSessionWindowStatus() *AccountUpdate {
 	return _u
 }
 
+// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
+func (_u *AccountUpdate) SetForceClaudeContext1m(v bool) *AccountUpdate {
+	_u.mutation.SetForceClaudeContext1m(v)
+	return _u
+}
+
+// SetNillableForceClaudeContext1m sets the "force_claude_context_1m" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableForceClaudeContext1m(v *bool) *AccountUpdate {
+	if v != nil {
+		_u.SetForceClaudeContext1m(*v)
+	}
+	return _u
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_u *AccountUpdate) AddGroupIDs(ids ...int64) *AccountUpdate {
 	_u.mutation.AddGroupIDs(ids...)
@@ -842,6 +856,9 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.SessionWindowStatusCleared() {
 		_spec.ClearField(account.FieldSessionWindowStatus, field.TypeString)
+	}
+	if value, ok := _u.mutation.ForceClaudeContext1m(); ok {
+		_spec.SetField(account.FieldForceClaudeContext1m, field.TypeBool, value)
 	}
 	if _u.mutation.GroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1493,6 +1510,20 @@ func (_u *AccountUpdateOne) ClearSessionWindowStatus() *AccountUpdateOne {
 	return _u
 }
 
+// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
+func (_u *AccountUpdateOne) SetForceClaudeContext1m(v bool) *AccountUpdateOne {
+	_u.mutation.SetForceClaudeContext1m(v)
+	return _u
+}
+
+// SetNillableForceClaudeContext1m sets the "force_claude_context_1m" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableForceClaudeContext1m(v *bool) *AccountUpdateOne {
+	if v != nil {
+		_u.SetForceClaudeContext1m(*v)
+	}
+	return _u
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_u *AccountUpdateOne) AddGroupIDs(ids ...int64) *AccountUpdateOne {
 	_u.mutation.AddGroupIDs(ids...)
@@ -1835,6 +1866,9 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	}
 	if _u.mutation.SessionWindowStatusCleared() {
 		_spec.ClearField(account.FieldSessionWindowStatus, field.TypeString)
+	}
+	if value, ok := _u.mutation.ForceClaudeContext1m(); ok {
+		_spec.SetField(account.FieldForceClaudeContext1m, field.TypeBool, value)
 	}
 	if _u.mutation.GroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{

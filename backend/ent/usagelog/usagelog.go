@@ -94,6 +94,8 @@ const (
 	FieldImageSizeBreakdown = "image_size_breakdown"
 	// FieldCacheTTLOverridden holds the string denoting the cache_ttl_overridden field in the database.
 	FieldCacheTTLOverridden = "cache_ttl_overridden"
+	// FieldClaudeContext1m holds the string denoting the claude_context_1m field in the database.
+	FieldClaudeContext1m = "claude_context_1m"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -188,6 +190,7 @@ var Columns = []string{
 	FieldImageSizeSource,
 	FieldImageSizeBreakdown,
 	FieldCacheTTLOverridden,
+	FieldClaudeContext1m,
 	FieldCreatedAt,
 }
 
@@ -262,6 +265,8 @@ var (
 	ImageSizeSourceValidator func(string) error
 	// DefaultCacheTTLOverridden holds the default value on creation for the "cache_ttl_overridden" field.
 	DefaultCacheTTLOverridden bool
+	// DefaultClaudeContext1m holds the default value on creation for the "claude_context_1m" field.
+	DefaultClaudeContext1m bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -467,6 +472,11 @@ func ByImageSizeSource(opts ...sql.OrderTermOption) OrderOption {
 // ByCacheTTLOverridden orders the results by the cache_ttl_overridden field.
 func ByCacheTTLOverridden(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCacheTTLOverridden, opts...).ToFunc()
+}
+
+// ByClaudeContext1m orders the results by the claude_context_1m field.
+func ByClaudeContext1m(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldClaudeContext1m, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

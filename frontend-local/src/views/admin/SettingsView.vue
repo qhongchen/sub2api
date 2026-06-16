@@ -7133,7 +7133,7 @@ const form = reactive<SettingsForm>({
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
-  enable_claude_context_1m_force: true,
+  enable_claude_context_1m_force: false,
   rewrite_message_cache_control: false,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",

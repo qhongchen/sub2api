@@ -312,9 +312,25 @@
               </template>
 
               <template v-else-if="column.key === 'cost'">
-                <span v-if="!hasBillableCost(row)" class="text-sm text-gray-500 dark:text-dark-400">-</span>
+                <span v-if="!hasBillableCost(row)" class="inline-flex items-center justify-start gap-1.5 text-sm text-gray-500 dark:text-dark-400">
+                  <span>-</span>
+                  <span
+                    v-if="row.claude_context_1m"
+                    class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-purple-100 text-purple-700 ring-1 ring-inset ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30"
+                    title="1M Context"
+                  >
+                    1M
+                  </span>
+                </span>
                 <div v-else class="inline-flex items-center justify-start gap-1.5">
                   <span class="font-mono text-sm font-semibold text-gray-950 dark:text-white">${{ num(row.actual_cost).toFixed(6) }}</span>
+                  <span
+                    v-if="row.claude_context_1m"
+                    class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-purple-100 text-purple-700 ring-1 ring-inset ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30"
+                    title="1M Context"
+                  >
+                    1M
+                  </span>
                   <button
                     type="button"
                     :aria-label="t('usage.costDetails')"
@@ -663,6 +679,7 @@ type UsageTableRow = Omit<
   | NullableUsageNumberField
   | NullableUsageStringField
   | 'cache_ttl_overridden'
+  | 'claude_context_1m'
   | 'image_size_breakdown'
   | 'image_size_source'
 > & {
@@ -684,6 +701,7 @@ type UsageTableRow = Omit<
   message?: string
   platform?: string | null
   cache_ttl_overridden?: boolean | null
+  claude_context_1m?: boolean | null
   image_size_breakdown?: UsageLog['image_size_breakdown'] | null
   image_size_source?: UsageLog['image_size_source'] | null
   account?: UsageTableIdentity | null

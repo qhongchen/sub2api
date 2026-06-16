@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
@@ -10,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+const channelMonitorUserHistoryLimit = 60
 
 // ChannelMonitorUserHandler 渠道监控用户只读 handler。
 type ChannelMonitorUserHandler struct {
@@ -81,6 +85,16 @@ type channelMonitorUserModelStat struct {
 	AvgLatency7dMs  *int    `json:"avg_latency_7d_ms"`
 }
 
+type channelMonitorUserHistoryItem struct {
+	ID            int64  `json:"id"`
+	Model         string `json:"model"`
+	Status        string `json:"status"`
+	LatencyMs     *int   `json:"latency_ms"`
+	PingLatencyMs *int   `json:"ping_latency_ms"`
+	Message       string `json:"message"`
+	CheckedAt     string `json:"checked_at"`
+}
+
 func userMonitorViewToItem(v *service.UserMonitorView) channelMonitorUserListItem {
 	extras := make([]dto.ChannelMonitorExtraModelStatus, 0, len(v.ExtraModels))
 	for _, e := range v.ExtraModels {
@@ -136,6 +150,18 @@ func userMonitorDetailToResponse(d *service.UserMonitorDetail) *channelMonitorUs
 	}
 }
 
+func userHistoryEntryToResponse(e *service.ChannelMonitorHistoryEntry) channelMonitorUserHistoryItem {
+	return channelMonitorUserHistoryItem{
+		ID:            e.ID,
+		Model:         e.Model,
+		Status:        e.Status,
+		LatencyMs:     e.LatencyMs,
+		PingLatencyMs: e.PingLatencyMs,
+		Message:       e.Message,
+		CheckedAt:     e.CheckedAt.UTC().Format(time.RFC3339),
+	}
+}
+
 // --- Handlers ---
 
 // List GET /api/v1/channel-monitors
@@ -173,4 +199,40 @@ func (h *ChannelMonitorUserHandler) GetStatus(c *gin.Context) {
 		return
 	}
 	response.Success(c, userMonitorDetailToResponse(detail))
+}
+
+// History GET /api/v1/channel-monitors/:id/history
+func (h *ChannelMonitorUserHandler) History(c *gin.Context) {
+	if !h.featureEnabled(c) {
+		response.ErrorFrom(c, service.ErrChannelMonitorNotFound)
+		return
+	}
+	id, ok := admin.ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	limit := parseUserHistoryLimit(c.Query("limit"))
+	model := strings.TrimSpace(c.Query("model"))
+
+	entries, err := h.monitorService.ListUserHistory(c.Request.Context(), id, model, limit)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]channelMonitorUserHistoryItem, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, userHistoryEntryToResponse(e))
+	}
+	response.Success(c, gin.H{"items": out})
+}
+
+func parseUserHistoryLimit(raw string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || v <= 0 {
+		return channelMonitorUserHistoryLimit
+	}
+	if v > channelMonitorUserHistoryLimit {
+		return channelMonitorUserHistoryLimit
+	}
+	return v
 }

@@ -288,6 +288,13 @@
               <span class="font-medium text-green-600 dark:text-green-400">
                 ${{ (row.actual_cost ?? 0).toFixed(6) }}
               </span>
+              <span
+                v-if="row.claude_context_1m"
+                class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-purple-100 text-purple-700 ring-1 ring-inset ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30"
+                title="1M Context"
+              >
+                1M
+              </span>
               <!-- Cost Detail Tooltip -->
               <div
                 class="group relative"

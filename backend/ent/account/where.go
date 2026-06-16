@@ -190,6 +190,11 @@ func SessionWindowStatus(v string) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldSessionWindowStatus, v))
 }
 
+// ForceClaudeContext1m applies equality check predicate on the "force_claude_context_1m" field. It's identical to ForceClaudeContext1mEQ.
+func ForceClaudeContext1m(v bool) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldForceClaudeContext1m, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldCreatedAt, v))
@@ -1548,6 +1553,16 @@ func SessionWindowStatusEqualFold(v string) predicate.Account {
 // SessionWindowStatusContainsFold applies the ContainsFold predicate on the "session_window_status" field.
 func SessionWindowStatusContainsFold(v string) predicate.Account {
 	return predicate.Account(sql.FieldContainsFold(FieldSessionWindowStatus, v))
+}
+
+// ForceClaudeContext1mEQ applies the EQ predicate on the "force_claude_context_1m" field.
+func ForceClaudeContext1mEQ(v bool) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldForceClaudeContext1m, v))
+}
+
+// ForceClaudeContext1mNEQ applies the NEQ predicate on the "force_claude_context_1m" field.
+func ForceClaudeContext1mNEQ(v bool) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldForceClaudeContext1m, v))
 }
 
 // HasGroups applies the HasEdge predicate on the "groups" edge.

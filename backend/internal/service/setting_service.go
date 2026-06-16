@@ -2293,11 +2293,11 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 				metadataPassthrough:          false,
 				cchSigning:                   false,
 				anthropicCacheTTL1hInjection: false,
-				claudeContext1MForce:         true,
+				claudeContext1MForce:         false,
 				rewriteMessageCacheControl:   s.defaultRewriteMessageCacheControl(),
 				expiresAt:                    time.Now().Add(gatewayForwardingErrorTTL).UnixNano(),
 			})
-			return gatewayForwardingSettingsResult{fp: true, forceContext1M: true, rewriteMessageCacheControl: s.defaultRewriteMessageCacheControl()}, nil
+			return gatewayForwardingSettingsResult{fp: true, forceContext1M: false, rewriteMessageCacheControl: s.defaultRewriteMessageCacheControl()}, nil
 		}
 		fp := true
 		if v, ok := values[SettingKeyEnableFingerprintUnification]; ok && v != "" {
@@ -2306,7 +2306,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		mp := values[SettingKeyEnableMetadataPassthrough] == "true"
 		cch := values[SettingKeyEnableCCHSigning] == "true"
 		cacheTTL1h := values[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
-		forceContext1M := true
+		forceContext1M := false
 		if v, ok := values[SettingKeyEnableClaudeContext1MForce]; ok && v != "" {
 			forceContext1M = v == "true"
 		}
@@ -2335,7 +2335,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
 		return r
 	}
-	return gatewayForwardingSettingsResult{fp: true, forceContext1M: true}
+	return gatewayForwardingSettingsResult{fp: true, forceContext1M: false}
 }
 
 // GetGatewayForwardingSettings returns cached gateway forwarding settings.
@@ -2844,7 +2844,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// 分组隔离（默认不允许未分组 Key 调度）
 		SettingKeyAllowUngroupedKeyScheduling:        "false",
 		SettingKeyEnableAnthropicCacheTTL1hInjection: "false",
-		SettingKeyEnableClaudeContext1MForce:         "true",
+		SettingKeyEnableClaudeContext1MForce:         "false",
 		SettingKeyRewriteMessageCacheControl:         strconv.FormatBool(s.defaultRewriteMessageCacheControl()),
 		SettingKeyAntigravityUserAgentVersion:        "",
 		SettingKeyOpenAICodexUserAgent:               "",
@@ -3366,7 +3366,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	if v, ok := settings[SettingKeyEnableClaudeContext1MForce]; ok && v != "" {
 		result.EnableClaudeContext1MForce = v == "true"
 	} else {
-		result.EnableClaudeContext1MForce = true
+		result.EnableClaudeContext1MForce = false
 	}
 	if v, ok := settings[SettingKeyRewriteMessageCacheControl]; ok && v != "" {
 		result.RewriteMessageCacheControl = v == "true"

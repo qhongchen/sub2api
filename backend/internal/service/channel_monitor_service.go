@@ -236,6 +236,22 @@ func (s *ChannelMonitorService) ListHistory(ctx context.Context, id int64, model
 	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return nil, err
 	}
+	return s.listHistory(ctx, id, model, limit)
+}
+
+// ListUserHistory 列出用户可见监控的最近检测历史。
+func (s *ChannelMonitorService) ListUserHistory(ctx context.Context, id int64, model string, limit int) ([]*ChannelMonitorHistoryEntry, error) {
+	m, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !m.Enabled {
+		return nil, ErrChannelMonitorNotFound
+	}
+	return s.listHistory(ctx, id, model, limit)
+}
+
+func (s *ChannelMonitorService) listHistory(ctx context.Context, id int64, model string, limit int) ([]*ChannelMonitorHistoryEntry, error) {
 	if limit <= 0 {
 		limit = MonitorHistoryDefaultLimit
 	}

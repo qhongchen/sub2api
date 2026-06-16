@@ -875,6 +875,9 @@ export interface Account {
   custom_base_url_enabled?: boolean | null
   custom_base_url?: string | null
 
+  // 强制启用 Claude 1M 上下文
+  force_claude_context_1m: boolean
+
   // API Key 账号配额限制
   quota_limit?: number | null
   quota_used?: number | null
@@ -1014,6 +1017,7 @@ export interface CreateAccountRequest {
   group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
+  force_claude_context_1m?: boolean
   confirm_mixed_channel_risk?: boolean
 }
 
@@ -1033,6 +1037,7 @@ export interface UpdateAccountRequest {
   group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
+  force_claude_context_1m?: boolean
   confirm_mixed_channel_risk?: boolean
 }
 
@@ -1214,6 +1219,7 @@ export interface UsageLog {
   total_cost: number
   actual_cost: number
   rate_multiplier: number
+  claude_context_1m?: boolean
   billing_type: number
 
   request_type?: UsageRequestType

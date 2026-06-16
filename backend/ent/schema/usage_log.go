@@ -152,6 +152,9 @@ func (UsageLog) Fields() []ent.Field {
 		// Cache TTL Override 标记（管理员强制替换了缓存 TTL 计费）
 		field.Bool("cache_ttl_overridden").
 			Default(false),
+		field.Bool("claude_context_1m").
+			Default(false).
+			Comment("请求最终是否使用 Anthropic 1M context beta"),
 
 		// 时间戳（只有 created_at，日志不可修改）
 		field.Time("created_at").

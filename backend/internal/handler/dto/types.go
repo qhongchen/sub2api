@@ -227,6 +227,9 @@ type Account struct {
 	CustomBaseURLEnabled *bool   `json:"custom_base_url_enabled,omitempty"`
 	CustomBaseURL        *string `json:"custom_base_url,omitempty"`
 
+	// 强制启用 Claude 1M 上下文
+	ForceClaudeContext1M bool `json:"force_claude_context_1m"`
+
 	// API Key 账号配额限制
 	QuotaLimit       *float64 `json:"quota_limit,omitempty"`
 	QuotaUsed        *float64 `json:"quota_used,omitempty"`
@@ -483,6 +486,8 @@ type UsageLog struct {
 
 	// Cache TTL Override 标记
 	CacheTTLOverridden bool `json:"cache_ttl_overridden"`
+	// Claude 1M Context 标记
+	ClaudeContext1M bool `json:"claude_context_1m"`
 
 	// BillingMode 计费模式：token/image
 	BillingMode *string `json:"billing_mode,omitempty"`

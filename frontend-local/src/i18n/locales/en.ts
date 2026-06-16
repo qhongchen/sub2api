@@ -1056,10 +1056,13 @@ export default {
     description: 'Inspect channel availability, latency and recent status',
     searchPlaceholder: 'Search channels...',
     allProviders: 'All Providers',
+    providerGroupCount: '{n} channels',
     loadError: 'Failed to load channel status',
     detailLoadError: 'Failed to load channel detail',
     detailTitle: 'Channel Detail',
     closeDetail: 'Close',
+    historyTitle: 'Recent {n} Probes',
+    historyEmpty: 'No probe history yet',
     windowTab: {
       '7d': '7 days',
       '15d': '15 days',
@@ -1086,6 +1089,14 @@ export default {
       availability15d: '15d Availability',
       availability30d: '30d Availability',
       avgLatency7d: '7d Avg Latency (ms)'
+    },
+    historyColumns: {
+      checkedAt: 'Checked At',
+      model: 'Model',
+      status: 'Status',
+      latency: 'Model Latency (ms)',
+      pingLatency: 'Ping Latency (ms)',
+      message: 'Detail'
     },
     empty: {
       title: 'No channels available',
@@ -2804,6 +2815,8 @@ export default {
       advanced: {
         section: 'Advanced (optional)',
         sectionHint: 'Customize request headers and body to bypass upstream client-detection (e.g. "only Claude Code clients allowed").',
+        context1M: 'Enable Claude 1M context',
+        context1MHint: 'Anthropic checks only. Adds context-1m-2025-08-07 to anthropic-beta when enabled.',
         headers: 'Custom request headers',
         headersPlaceholder: 'User-Agent: claude-cli/1.0.83 (external, cli)\nx-app: cli\nanthropic-beta: claude-code-20250219',
         headerNamePlaceholder: 'Header name',
@@ -3491,6 +3504,8 @@ export default {
         'When enabled, warmup requests like title generation will return mock responses without consuming upstream tokens',
       autoPauseOnExpired: 'Auto Pause On Expired',
       autoPauseOnExpiredDesc: 'When enabled, the account will auto pause scheduling after it expires',
+      forceClaudeContext1M: 'Force Claude 1M Context',
+      forceClaudeContext1MDesc: 'When enabled, all Claude requests from this account will use the 1M context window',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: 'Quota Control',
@@ -4714,6 +4729,7 @@ export default {
         cacheReadTokens: 'Cache read tokens',
         imageCount: 'Image count',
         cacheTtlOverridden: 'Cache TTL override',
+        claudeContext1M: 'Claude 1M Context',
         totalCost: 'Raw cost',
         actualCost: 'User billed',
         accountStatsCost: 'Account stats cost',
@@ -5827,7 +5843,7 @@ export default {
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
         claudeContext1MForce: 'Force Claude 1M Context',
-        claudeContext1MForceHint: 'When enabled, Sonnet 4, Opus 4.8, and Fable 5 forwarding automatically appends context-1m-2025-08-07. When disabled, the proxy no longer auto-appends it and only keeps client-provided or policy-generated beta tokens.',
+        claudeContext1MForceHint: 'Disabled by default. When enabled, Sonnet 4, Opus 4.8, and Fable 5 forwarding still appends context-1m-2025-08-07 automatically. When disabled, requests can choose freely and the proxy only keeps client-provided or policy-generated beta tokens.',
         rewriteMessageCacheControl: 'Rewrite Message Cache Breakpoints',
         rewriteMessageCacheControlHint: 'Default off: preserve client cache_control on message content blocks. When enabled, client breakpoints are stripped and proxy breakpoints are injected for clients that do not manage caching themselves.',
         antigravityUserAgentVersion: 'Antigravity UA Version',

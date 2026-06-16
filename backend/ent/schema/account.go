@@ -196,6 +196,12 @@ func (Account) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			MaxLen(20),
+
+		// force_claude_context_1m: 强制启用 Claude 1M 上下文
+		// 当设置为 true 时，该账号的所有 Claude 请求都会强制使用 1M 上下文
+		field.Bool("force_claude_context_1m").
+			Default(false).
+			Comment("Force enable Claude 1M context for this account"),
 	}
 }
 

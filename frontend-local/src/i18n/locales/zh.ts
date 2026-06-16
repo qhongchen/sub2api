@@ -1060,10 +1060,13 @@ export default {
     description: '查看渠道可用性、延迟和近期状态',
     searchPlaceholder: '搜索渠道...',
     allProviders: '全部供应商',
+    providerGroupCount: '{n} 个渠道',
     loadError: '加载渠道状态失败',
     detailLoadError: '加载渠道详情失败',
     detailTitle: '渠道详情',
     closeDetail: '关闭',
+    historyTitle: '最近 {n} 次探测',
+    historyEmpty: '暂无探测记录',
     windowTab: {
       '7d': '7 天',
       '15d': '15 天',
@@ -1090,6 +1093,14 @@ export default {
       availability15d: '15 天可用率',
       availability30d: '30 天可用率',
       avgLatency7d: '7 天平均延迟 (ms)'
+    },
+    historyColumns: {
+      checkedAt: '探测时间',
+      model: '模型',
+      status: '状态',
+      latency: '模型延迟 (ms)',
+      pingLatency: 'Ping 延迟 (ms)',
+      message: '详情'
     },
     empty: {
       title: '暂无可显示的渠道',
@@ -2881,6 +2892,8 @@ export default {
       advanced: {
         section: '高级（可选）',
         sectionHint: '自定义请求头和请求体，用于突破上游的客户端识别限制（如仅允许 Claude Code 客户端）。',
+        context1M: '启用 Claude 1M 上下文',
+        context1MHint: '仅 Anthropic 检测请求生效。开启后会在 anthropic-beta 中追加 context-1m-2025-08-07。',
         headers: '自定义请求头',
         headersPlaceholder: 'User-Agent: claude-cli/1.0.83 (external, cli)\nx-app: cli\nanthropic-beta: claude-code-20250219',
         headerNamePlaceholder: 'Header 名',
@@ -3632,6 +3645,8 @@ export default {
       interceptWarmupRequestsDesc: '启用后，标题生成等预热请求将返回 mock 响应，不消耗上游 token',
       autoPauseOnExpired: '过期自动暂停调度',
       autoPauseOnExpiredDesc: '启用后，账号过期将自动暂停调度',
+      forceClaudeContext1M: '强制启用 Claude 1M 上下文',
+      forceClaudeContext1MDesc: '启用后，该账号的所有 Claude 请求都将强制使用 1M 上下文窗口',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: '配额控制',
@@ -4870,6 +4885,7 @@ export default {
         cacheReadTokens: '缓存读取 Token',
         imageCount: '图片数',
         cacheTtlOverridden: '缓存 TTL 替换',
+        claudeContext1M: 'Claude 1M Context',
         totalCost: '原始费用',
         actualCost: '用户计费',
         accountStatsCost: '账号统计费用',
@@ -5984,7 +6000,7 @@ export default {
         anthropicCacheTTL1hInjection: 'Anthropic 缓存 TTL 注入',
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
         claudeContext1MForce: '强制开启 Claude 1M 上下文',
-        claudeContext1MForceHint: '开启后，对 Sonnet 4、Opus 4.8、Fable 5 转发请求自动追加 context-1m-2025-08-07。关闭后不再自动追加，仅保留客户端显式传入或其他策略生成的 beta。',
+        claudeContext1MForceHint: '默认关闭。开启后仍会对 Sonnet 4、Opus 4.8、Fable 5 转发请求自动追加 context-1m-2025-08-07；关闭后按实际请求自由选择，仅保留客户端显式传入或其他策略生成的 beta。',
         rewriteMessageCacheControl: '改写消息缓存断点',
         rewriteMessageCacheControlHint: '默认关闭，保留客户端在 messages 内容块中的 cache_control。开启后会清除客户端断点并注入代理断点，适合不自行管理缓存策略的客户端。',
         antigravityUserAgentVersion: 'Antigravity UA 版本',

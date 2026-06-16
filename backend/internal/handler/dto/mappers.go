@@ -234,6 +234,7 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		SessionWindowStart:      a.SessionWindowStart,
 		SessionWindowEnd:        a.SessionWindowEnd,
 		SessionWindowStatus:     a.SessionWindowStatus,
+		ForceClaudeContext1M:    a.ForceClaudeContext1M,
 		GroupIDs:                a.GroupIDs,
 	}
 
@@ -624,6 +625,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		MediaType:             l.MediaType,
 		UserAgent:             l.UserAgent,
 		CacheTTLOverridden:    l.CacheTTLOverridden,
+		ClaudeContext1M:       l.ClaudeContext1M,
 		BillingMode:           l.BillingMode,
 		CreatedAt:             l.CreatedAt,
 		User:                  UserFromServiceShallow(l.User),

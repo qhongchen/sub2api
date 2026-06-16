@@ -160,6 +160,8 @@ type UsageLog struct {
 
 	// Cache TTL Override 标记（管理员强制替换了缓存 TTL 计费）
 	CacheTTLOverridden bool
+	// ClaudeContext1M 标记本次请求最终是否使用 Anthropic 1M context beta。
+	ClaudeContext1M bool
 
 	// 图片生成字段
 	ImageCount         int

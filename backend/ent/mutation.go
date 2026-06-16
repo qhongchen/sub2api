@@ -2310,6 +2310,7 @@ type AccountMutation struct {
 	session_window_start        *time.Time
 	session_window_end          *time.Time
 	session_window_status       *string
+	force_claude_context_1m     *bool
 	clearedFields               map[string]struct{}
 	groups                      map[int64]struct{}
 	removedgroups               map[int64]struct{}
@@ -3776,6 +3777,42 @@ func (m *AccountMutation) ResetSessionWindowStatus() {
 	delete(m.clearedFields, account.FieldSessionWindowStatus)
 }
 
+// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
+func (m *AccountMutation) SetForceClaudeContext1m(b bool) {
+	m.force_claude_context_1m = &b
+}
+
+// ForceClaudeContext1m returns the value of the "force_claude_context_1m" field in the mutation.
+func (m *AccountMutation) ForceClaudeContext1m() (r bool, exists bool) {
+	v := m.force_claude_context_1m
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldForceClaudeContext1m returns the old "force_claude_context_1m" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldForceClaudeContext1m(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldForceClaudeContext1m is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldForceClaudeContext1m requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldForceClaudeContext1m: %w", err)
+	}
+	return oldValue.ForceClaudeContext1m, nil
+}
+
+// ResetForceClaudeContext1m resets all changes to the "force_claude_context_1m" field.
+func (m *AccountMutation) ResetForceClaudeContext1m() {
+	m.force_claude_context_1m = nil
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by ids.
 func (m *AccountMutation) AddGroupIDs(ids ...int64) {
 	if m.groups == nil {
@@ -3945,7 +3982,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 29)
+	fields := make([]string, 0, 30)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4033,6 +4070,9 @@ func (m *AccountMutation) Fields() []string {
 	if m.session_window_status != nil {
 		fields = append(fields, account.FieldSessionWindowStatus)
 	}
+	if m.force_claude_context_1m != nil {
+		fields = append(fields, account.FieldForceClaudeContext1m)
+	}
 	return fields
 }
 
@@ -4099,6 +4139,8 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.SessionWindowEnd()
 	case account.FieldSessionWindowStatus:
 		return m.SessionWindowStatus()
+	case account.FieldForceClaudeContext1m:
+		return m.ForceClaudeContext1m()
 	}
 	return nil, false
 }
@@ -4166,6 +4208,8 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldSessionWindowEnd(ctx)
 	case account.FieldSessionWindowStatus:
 		return m.OldSessionWindowStatus(ctx)
+	case account.FieldForceClaudeContext1m:
+		return m.OldForceClaudeContext1m(ctx)
 	}
 	return nil, fmt.Errorf("unknown Account field %s", name)
 }
@@ -4377,6 +4421,13 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSessionWindowStatus(v)
+		return nil
+	case account.FieldForceClaudeContext1m:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetForceClaudeContext1m(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Account field %s", name)
@@ -4675,6 +4726,9 @@ func (m *AccountMutation) ResetField(name string) error {
 		return nil
 	case account.FieldSessionWindowStatus:
 		m.ResetSessionWindowStatus()
+		return nil
+	case account.FieldForceClaudeContext1m:
+		m.ResetForceClaudeContext1m()
 		return nil
 	}
 	return fmt.Errorf("unknown Account field %s", name)
@@ -34942,6 +34996,7 @@ type UsageLogMutation struct {
 	image_size_source           *string
 	image_size_breakdown        *map[string]int
 	cache_ttl_overridden        *bool
+	claude_context_1m           *bool
 	created_at                  *time.Time
 	clearedFields               map[string]struct{}
 	user                        *int64
@@ -37115,6 +37170,42 @@ func (m *UsageLogMutation) ResetCacheTTLOverridden() {
 	m.cache_ttl_overridden = nil
 }
 
+// SetClaudeContext1m sets the "claude_context_1m" field.
+func (m *UsageLogMutation) SetClaudeContext1m(b bool) {
+	m.claude_context_1m = &b
+}
+
+// ClaudeContext1m returns the value of the "claude_context_1m" field in the mutation.
+func (m *UsageLogMutation) ClaudeContext1m() (r bool, exists bool) {
+	v := m.claude_context_1m
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaudeContext1m returns the old "claude_context_1m" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldClaudeContext1m(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaudeContext1m is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaudeContext1m requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaudeContext1m: %w", err)
+	}
+	return oldValue.ClaudeContext1m, nil
+}
+
+// ResetClaudeContext1m resets all changes to the "claude_context_1m" field.
+func (m *UsageLogMutation) ResetClaudeContext1m() {
+	m.claude_context_1m = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UsageLogMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -37320,7 +37411,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 41)
+	fields := make([]string, 0, 42)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -37441,6 +37532,9 @@ func (m *UsageLogMutation) Fields() []string {
 	if m.cache_ttl_overridden != nil {
 		fields = append(fields, usagelog.FieldCacheTTLOverridden)
 	}
+	if m.claude_context_1m != nil {
+		fields = append(fields, usagelog.FieldClaudeContext1m)
+	}
 	if m.created_at != nil {
 		fields = append(fields, usagelog.FieldCreatedAt)
 	}
@@ -37532,6 +37626,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.ImageSizeBreakdown()
 	case usagelog.FieldCacheTTLOverridden:
 		return m.CacheTTLOverridden()
+	case usagelog.FieldClaudeContext1m:
+		return m.ClaudeContext1m()
 	case usagelog.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -37623,6 +37719,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldImageSizeBreakdown(ctx)
 	case usagelog.FieldCacheTTLOverridden:
 		return m.OldCacheTTLOverridden(ctx)
+	case usagelog.FieldClaudeContext1m:
+		return m.OldClaudeContext1m(ctx)
 	case usagelog.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -37913,6 +38011,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCacheTTLOverridden(v)
+		return nil
+	case usagelog.FieldClaudeContext1m:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaudeContext1m(v)
 		return nil
 	case usagelog.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -38431,6 +38536,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldCacheTTLOverridden:
 		m.ResetCacheTTLOverridden()
+		return nil
+	case usagelog.FieldClaudeContext1m:
+		m.ResetClaudeContext1m()
 		return nil
 	case usagelog.FieldCreatedAt:
 		m.ResetCreatedAt()
