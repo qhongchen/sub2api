@@ -923,6 +923,7 @@ export default {
     ws: 'WS',
     stream: 'Stream',
     sync: 'Sync',
+    cyber: 'Cyber',
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
@@ -980,7 +981,7 @@ export default {
       categories: {
         auth: 'Auth failed', rate_limit: 'Rate limited', quota: 'Balance/Subscription',
         invalid_request: 'Invalid request', service_unavailable: 'Service unavailable',
-        upstream: 'Upstream error', internal: 'Platform error', other: 'Other',
+        upstream: 'Upstream error', internal: 'Platform error', other: 'Other', cyber: 'Cyber policy',
       },
       detail: {
         title: 'Error Request Detail',
@@ -2627,6 +2628,9 @@ export default {
       emailOnHitHint: 'When enabled, send a risk-control email on every hit; auto-ban notices are always sent.',
       autoBan: 'Auto Ban User',
       autoBanHint: 'Disable the user, invalidate auth cache, and send a ban notice after the hit threshold is reached.',
+      cyberPolicyExcludeBan: 'Exclude Cyber Policy Hits from Ban Count',
+      cyberPolicyExcludeBanHint: 'When enabled, cyber_policy hits no longer count toward auto-ban violations: no ban judgment on the hit itself, and history rows are excluded from the rolling count. Logs and notice emails are unaffected.',
+      violationNotCounted: 'Not counted',
       banThreshold: 'Ban Threshold',
       violationWindowHours: 'Count Window (hours)',
       hitRetentionDays: 'Hit Record Retention (days)',
@@ -2771,6 +2775,7 @@ export default {
       action: {
         block: 'Blocked',
         keywordBlock: 'Keyword Blocked',
+        cyberPolicy: 'Cyber policy',
         error: 'Error',
       },
     },
@@ -2835,6 +2840,8 @@ export default {
         groupNamePlaceholder: 'Optional, used to group rows in user view',
         intervalSeconds: 'Interval (seconds)',
         intervalSecondsHint: 'Range: 15 - 3600 seconds',
+        jitterSeconds: 'Random Jitter (± seconds)',
+        jitterSecondsHint: 'Each check fires at interval ± a random offset within this value; 0 means fixed interval. Interval minus jitter must be ≥ 15s',
         enabled: 'Enable monitor',
         kindRequired: 'Please select a provider'
       },
@@ -3151,6 +3158,7 @@ export default {
       },
       columns: {
         name: 'Name',
+        id: 'Account ID',
         platformType: 'Platform/Type',
         platform: 'Platform',
         type: 'Type',
@@ -4104,6 +4112,17 @@ export default {
         claude: 'Claude',
         passiveSampled: 'Passive',
         activeQuery: 'Query'
+      },
+      openaiQuotaReset: {
+        count: 'Credits',
+        reset: 'Reset',
+        countTooltipLoad: 'Click to load the available reset-credit count',
+        countTooltipRefresh: 'Click to refresh the available reset-credit count',
+        resetTooltipReady: 'Consume 1 reset credit to immediately restore the window',
+        resetTooltipNeedQuery: 'Click Credits first to load the available count',
+        resetTooltipNoCredits: 'No reset credits available',
+        noCreditsAvailable: 'No reset credits available',
+        resetSuccess: 'Reset {windows} window(s)'
       },
       tier: {
         free: 'Free',
@@ -5438,6 +5457,9 @@ export default {
           configureLink: 'Configure content moderation in Risk Control',
           enabled: 'Enable Risk Control',
           enabledHint: 'When off, the admin sidebar entry is hidden and gateway moderation is skipped.',
+          cyberSessionBlock: 'Cyber session auto-block',
+          cyberSessionBlockHint: 'When enabled, sessions hit by upstream cyber_policy are blocked locally for the TTL and no longer forwarded. Only the offending session is blocked; other sessions on the same key are unaffected.',
+          cyberSessionBlockTTL: 'Block TTL (seconds)',
         },
         affiliate: {
           title: 'Affiliate (Invite Rebate)',

@@ -587,6 +587,17 @@ func (e *UpstreamFailoverError) Error() string {
 	return fmt.Sprintf("upstream error: %d (failover)", e.StatusCode)
 }
 
+// sseStreamErrorEventError 表示上游 SSE 流体内出现 event:error 帧。
+// RawData 是该事件 data: 行的原始 JSON 字符串
+// （Anthropic 标准结构 {"type":"error","error":{"type":"...","message":"..."}}）。
+// Error() 保持原字符串以兼容现有日志/检索；调用方应通过 errors.As
+// 提取 RawData 并构造 UpstreamFailoverError.ResponseBody。
+type sseStreamErrorEventError struct {
+	RawData string
+}
+
+func (e *sseStreamErrorEventError) Error() string { return "have error in stream" }
+
 // TempUnscheduleRetryableError 对 RetryableOnSameAccount 类型的 failover 错误触发临时封禁。
 // 由 handler 层在同账号重试全部用尽、切换账号时调用。
 func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr *UpstreamFailoverError) {
@@ -772,7 +783,11 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 	if systemText := extractTextFromSystemRaw(parsed.SystemRaw()); systemText != "" {
 		_, _ = combined.WriteString(systemText)
 	}
+	contentStart := combined.Len()
 	appendMessageTextsFromRaw(&combined, parsed.MessagesRaw())
+	if combined.Len() == contentStart {
+		appendResponsesSessionAnchorFromRaw(&combined, parsed.InputRaw())
+	}
 	if combined.Len() > 0 {
 		hash := s.hashContent(combined.String())
 		slog.Info("sticky.hash_source",
@@ -926,6 +941,65 @@ func appendMessageTextsFromRaw(builder *strings.Builder, raw []byte) {
 				}
 				return true
 			})
+		}
+		return true
+	})
+}
+
+func appendResponsesSessionAnchorFromRaw(builder *strings.Builder, raw []byte) {
+	if builder == nil || len(raw) == 0 {
+		return
+	}
+	input := parseRawJSONView(raw)
+	if input.Type == gjson.String {
+		_, _ = builder.WriteString(input.String())
+		return
+	}
+	if !input.IsArray() {
+		return
+	}
+
+	input.ForEach(func(_, item gjson.Result) bool {
+		if item.Type == gjson.String {
+			_, _ = builder.WriteString(item.String())
+			return false
+		}
+
+		switch item.Get("role").String() {
+		case "system", "developer":
+			appendResponsesContentText(builder, item.Get("content"))
+		case "user":
+			appendResponsesContentText(builder, item.Get("content"))
+			return false
+		default:
+			if item.Get("type").String() == "input_text" {
+				if text := item.Get("text").String(); text != "" {
+					_, _ = builder.WriteString(text)
+				}
+				return false
+			}
+		}
+		return true
+	})
+}
+
+func appendResponsesContentText(builder *strings.Builder, content gjson.Result) {
+	if builder == nil || !content.Exists() {
+		return
+	}
+	if content.Type == gjson.String {
+		_, _ = builder.WriteString(content.String())
+		return
+	}
+	if !content.IsArray() {
+		return
+	}
+	content.ForEach(func(_, part gjson.Result) bool {
+		switch part.Get("type").String() {
+		case "input_text", "text":
+			if text := part.Get("text").String(); text != "" {
+				_, _ = builder.WriteString(text)
+			}
 		}
 		return true
 	})
@@ -4895,6 +4969,29 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if err := replaceBody(StripEmptyTextBlocks(body)); err != nil {
 		return nil, err
 	}
+	// Pre-filter: remove thinking blocks with missing/invalid signatures before forwarding.
+	// Clients (e.g. Claude Code) sometimes send multi-turn conversations where a historical
+	// assistant message contains a thinking block that is missing the required "signature" field,
+	// causing upstream to reject the request with 400 "thinking.signature: Field required".
+	// FilterThinkingBlocks removes only the invalid blocks; thinking blocks with valid signatures
+	// are preserved. This avoids relying solely on the post-error retry path, which can time out
+	// (maxRetryElapsed = 10s) for long conversations before the retry budget is exhausted.
+	//
+	// 仅 anthropic-strict 模型族执行此过滤；passback-required 上游 (DeepSeek/Kimi/GLM 等)
+	// 要求历史 thinking block 原样回传，过滤反而制造 400。reqModel 此时已是映射后的模型 ID。
+	if err := replaceBody(FilterThinkingBlocks(body, reqModel)); err != nil {
+		return nil, err
+	}
+	// Chinese LLM thinking.type 协议差异补正（如 MiniMax 只接受 adaptive；Anthropic-SDK
+	// 客户端默认发 enabled）。仅对 passback-required 上游生效（claude-* 不会进来）。
+	if ResolveThinkingProtocol(reqModel) == ThinkingProtocolPassbackRequired {
+		if rewritten, applied := NormalizeChineseLLMThinking(body, reqModel); applied {
+			if err := replaceBody(rewritten); err != nil {
+				return nil, err
+			}
+			logger.LegacyPrintf("service.gateway", "Account %d: rewrote thinking.type for %s (Anthropic-SDK default 'enabled' -> vendor-specific)", account.ID, reqModel)
+		}
+	}
 
 	// 重试循环
 	var resp *http.Response
@@ -4947,7 +5044,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			if readErr == nil {
 				_ = resp.Body.Close()
 
-				if s.shouldRectifySignatureError(ctx, account, respBody) {
+				if s.shouldRectifySignatureError(ctx, account, respBody, reqModel) {
 					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 						Platform:           account.Platform,
 						AccountID:          account.ID,
@@ -4987,7 +5084,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					// 2) Only if upstream still errors AND error message points to tool/function signature issues:
 					//    also downgrade tool_use/tool_result blocks to text.
 
-					filteredBody := FilterThinkingBlocksForRetry(body)
+					filteredBody := FilterThinkingBlocksForRetry(body, reqModel)
 					retryCtx, releaseRetryCtx := detachStreamUpstreamContext(ctx, reqStream)
 					retryReq, retryWireBody, buildErr := s.buildUpstreamRequest(retryCtx, c, account, filteredBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 					releaseRetryCtx()
@@ -5030,7 +5127,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 								msg2 := extractUpstreamErrorMessage(retryRespBody)
 								if looksLikeToolSignatureError(msg2) && time.Since(retryStart) < maxRetryElapsed {
 									logger.LegacyPrintf("service.gateway", "Account %d: signature retry still failing and looks tool-related, retrying with tool blocks downgraded", account.ID)
-									filteredBody2 := FilterSignatureSensitiveBlocksForRetry(body)
+									filteredBody2 := FilterSignatureSensitiveBlocksForRetry(body, reqModel)
 									retryCtx2, releaseRetryCtx2 := detachStreamUpstreamContext(ctx, reqStream)
 									retryReq2, retryWireBody2, buildErr2 := s.buildUpstreamRequest(retryCtx2, c, account, filteredBody2, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 									releaseRetryCtx2()
@@ -5340,9 +5437,46 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if reqStream {
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
 		if err != nil {
-			if err.Error() == "have error in stream" {
+			var sseErr *sseStreamErrorEventError
+			if errors.As(err, &sseErr) {
+				// 上游 HTTP 200 + SSE 流体内出现 event:error 帧。
+				// 保留 StatusCode=403 以兼容既有 failover/客户端响应语义，
+				// 但补全 ResponseBody 与 ops 上下文，让运维日志能反映上游真实错误。
+				body := []byte(sseErr.RawData)
+
+				upstreamMsg := sanitizeUpstreamErrorMessage(
+					strings.TrimSpace(extractUpstreamErrorMessage(body)),
+				)
+
+				upstreamDetail := ""
+				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+					maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+					if maxBytes <= 0 {
+						maxBytes = 2048
+					}
+					upstreamDetail = truncateString(sseErr.RawData, maxBytes)
+				}
+
+				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: 403,
+					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					Kind:               "stream_error",
+					Message:            upstreamMsg,
+					Detail:             upstreamDetail,
+				})
+
+				logger.LegacyPrintf("service.gateway",
+					"[Forward] SSE error event in stream: Account=%d(%s) RequestID=%s Body=%s",
+					account.ID, account.Name, resp.Header.Get("x-request-id"),
+					truncateString(sseErr.RawData, 1000),
+				)
+
 				return nil, &UpstreamFailoverError{
-					StatusCode: 403,
+					StatusCode:   403,
+					ResponseBody: body,
 				}
 			}
 			return nil, err
@@ -7451,7 +7585,14 @@ func truncateForLog(b []byte, maxBytes int) string {
 
 // shouldRectifySignatureError 统一判断是否应触发签名整流（strip thinking blocks 并重试）。
 // 根据账号类型检查对应的开关和匹配模式。
-func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, account *Account, respBody []byte) bool {
+//
+// mappedModel 用于按 thinking 协议族分流：passback-required (DeepSeek/Kimi/GLM 等) 上游
+// 的 400 不是签名缺失问题，retry 任何 thinking 变形都会破坏「原样回传」契约——直接透传
+// 错误给客户端。详见 thinking_protocol.go。
+func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, account *Account, respBody []byte, mappedModel string) bool {
+	if !ShouldRectifyThinkingSignatureError(mappedModel) {
+		return false
+	}
 	if account.Type == AccountTypeAPIKey {
 		// API Key 账号：独立开关，一次读取配置
 		settings, err := s.settingService.GetRectifierSettings(ctx)
@@ -8133,7 +8274,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		}
 
 		if eventName == "error" {
-			return nil, dataLine, nil, errors.New("have error in stream")
+			return nil, dataLine, nil, &sseStreamErrorEventError{RawData: dataLine}
 		}
 
 		if dataLine == "" {
@@ -9897,10 +10038,10 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 	}
 
 	// 检测 thinking block 签名错误（400）并重试一次（过滤 thinking blocks）
-	if resp.StatusCode == 400 && s.shouldRectifySignatureError(ctx, account, respBody) {
+	if resp.StatusCode == 400 && s.shouldRectifySignatureError(ctx, account, respBody, reqModel) {
 		logger.LegacyPrintf("service.gateway", "Account %d: detected thinking block signature error on count_tokens, retrying with filtered thinking blocks", account.ID)
 
-		filteredBody := FilterThinkingBlocksForRetry(body)
+		filteredBody := FilterThinkingBlocksForRetry(body, reqModel)
 		retryReq, retryWireBody, buildErr := s.buildCountTokensRequest(ctx, c, account, filteredBody, token, tokenType, reqModel, shouldMimicClaudeCode)
 		if buildErr == nil {
 			retryResp, retryErr := s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
