@@ -563,7 +563,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 		completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
 			RequestID:    recordRequestID(recordHandle, c),
 			Outcome:      requestrecord.OutcomeSuccess,
@@ -1029,7 +1029,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 		completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
 			RequestID:    recordRequestID(recordHandle, c),
 			Outcome:      requestrecord.OutcomeSuccess,
@@ -1634,7 +1634,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				}
 				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
 				inboundEndpoint := GetInboundEndpoint(c)
-				upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+				upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 				cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 				h.submitOpenAIUsageRecordTask(ctx, result, func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
@@ -2435,7 +2435,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	var accountID int64
 	if account != nil {
 		accountID = account.ID
-		upstreamEndpoint = GetUpstreamEndpoint(c, account.Platform)
+		upstreamEndpoint = resolveOpenAIUpstreamEndpoint(c, account)
 	}
 	stream := false
 	if v, ok := c.Get(opsStreamKey); ok {
