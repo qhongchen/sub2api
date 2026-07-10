@@ -222,6 +222,7 @@ type UpdateSettingsRequest struct {
 	ClaudeOAuthSystemPrompt                *string `json:"claude_oauth_system_prompt"`
 	ClaudeOAuthSystemPromptBlocks          *string `json:"claude_oauth_system_prompt_blocks"`
 	EnableAnthropicCacheTTL1hInjection     *bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClaudeContext1MForce             *bool   `json:"enable_claude_context_1m_force"`
 	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      *bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
@@ -1364,6 +1365,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableAnthropicCacheTTL1hInjection
 		}(),
+		EnableClaudeContext1MForce: func() bool {
+			if req.EnableClaudeContext1MForce != nil {
+				return *req.EnableClaudeContext1MForce
+			}
+			return previousSettings.EnableClaudeContext1MForce
+		}(),
 		RewriteMessageCacheControl: func() bool {
 			if req.RewriteMessageCacheControl != nil {
 				return *req.RewriteMessageCacheControl
@@ -1810,6 +1817,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ClaudeOAuthSystemPrompt:                                updatedSettings.ClaudeOAuthSystemPrompt,
 		ClaudeOAuthSystemPromptBlocks:                          updatedSettings.ClaudeOAuthSystemPromptBlocks,
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
+		EnableClaudeContext1MForce:                             updatedSettings.EnableClaudeContext1MForce,
 		RewriteMessageCacheControl:                             updatedSettings.RewriteMessageCacheControl,
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:                            updatedSettings.AntigravityUserAgentVersion,

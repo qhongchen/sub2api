@@ -127,6 +127,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	} else {
 		account.AutoPauseOnExpired = true
 	}
+	if input.ForceClaudeContext1M != nil {
+		account.ForceClaudeContext1M = *input.ForceClaudeContext1M
+	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier < 0 {
 			return nil, errors.New("rate_multiplier must be >= 0")
@@ -307,6 +310,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	if input.AutoPauseOnExpired != nil {
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
+	}
+	if input.ForceClaudeContext1M != nil {
+		account.ForceClaudeContext1M = *input.ForceClaudeContext1M
 	}
 
 	// 先验证分组是否存在（在任何写操作之前）

@@ -21,7 +21,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
@@ -302,7 +301,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 
 	// Set authentication header
 	forceContext1M := s.isClaudeContext1MForceEnabled(ctx)
-	if useBearer {
+	if account.IsOAuth() {
 		req.Header.Set("anthropic-beta", claudeAccountTestBetaHeader(testModelID, claude.DefaultBetaHeader, forceContext1M))
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	} else {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -87,6 +88,10 @@ func explicitClaudeContext1MBeta(incoming string) string {
 		return claude.BetaContext1M
 	}
 	return ""
+}
+
+func requestUsesClaudeContext1M(req *http.Request) bool {
+	return req != nil && anthropicBetaTokensContains(getHeaderRaw(req.Header, "anthropic-beta"), claude.BetaContext1M)
 }
 
 func isClaudeContext1MForceEnabled(settingService *SettingService, ctx context.Context) bool {

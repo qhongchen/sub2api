@@ -361,7 +361,6 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			InputTokens:  intPtr(result.Usage.InputTokens),
 			OutputTokens: intPtr(result.Usage.OutputTokens),
 		})
-		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
 		cyberBlocked := service.GetOpsCyberPolicy(c) != nil

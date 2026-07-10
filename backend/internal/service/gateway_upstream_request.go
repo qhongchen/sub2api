@@ -101,8 +101,12 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	//   5) 透传白名单 / fingerprint / mimic header / 写入 finalBeta
 	policyFilterSet := s.getBetaPolicyFilterSet(ctx, c, account, modelID)
 	effectiveDropSet := mergeDropSets(policyFilterSet)
+	forceClaudeContext1M := isClaudeContext1MForceEnabled(s.settingService, ctx)
+	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
+		return nil, nil, err
+	}
 	finalBetaHeader, finalBetaShouldSet := s.computeFinalAnthropicBeta(
-		tokenType, mimicClaudeCode, modelID, clientHeaders, body, effectiveDropSet,
+		tokenType, mimicClaudeCode, modelID, clientHeaders, body, effectiveDropSet, forceClaudeContext1M,
 	)
 
 	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值（由下方 ApplyHeaderOverrides 写入）：
@@ -488,6 +492,7 @@ func (s *GatewayService) computeFinalAnthropicBeta(
 	clientHeaders http.Header,
 	body []byte,
 	effectiveDropSet map[string]struct{},
+	forceContext1M bool,
 ) (string, bool) {
 	clientBeta := ""
 	if clientHeaders != nil {
@@ -497,27 +502,31 @@ func (s *GatewayService) computeFinalAnthropicBeta(
 	if tokenType == "oauth" {
 		if mimicClaudeCode {
 			// mimic 路径：原代码跳过白名单透传，incomingBeta 总是空字符串。
-			// 这里传空 string 以严格对齐原行为。
+			// 但 1m context 是请求级能力选择：客户端显式带 context-1m 时保留，
+			// 避免全局强制关闭后非 Claude Code 客户端无法按请求开启 1m。
 			requiredBetas := []string{claude.BetaOAuth, claude.BetaInterleavedThinking}
 			if !strings.Contains(strings.ToLower(modelID), "haiku") {
 				requiredBetas = claude.FullClaudeCodeMimicryBetas()
 			}
-			return mergeAnthropicBetaDropping(requiredBetas, "", effectiveDropSet), true
+			return mergeAnthropicBetaDroppingForModel(modelID, requiredBetas, explicitClaudeContext1MBeta(clientBeta), effectiveDropSet, forceContext1M), true
 		}
 		// 真 Claude Code 客户端透传路径
-		return stripBetaTokensWithSet(s.getBetaHeader(modelID, clientBeta), effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, s.getBetaHeader(modelID, clientBeta), effectiveDropSet, forceContext1M), true
 	}
 
 	// API-key accounts
 	if clientBeta != "" {
-		return stripBetaTokensWithSet(clientBeta, effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, clientBeta, effectiveDropSet, forceContext1M), true
 	}
 	if s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey {
 		if requestNeedsBetaFeatures(body) {
 			if beta := defaultAPIKeyBetaHeader(body); beta != "" {
-				return beta, true
+				return mergeAnthropicBetaDroppingForModel(modelID, nil, beta, effectiveDropSet, forceContext1M), true
 			}
 		}
+	}
+	if finalBeta, shouldSet := computeForcedClaudeContextBeta(modelID, "", effectiveDropSet, forceContext1M); shouldSet {
+		return finalBeta, true
 	}
 	return "", false
 }
@@ -539,6 +548,7 @@ func (s *GatewayService) computeFinalCountTokensAnthropicBeta(
 	clientHeaders http.Header,
 	body []byte,
 	effectiveDropSet map[string]struct{},
+	forceContext1M bool,
 ) (string, bool) {
 	clientBeta := ""
 	if clientHeaders != nil {
@@ -552,28 +562,31 @@ func (s *GatewayService) computeFinalCountTokensAnthropicBeta(
 			// incomingBeta = req.Header[anthropic-beta] = 客户端透传过来的 client beta。
 			// 重构后直接从 clientHeaders 拿同一个值，保持行为一致。
 			requiredBetas := append(claude.FullClaudeCodeMimicryBetas(), claude.BetaTokenCounting)
-			return mergeAnthropicBetaDropping(requiredBetas, clientBeta, effectiveDropSet), true
+			return mergeAnthropicBetaDroppingForModel(modelID, requiredBetas, clientBeta, effectiveDropSet, forceContext1M), true
 		}
 		if clientBeta == "" {
-			return claude.CountTokensBetaHeader, true
+			return mergeAnthropicBetaDroppingForModel(modelID, nil, claude.CountTokensBetaHeader, effectiveDropSet, forceContext1M), true
 		}
 		beta := s.getBetaHeader(modelID, clientBeta)
 		if !strings.Contains(beta, claude.BetaTokenCounting) {
 			beta = beta + "," + claude.BetaTokenCounting
 		}
-		return stripBetaTokensWithSet(beta, effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, beta, effectiveDropSet, forceContext1M), true
 	}
 
 	// API-key accounts
 	if clientBeta != "" {
-		return stripBetaTokensWithSet(clientBeta, effectiveDropSet), true
+		return mergeAnthropicBetaDroppingForModel(modelID, nil, clientBeta, effectiveDropSet, forceContext1M), true
 	}
 	if s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey {
 		if requestNeedsBetaFeatures(body) {
 			if beta := defaultAPIKeyBetaHeader(body); beta != "" {
-				return beta, true
+				return mergeAnthropicBetaDroppingForModel(modelID, nil, beta, effectiveDropSet, forceContext1M), true
 			}
 		}
+	}
+	if finalBeta, shouldSet := computeForcedClaudeContextBeta(modelID, "", effectiveDropSet, forceContext1M); shouldSet {
+		return finalBeta, true
 	}
 	return "", false
 }
