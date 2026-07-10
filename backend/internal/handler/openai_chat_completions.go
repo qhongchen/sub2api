@@ -193,7 +193,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		if channelMapping.Mapped {
 			upstreamModel = channelMapping.MappedModel
 		}
-		upstreamEndpoint := resolveRawCCUpstreamEndpoint(c, account)
+		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 		recordHandle := startOpenAIRequestRecord(
 			c,
 			h.requestRecordService,
@@ -342,7 +342,6 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 		completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
 			RequestID:    recordRequestID(recordHandle, c),
 			Outcome:      requestrecord.OutcomeSuccess,
