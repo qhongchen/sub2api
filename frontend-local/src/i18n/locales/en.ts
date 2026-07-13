@@ -252,11 +252,14 @@ export default {
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',
+    peakRateTooltip: 'Peak rate: {window}',
+    peakRateImageNote: '; image tokens billed as tokens are also affected, per-image billing is unaffected',
     save: 'Save',
     saved: 'Saved successfully',
     deleted: 'Deleted successfully',
     cancel: 'Cancel',
     delete: 'Delete',
+    remove: 'Remove',
     edit: 'Edit',
     create: 'Create',
     update: 'Update',
@@ -1909,6 +1912,7 @@ export default {
       creating: 'Creating...',
       updating: 'Updating...',
       form: {
+        roleLabel: 'Role',
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for this user; 0 = unlimited. Acts as a fallback only when the group has no rpm_limit set.'
@@ -2164,6 +2168,7 @@ export default {
       accountsUnit: '',
       rateAndAccounts: '{rate}x rate · {count} accounts',
       accountsCount: '{count} accounts',
+      rateLabel: 'rate',
       form: {
         name: 'Name',
         description: 'Description',
@@ -2263,6 +2268,13 @@ export default {
         modeHint: 'By default, image billing uses image price × current effective group multiplier. Independent mode uses image price × image multiplier.',
         finalPricePreview: 'Final per-image price preview',
         notConfigured: 'Not configured'
+      },
+      peakRate: {
+        enable: 'Enable peak rate multiplier',
+        peakStart: 'Peak start',
+        peakEnd: 'Peak end',
+        peakMultiplier: 'Peak multiplier',
+        multiplierHint: 'Applies to token billing multiplier; image tokens in token billing are also affected. 0 means peak token requests are billed at 0x.'
       },
       claudeCode: {
         title: 'Claude Code Client Restriction',
@@ -2884,6 +2896,7 @@ export default {
       assignSubscription: 'Assign Subscription',
       adjustSubscription: 'Adjust Subscription',
       revokeSubscription: 'Revoke Subscription',
+      restoreSubscription: 'Restore Subscription',
       allStatus: 'All Status',
       allGroups: 'All Groups',
       allPlatforms: 'All Platforms',
@@ -2935,6 +2948,7 @@ export default {
       adjust: 'Adjust',
       adjusting: 'Adjusting...',
       revoke: 'Revoke',
+      restore: 'Restore',
       resetQuota: 'Reset Quota',
       resetQuotaTitle: 'Reset Usage Quota',
       resetQuotaConfirm: "Reset the daily, weekly, and monthly usage quota for '{user}'? Usage will be zeroed and windows restarted from today.",
@@ -2945,17 +2959,21 @@ export default {
       subscriptionAssigned: 'Subscription assigned successfully',
       subscriptionAdjusted: 'Subscription adjusted successfully',
       subscriptionRevoked: 'Subscription revoked successfully',
+      subscriptionRestored: 'Subscription restored successfully',
       failedToLoad: 'Failed to load subscriptions',
       failedToAssign: 'Failed to assign subscription',
       failedToAdjust: 'Failed to adjust subscription',
       failedToRevoke: 'Failed to revoke subscription',
+      failedToRestore: 'Failed to restore subscription',
       adjustWouldExpire: 'Remaining days after adjustment must be greater than 0',
       adjustOutOfRange: 'Adjustment days must be between -36500 and 36500',
       pleaseSelectUser: 'Please select a user',
       pleaseSelectGroup: 'Please select a group',
       validityDaysRequired: 'Please enter a valid number of days (at least 1)',
       revokeConfirm:
-        "Are you sure you want to revoke the subscription for '{user}'? This action cannot be undone.",
+        "Are you sure you want to revoke the subscription for '{user}'? You can restore it later from the revoked list.",
+      restoreConfirm:
+        "Restore the subscription for '{user}'? If the original subscription has expired, it will be restored as expired.",
       guide: {
         title: 'Subscription Management Guide',
         subtitle: 'Subscription mode lets you assign time-based usage quotas to users, with daily/weekly/monthly limits. Follow these steps to get started.',
@@ -2982,7 +3000,7 @@ export default {
           resetQuota: 'Reset Quota',
           resetQuotaDesc: 'Reset daily/weekly/monthly usage to zero',
           revoke: 'Revoke',
-          revokeDesc: 'Immediately terminate the subscription (irreversible)'
+          revokeDesc: 'Immediately terminate the subscription; it can be restored later'
         },
         tip: 'Tip: Only groups with billing type "Subscription" and status "Active" appear in the group dropdown. If no options are available, create one in Group Management first.'
       }
@@ -3136,6 +3154,7 @@ export default {
         priority: 'Priority',
         billingRateMultiplier: 'Billing Rate',
         weight: 'Weight',
+        schedulerScore: 'Scheduler Score',
         status: 'Status',
         schedulable: 'Schedulable',
         todayStats: 'Today Stats',
@@ -3145,6 +3164,12 @@ export default {
         lastUsed: 'Last Used',
         expiresAt: 'Expires At',
         actions: 'Actions'
+      },
+      schedulerScore: {
+        baseShort: 'Base',
+        stickyShort: 'Sticky',
+        ungrouped: 'Ungrouped',
+        hint: 'Displayed as "group / base score / sticky bonus". The base score is computed within the current filtered candidate set and includes priority, load, queue depth, error rate, first-token latency, reset window, quota headroom, and related factors. The sticky bonus applies only when sticky weighting is enabled for previous_response_id or session_hash. Higher scores are preferred.'
       },
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
@@ -3442,6 +3467,10 @@ export default {
         apiKeyPassthrough: 'Auto passthrough (auth only)',
         apiKeyPassthroughDesc:
           'Only applies to Anthropic API Key accounts. When enabled, messages/count_tokens are forwarded in passthrough mode with auth replacement only, while billing/concurrency/audit and safety filtering are preserved. Disable to roll back immediately.',
+        apiKeyAuthScheme: 'Upstream auth scheme',
+        apiKeyAuthSchemeDesc: 'Choose the API key auth header used when forwarding to an Anthropic-compatible upstream. Ollama Cloud uses Authorization: Bearer.',
+        apiKeyAuthSchemeXApiKey: 'x-api-key',
+        apiKeyAuthSchemeBearer: 'Authorization: Bearer',
         webSearchEmulation: 'Web Search Emulation',
         webSearchEmulationDesc:
           'Enable web search emulation for this API Key account. When a pure web_search request is detected, the gateway calls a third-party search API and constructs the response locally. Default follows channel config.',
@@ -3502,6 +3531,24 @@ export default {
       interceptWarmupRequests: 'Intercept Warmup Requests',
       interceptWarmupRequestsDesc:
         'When enabled, warmup requests like title generation will return mock responses without consuming upstream tokens',
+      headerOverride: {
+        title: 'Header Override',
+        hint: 'Override same-named request headers on forwarding (case-insensitive)',
+        info: 'Configured values replace client or gateway headers before forwarding. Authentication, connection-control, WebSocket and session-isolation headers cannot be overridden.',
+        namePlaceholder: 'Header name (e.g. user-agent)',
+        valuePlaceholder: 'Override value (leave empty to skip)',
+        addRow: 'Add Header',
+        fillTemplate: 'Fill Template',
+        emptyValueHint: 'Rows with an empty value are placeholders and do not override anything.',
+        bulkDisableHint: 'Saving will disable header override and clear existing configuration on the selected accounts.',
+        bulkReplaceHint: 'Saving will replace the existing header override configuration on all selected accounts with the rows below.',
+        bulkEmptyRows: 'Add at least one header row before saving, or turn the toggle off to clear existing configuration.',
+        invalidName: 'Invalid header name (only letters, digits and !#$%&\'*+-.^_`|~ are allowed)',
+        blockedName: 'This header cannot be overridden because it is managed by the system',
+        duplicateName: 'Duplicate header name (matching is case-insensitive)',
+        invalidValue: 'Invalid header value (control characters are not allowed; max length 8192 bytes)',
+        tooManyEntries: 'Too many header override entries (max 64)'
+      },
       autoPauseOnExpired: 'Auto Pause On Expired',
       autoPauseOnExpiredDesc: 'When enabled, the account will auto pause scheduling after it expires',
       forceClaudeContext1M: 'Force Claude 1M Context',
@@ -3744,6 +3791,14 @@ export default {
           codexSessionImportFailed: 'Failed to import Codex account',
           codexSessionImportSuccess: 'Import completed: created {created}, updated {updated}, skipped {skipped}',
           codexSessionImportPartial: 'Partial success: created {created}, updated {updated}, skipped {skipped}, failed {failed}',
+          codexPatAuth: 'Codex Personal Access Token',
+          codexPatDesc: 'Enter a Codex at- personal access token. The system validates it with OpenAI whoami before creating the account.',
+          codexPatInputLabel: 'Codex PAT',
+          codexPatPlaceholder: 'at-...',
+          codexPatHint: 'This is a separate auth mode. It does not save refresh_token or write an OAuth access_token expiration.',
+          codexPatImportAndCreate: 'Validate & Create Codex PAT Account',
+          codexPatEmpty: 'Please enter a Codex personal access token',
+          codexPatImportFailed: 'Failed to create Codex PAT account',
           sessionTokenAuth: 'Manual ST Input',
           sessionTokenDesc: 'Enter your existing Session Token(s). Supports batch input (one per line). The system will automatically validate and create accounts.',
           sessionTokenPlaceholder: 'Paste your Session Token...\nSupports multiple, one per line',
@@ -4058,6 +4113,25 @@ export default {
         claude: 'Claude',
         passiveSampled: 'Passive',
         activeQuery: 'Query'
+      },
+      openaiQuotaReset: {
+        count: 'Credits',
+        reset: 'Reset',
+        countTooltipLoad: 'Click to load the available reset-credit count',
+        countTooltipRefresh: 'Click to refresh the available reset-credit count',
+        resetTooltipReady: 'Consume 1 reset credit to immediately restore the window',
+        resetTooltipNeedQuery: 'Click Credits first to load the available count',
+        resetTooltipNoCredits: 'No reset credits available',
+        resetTooltipShadow: 'Spark shadow accounts cannot reset credits; reset on the parent account',
+        expiresAt: 'Expires {time}',
+        expiresAtFull: 'Reset credit expires at {time}',
+        expandExpirations: 'Expand the other {count} reset credit expiration(s)',
+        collapseExpirations: 'Collapse reset credit expirations',
+        expirationDetails: 'Reset credit expiration details',
+        noCreditsAvailable: 'No reset credits available',
+        resetSuccess: 'Reset {windows} window(s)',
+        confirmTitle: 'Confirm Weekly Limit Reset',
+        confirmMessage: 'This will consume 1 reset credit to immediately restore the current window ({count} remaining). This action cannot be undone. Continue?'
       },
       tier: {
         free: 'Free',
@@ -6553,7 +6627,24 @@ export default {
       },
       openaiExperimentalScheduler: {
         title: 'OpenAI experimental scheduler policy',
-        description: "Disabled by default. When enabled, this only changes the gateway's experimental account-selection policy for OpenAI traffic; it does not indicate an upstream OpenAI capability."
+        description: "Disabled by default. When enabled, this only changes the gateway's experimental account-selection policy for OpenAI traffic; it does not indicate an upstream OpenAI capability.",
+        stickyWeightedTitle: 'Sticky weighting',
+        stickyWeightedDescription: 'When enabled, previous_response_id and session_hash affinity are scored by the advanced scheduler. When disabled, sticky accounts keep the legacy hard-hit behavior.',
+        subscriptionPriorityTitle: 'Subscription priority',
+        subscriptionPriorityDescription: 'When enabled, the scheduler scores ChatGPT subscription accounts first and falls back to non-subscription accounts only if no subscription slot can be acquired.',
+        weightsTitle: 'Scheduler weight overrides',
+        weightsDescription: 'Blank values use config/environment values; when config is not set, built-in defaults apply. Non-blank page settings take priority.',
+        defaultPlaceholder: 'config/default: {value}',
+        topKLabel: 'TopK',
+        priorityWeight: 'Priority',
+        loadWeight: 'Load',
+        queueWeight: 'Queue',
+        errorRateWeight: 'Error rate',
+        ttftWeight: 'TTFT',
+        resetWeight: 'Reset window',
+        quotaHeadroomWeight: 'Quota headroom',
+        previousResponseWeight: 'previous_response sticky',
+        sessionStickyWeight: 'session_hash sticky'
       },
       saveSettings: 'Save Settings',
       saving: 'Saving...',
@@ -6738,7 +6829,25 @@ export default {
     restartRequired: 'Please restart the service to apply the update',
     restartNow: 'Restart Now',
     restarting: 'Restarting...',
-    retry: 'Retry'
+    retry: 'Retry',
+    rollback: 'Version Rollback',
+    rollbackSelectVersion: 'Select a version to roll back to (last 3 versions)',
+    rollbackConfirm: 'Roll back to {version}',
+    rollbackWarning:
+      'Rollback downloads the selected version and replaces the current binary. A service restart is required afterwards.',
+    rollingBack: 'Rolling back...',
+    rollbackComplete: 'Rollback Complete',
+    rollbackFailed: 'Rollback Failed',
+    manualRollbackCommand: 'Manual rollback',
+    copyCommand: 'Copy',
+    copied: 'Copied',
+    noRollbackVersions: 'No versions available for rollback',
+    loadVersionsFailed: 'Failed to load versions',
+    rollbackSourceHint: 'Online rollback is not available for source builds',
+    deployScript: 'Script',
+    deployDocker: 'Docker',
+    dockerEditCompose: 'Edit the image tag in docker-compose.yml',
+    dockerRecreate: 'Recreate the container'
   },
 
   // Recharge / Subscription Page
@@ -7131,6 +7240,7 @@ export default {
     planFeatures: 'Features',
     planCard: {
       rate: 'Rate',
+      peakRate: 'Peak Rate',
       dailyLimit: 'Daily',
       weeklyLimit: 'Weekly',
       monthlyLimit: 'Monthly',

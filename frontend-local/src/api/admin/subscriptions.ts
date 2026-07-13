@@ -122,6 +122,14 @@ export async function revoke(id: number): Promise<{ message: string }> {
 }
 
 /**
+ * Restore a revoked subscription.
+ */
+export async function restore(id: number): Promise<UserSubscription> {
+  const { data } = await apiClient.post<UserSubscription>(`/admin/subscriptions/${id}/restore`)
+  return data
+}
+
+/**
  * Reset daily, weekly, and/or monthly usage quota for a subscription
  * @param id - Subscription ID
  * @param options - Which windows to reset
@@ -188,6 +196,7 @@ export const subscriptionsAPI = {
   bulkAssign,
   extend,
   revoke,
+  restore,
   resetQuota,
   listByGroup,
   listByUser

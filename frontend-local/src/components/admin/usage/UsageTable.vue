@@ -91,7 +91,31 @@
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.performance') }}</div>
-            <div class="font-semibold text-gray-950 dark:text-white">{{ formatDuration(row.duration_ms) }}</div>
+            <div class="mt-1 flex items-stretch gap-2">
+              <span
+                class="w-1 shrink-0 rounded-full"
+                :class="latencyBarClass(row)"
+                aria-hidden="true"
+              ></span>
+              <div class="grid grid-cols-[max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">
+                <span class="text-gray-400 dark:text-dark-500">{{ t('usage.firstToken') }}</span>
+                <span
+                  v-if="row.first_token_ms != null"
+                  class="font-medium tabular-nums"
+                  :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.first_token_ms)]"
+                >
+                  {{ formatDuration(row.first_token_ms) }}
+                </span>
+                <span v-else class="text-gray-400 dark:text-dark-500">-</span>
+                <span class="text-gray-400 dark:text-dark-500">{{ t('usage.duration') }}</span>
+                <span
+                  class="font-medium tabular-nums"
+                  :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
+                >
+                  {{ formatDuration(row.duration_ms) }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
         <button
@@ -355,9 +379,30 @@
               </template>
 
               <template v-else-if="column.key === 'performance'">
-                <div class="font-mono text-sm text-gray-950 dark:text-white">{{ formatDuration(row.duration_ms) }}</div>
-                <div class="text-xs text-gray-500 dark:text-dark-400">
-                  TTFB {{ row.first_token_ms != null ? formatDuration(row.first_token_ms) : '-' }}
+                <div class="flex items-stretch gap-2">
+                  <span
+                    class="w-1 shrink-0 rounded-full"
+                    :class="latencyBarClass(row)"
+                    aria-hidden="true"
+                  ></span>
+                  <div class="grid grid-cols-[max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">
+                    <span class="text-gray-400 dark:text-dark-500">{{ t('usage.firstToken') }}</span>
+                    <span
+                      v-if="row.first_token_ms != null"
+                      class="font-medium tabular-nums"
+                      :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.first_token_ms)]"
+                    >
+                      {{ formatDuration(row.first_token_ms) }}
+                    </span>
+                    <span v-else class="text-gray-400 dark:text-dark-500">-</span>
+                    <span class="text-gray-400 dark:text-dark-500">{{ t('usage.duration') }}</span>
+                    <span
+                      class="font-medium tabular-nums"
+                      :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
+                    >
+                      {{ formatDuration(row.duration_ms) }}
+                    </span>
+                  </div>
                 </div>
               </template>
 
@@ -594,6 +639,14 @@ import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
+  LATENCY_BAR_CLASSES,
+  LATENCY_BAR_FROM_CLASSES,
+  LATENCY_BAR_TO_CLASSES,
+  LATENCY_TEXT_CLASSES,
+  durationSeverity,
+  firstTokenSeverity,
+} from '@/utils/latencyHealth'
+import {
   BILLING_MODE_TOKEN,
   getBillingModeBadgeClass,
   getBillingModeLabel,
@@ -781,7 +834,24 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 const formatDuration = (ms: number | null | undefined): string => {
   if (ms == null) return '-'
   if (ms < 1000) return `${ms.toFixed(0)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(2)}s`
+  const totalSeconds = Math.round(ms / 1000)
+  if (totalSeconds < 3600) {
+    return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+  }
+  return `${Math.floor(totalSeconds / 3600)}h ${Math.floor((totalSeconds % 3600) / 60)}m`
+}
+
+const latencyBarClass = (row: UsageTableRow): string | string[] => {
+  const durationClass = durationSeverity(row.duration_ms ?? 0)
+  if (row.first_token_ms == null) {
+    return LATENCY_BAR_CLASSES[durationClass]
+  }
+  return [
+    'bg-gradient-to-b from-40% to-60%',
+    LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)],
+    LATENCY_BAR_TO_CLASSES[durationClass],
+  ]
 }
 
 const formatTokens = (value: number): string => {

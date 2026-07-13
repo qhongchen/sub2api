@@ -378,6 +378,36 @@
                     <span class="account-table-metric-value">{{ account.priority }}</span>
                   </td>
 
+                  <td v-if="isCardFieldVisible('scheduler_score')" class="account-table-cell">
+                    <div
+                      v-if="getSchedulerScoreRows(account).length"
+                      class="flex min-w-[8rem] flex-col gap-1 font-mono text-[11px] leading-4"
+                      :title="t('admin.accounts.schedulerScore.hint')"
+                    >
+                      <div
+                        v-for="score in getSchedulerScoreRows(account)"
+                        :key="score.group_id ?? 'ungrouped'"
+                        class="whitespace-nowrap"
+                      >
+                        <span class="font-sans text-gray-500 dark:text-dark-300">
+                          {{ formatSchedulerScoreGroup(score) }}
+                        </span>
+                        <span class="ml-1 text-gray-900 dark:text-dark-100">
+                          {{ t('admin.accounts.schedulerScore.baseShort') }}
+                          {{ formatSchedulerScore(score.base_score) }}
+                        </span>
+                        <span
+                          v-if="score.sticky_weighted_enabled"
+                          class="ml-1 text-orange-600 dark:text-orange-300"
+                        >
+                          {{ t('admin.accounts.schedulerScore.stickyShort') }}
+                          {{ formatStickySchedulerScore(score) }}
+                        </span>
+                      </div>
+                    </div>
+                    <span v-else class="account-table-muted">-</span>
+                  </td>
+
                   <td v-if="isCardFieldVisible('capacity')" class="account-table-cell">
                     <span class="account-table-metric-value">
                       {{ account.current_concurrency ?? 0 }}/{{ account.concurrency }}
@@ -526,7 +556,7 @@ import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfil
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
-import type { Account, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+import type { Account, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -609,6 +639,7 @@ const CARD_VISIBLE_FIELD_KEYS = [
   'account_plan',
   'groups',
   'priority',
+  'scheduler_score',
   'capacity',
   'billing_rate',
   'today_stats',
@@ -629,6 +660,7 @@ const cardVisibilityOptions = computed<Array<{ key: AccountCardFieldKey; label: 
   { key: 'account_plan', label: t('admin.accounts.columns.accountPlan') },
   { key: 'groups', label: t('admin.accounts.columns.groups') },
   { key: 'priority', label: t('admin.accounts.columns.priority') },
+  { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore') },
   { key: 'capacity', label: t('admin.accounts.columns.capacity') },
   { key: 'billing_rate', label: t('admin.accounts.columns.billingRateMultiplier') },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats') },
@@ -639,6 +671,7 @@ type AccountTableColumnKey =
   | 'account'
   | 'usage_windows'
   | 'priority'
+  | 'scheduler_score'
   | 'capacity'
   | 'billing_rate'
   | 'today_stats'
@@ -657,6 +690,9 @@ const accountTableColumns = computed<AccountTableColumn[]>(() => [
     : []),
   ...(isCardFieldVisible('priority')
     ? [{ key: 'priority' as const, label: t('admin.accounts.columns.priority') }]
+    : []),
+  ...(isCardFieldVisible('scheduler_score')
+    ? [{ key: 'scheduler_score' as const, label: t('admin.accounts.columns.schedulerScore') }]
     : []),
   ...(isCardFieldVisible('capacity')
     ? [{ key: 'capacity' as const, label: t('admin.accounts.columns.capacity') }]
@@ -725,11 +761,22 @@ const toggleCardField = (key: AccountCardFieldKey) => {
   }
   cardVisibleFields.value = next
   saveCardVisibility()
+  if (key === 'scheduler_score') {
+    load().catch((error) => {
+      console.error('Failed to reload scheduler scores after changing column visibility:', error)
+    })
+  }
 }
 
 const resetCardVisibility = () => {
+  const schedulerScoreWasVisible = isCardFieldVisible('scheduler_score')
   cardVisibleFields.value = new Set(DEFAULT_VISIBLE_CARD_FIELDS)
   saveCardVisibility()
+  if (schedulerScoreWasVisible) {
+    load().catch((error) => {
+      console.error('Failed to reload accounts after resetting scheduler score visibility:', error)
+    })
+  }
 }
 
 const buildDefaultTodayStats = (): WindowStats => ({
@@ -838,6 +885,7 @@ const {
     privacy_mode: '',
     group: '',
     search: '',
+    include_scheduler_score: isCardFieldVisible('scheduler_score') ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }
@@ -849,8 +897,14 @@ const resetAutoRefreshCache = () => {
 
 const isFirstLoad = ref(true)
 
+const syncAccountListDerivedParams = () => {
+  const requestParams = params as any
+  requestParams.include_scheduler_score = isCardFieldVisible('scheduler_score') ? '1' : '0'
+}
+
 const load = async () => {
   const requestParams = params as any
+  syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
@@ -866,6 +920,7 @@ const load = async () => {
 }
 
 const reload = async () => {
+  syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
@@ -874,6 +929,7 @@ const reload = async () => {
 }
 
 const debouncedReload = () => {
+  syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
@@ -959,6 +1015,11 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
     current.rate_limit_reset_at !== next.rate_limit_reset_at ||
     current.overload_until !== next.overload_until ||
     current.temp_unschedulable_until !== next.temp_unschedulable_until ||
+    (
+      isCardFieldVisible('scheduler_score') &&
+      JSON.stringify(current.scheduler_scores ?? current.scheduler_score ?? null) !==
+        JSON.stringify(next.scheduler_scores ?? next.scheduler_score ?? null)
+    ) ||
     buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next)
   )
 }
@@ -1005,6 +1066,7 @@ const refreshAccountsIncrementally = async () => {
   if (autoRefreshFetching.value) return
   autoRefreshFetching.value = true
   try {
+    syncAccountListDerivedParams()
     const result = await adminAPI.accounts.listWithEtag(
       pagination.page,
       pagination.page_size,
@@ -1015,6 +1077,7 @@ const refreshAccountsIncrementally = async () => {
         privacy_mode?: string
         group?: string
         search?: string
+        include_scheduler_score?: string
         sort_by?: string
         sort_order?: AccountSortOrder
 
@@ -1245,6 +1308,34 @@ const getTodayStats = (account: Account) => todayStatsByAccountId.value[String(a
 
 const formatMultiplier = (value: number | null | undefined) => {
   return `${(Number(value ?? 1) || 0).toFixed(2)}x`
+}
+
+const formatSchedulerScore = (value: number | null | undefined) => {
+  const score = Number(value)
+  if (!Number.isFinite(score)) return '-'
+  return score.toFixed(6).replace(/\.?0+$/, '')
+}
+
+const formatStickySchedulerScore = (score: AccountSchedulerGroupScore) => {
+  if (score.sticky_score_infinity) return '+∞'
+  return formatSchedulerScore(score.sticky_score)
+}
+
+const getSchedulerScoreRows = (account: Account): AccountSchedulerGroupScore[] => {
+  const groupRows = Array.isArray(account.scheduler_scores)
+    ? account.scheduler_scores.filter(score => score.group_id != null)
+    : []
+  if (groupRows.length) return groupRows
+  if (account.scheduler_score) {
+    return [{ group_id: null, ...account.scheduler_score }]
+  }
+  return []
+}
+
+const formatSchedulerScoreGroup = (score: AccountSchedulerGroupScore) => {
+  if (score.group_name) return score.group_name
+  if (score.group_id != null) return `#${score.group_id}`
+  return t('admin.accounts.schedulerScore.ungrouped')
 }
 
 const formatTodayRequests = (account: Account) => {
