@@ -120,6 +120,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	errorEventSent := false
 	clientDisconnected := false // 客户端断开后继续 drain 上游以收集 usage
 	sawTerminalEvent := false
+	terminalUsageReceived := false
 	sawFailedEvent := false
 	failedMessage := ""
 	clientOutputStarted := false
@@ -188,6 +189,15 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			}
 		}
 		return resultWithUsage(), nil
+	}
+	finalizeTerminalUsage := func() (*openaiStreamingResult, error) {
+		if !clientDisconnected {
+			if _, err := bufferedWriter.WriteString("\n"); err != nil {
+				clientDisconnected = true
+				logger.LegacyPrintf("service.openai_gateway", "Client disconnected while finalizing terminal SSE frame, returning collected usage")
+			}
+		}
+		return finalizeStream()
 	}
 	handleScanErr := func(scanErr error) (*openaiStreamingResult, error, bool) {
 		if scanErr == nil {
@@ -350,6 +360,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
 			}
+			if eventType == "response.completed" || eventType == "response.done" {
+				_, terminalUsageReceived = extractOpenAIUsageFromJSONBytes(dataBytes)
+			}
 			s.parseSSEUsageBytes(dataBytes, usage)
 			return
 		}
@@ -381,6 +394,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			processSSELine(scanner.Text(), true)
 			if streamEarlyErr != nil {
 				return resultWithUsage(), streamEarlyErr
+			}
+			if terminalUsageReceived {
+				return finalizeTerminalUsage()
 			}
 		}
 		if result, err, done := handleScanErr(scanner.Err()); done {
@@ -433,6 +449,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			processSSELine(ev.line, len(events) == 0)
 			if streamEarlyErr != nil {
 				return resultWithUsage(), streamEarlyErr
+			}
+			if terminalUsageReceived {
+				return finalizeTerminalUsage()
 			}
 
 		case <-intervalCh:
