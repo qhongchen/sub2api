@@ -28,6 +28,7 @@ export interface SimpleUser {
   id: number
   email: string
   username?: string | null
+  deleted: boolean
 }
 
 export interface SimpleApiKey {

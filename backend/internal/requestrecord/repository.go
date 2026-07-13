@@ -152,8 +152,9 @@ SET
   output_tokens = $9,
   total_cost = $10,
   actual_cost = $11,
-  error_message = $12
-WHERE request_id = $13
+  error_message = $12,
+  upstream_endpoint = COALESCE(NULLIF($13, ''), upstream_endpoint)
+WHERE request_id = $14
 `,
 		now,
 		now,
@@ -167,6 +168,7 @@ WHERE request_id = $13
 		nullFloat64(input.TotalCost),
 		nullFloat64(input.ActualCost),
 		nullString(input.ErrorMessage),
+		strings.TrimSpace(input.UpstreamEndpoint),
 		requestID,
 	)
 	return err

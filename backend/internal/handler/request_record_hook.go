@@ -195,6 +195,9 @@ func completeRequestRecord(
 	if strings.TrimSpace(input.Outcome) == "" {
 		input.Outcome = requestrecord.OutcomeUnknown
 	}
+	if strings.TrimSpace(input.UpstreamEndpoint) == "" {
+		input.UpstreamEndpoint = service.GetActualOpenAIUpstreamEndpoint(c)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestRecordCompleteTimeout)
 	defer cancel()
 	if err := recorder.Complete(ctx, input); err != nil {

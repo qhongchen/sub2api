@@ -6,6 +6,10 @@
 import { apiClient } from '../client'
 import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey } from '@/types'
 
+export type AdminUserDetail = AdminUser & {
+  deleted_at?: string | null
+}
+
 export interface AdminBindAuthIdentityChannelRequest {
   channel: string
   channel_app_id: string
@@ -102,10 +106,12 @@ export async function list(
 /**
  * Get user by ID
  * @param id - User ID
+ * @param includeDeleted - Whether to include soft-deleted users
  * @returns User details
  */
-export async function getById(id: number): Promise<AdminUser> {
-  const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`)
+export async function getById(id: number, includeDeleted = false): Promise<AdminUserDetail> {
+  const url = includeDeleted ? `/admin/users/${id}?include_deleted=true` : `/admin/users/${id}`
+  const { data } = await apiClient.get<AdminUserDetail>(url)
   return data
 }
 

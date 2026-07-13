@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
@@ -202,7 +203,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		if channelMapping.Mapped {
 			upstreamModel = channelMapping.MappedModel
 		}
-		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
+		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account, nil)
 		recordHandle := startOpenAIRequestRecord(
 			c,
 			h.requestRecordService,
@@ -225,6 +226,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			}()
 			return h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody, promptCacheKey, "")
 		}()
+		upstreamEndpoint = resolveOpenAIUpstreamEndpoint(c, account, result)
 		cyberBlockKeyChat := ""
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockKeyChat = service.CyberSessionBlockKey(apiKey.ID, c, body)
@@ -352,14 +354,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		clientIP := ip.GetClientIP(c)
 		inboundEndpoint := GetInboundEndpoint(c)
 		completeRequestRecord(c, h.requestRecordService, &requestrecord.CompleteInput{
-			RequestID:    recordRequestID(recordHandle, c),
-			Outcome:      requestrecord.OutcomeSuccess,
-			StatusCode:   intPtr(http.StatusOK),
-			DurationMs:   intPtrFromDuration(result.Duration),
-			FirstTokenMs: openAIFirstTokenPtr(result),
-			Billable:     true,
-			InputTokens:  intPtr(result.Usage.InputTokens),
-			OutputTokens: intPtr(result.Usage.OutputTokens),
+			RequestID:        recordRequestID(recordHandle, c),
+			Outcome:          requestrecord.OutcomeSuccess,
+			StatusCode:       intPtr(http.StatusOK),
+			DurationMs:       intPtrFromDuration(result.Duration),
+			FirstTokenMs:     openAIFirstTokenPtr(result),
+			Billable:         true,
+			InputTokens:      intPtr(result.Usage.InputTokens),
+			OutputTokens:     intPtr(result.Usage.OutputTokens),
+			UpstreamEndpoint: upstreamEndpoint,
 		})
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
@@ -400,14 +403,22 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 }
 
 // resolveOpenAIUpstreamEndpoint returns the actual upstream endpoint for an
-// OpenAI account, used by every OpenAI usage-recording site. APIKey accounts
-// whose upstream is forced or probed to not support the Responses API are
-// served directly via /v1/chat/completions (the raw chat path) regardless of
-// the inbound endpoint; everything else goes through the Responses API.
-func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account) string {
+// OpenAI-compatible account. A forwarding result is authoritative because a
+// single inbound route may choose raw Chat or a Responses bridge at runtime.
+// The account-based derivation remains as a fallback for existing callers and
+// forwarding paths that do not report their endpoint yet.
+func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account, result *service.OpenAIForwardResult) string {
+	if result != nil {
+		if endpoint := strings.TrimSpace(result.UpstreamEndpoint); endpoint != "" {
+			return endpoint
+		}
+	}
+	if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
+		return endpoint
+	}
 	if account != nil && account.Type == service.AccountTypeAPIKey &&
 		!openai_compat.ShouldUseResponsesAPI(account.Extra) {
-		return "/v1/chat/completions"
+		return EndpointChatCompletions
 	}
 	return GetUpstreamEndpoint(c, account.Platform)
 }

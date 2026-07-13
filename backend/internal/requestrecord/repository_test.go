@@ -88,6 +88,7 @@ func TestRepositoryCompleteUpdatesRecord(t *testing.T) {
 	outputTokens := 50
 	totalCost := 0.0123
 	actualCost := 0.011
+	upstreamEndpoint := "/v1/responses"
 
 	mock.ExpectExec(`UPDATE request_records`).
 		WithArgs(
@@ -103,22 +104,24 @@ func TestRepositoryCompleteUpdatesRecord(t *testing.T) {
 			totalCost,
 			actualCost,
 			nil,
+			upstreamEndpoint,
 			"req-1",
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.Complete(context.Background(), &CompleteInput{
-		Now:          now,
-		RequestID:    "req-1",
-		Outcome:      OutcomeSuccess,
-		StatusCode:   &statusCode,
-		DurationMs:   &durationMs,
-		FirstTokenMs: &firstTokenMs,
-		Billable:     true,
-		InputTokens:  &inputTokens,
-		OutputTokens: &outputTokens,
-		TotalCost:    &totalCost,
-		ActualCost:   &actualCost,
+		Now:              now,
+		RequestID:        "req-1",
+		Outcome:          OutcomeSuccess,
+		StatusCode:       &statusCode,
+		DurationMs:       &durationMs,
+		FirstTokenMs:     &firstTokenMs,
+		Billable:         true,
+		InputTokens:      &inputTokens,
+		OutputTokens:     &outputTokens,
+		TotalCost:        &totalCost,
+		ActualCost:       &actualCost,
+		UpstreamEndpoint: upstreamEndpoint,
 	})
 	if err != nil {
 		t.Fatalf("Complete() error: %v", err)

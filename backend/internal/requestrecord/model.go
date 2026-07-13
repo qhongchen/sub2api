@@ -178,7 +178,8 @@ type CompleteInput struct {
 	TotalCost    *float64
 	ActualCost   *float64
 
-	ErrorMessage string
+	UpstreamEndpoint string
+	ErrorMessage     string
 }
 
 type Filter struct {
