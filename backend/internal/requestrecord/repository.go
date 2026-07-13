@@ -267,7 +267,7 @@ SELECT
 	  COALESCE(rr.model, ''),
 	  COALESCE(NULLIF(ul.requested_model, ''), rr.requested_model, ''),
 	  COALESCE(NULLIF(ul.upstream_model, ''), rr.upstream_model, ''),
-	  COALESCE(NULLIF(ul.model, ''), NULLIF(ul.upstream_model, ''), NULLIF(rr.upstream_model, ''), NULLIF(rr.model, ''), ''),
+	  COALESCE(NULLIF(ul.upstream_model, ''), NULLIF(rr.upstream_model, ''), NULLIF(ul.model, ''), NULLIF(rr.model, ''), ''),
 	  rr.request_type,
   rr.stream,
   COALESCE(rr.inbound_endpoint, ul.inbound_endpoint, o.inbound_endpoint, ''),
@@ -334,7 +334,9 @@ LEFT JOIN LATERAL (
         AND ul.request_id = 'client:' || rr.client_request_id
       )
       OR (
-        ul.created_at >= rr.created_at
+        rr.completed_at IS NOT NULL
+        AND rr.outcome IN ('success', 'non_billable')
+        AND ul.created_at >= rr.created_at
         AND ul.created_at < COALESCE(rr.completed_at, rr.updated_at, rr.created_at) + INTERVAL '5 minutes'
         AND (rr.user_id IS NULL OR ul.user_id = rr.user_id)
         AND (rr.account_id IS NULL OR ul.account_id = rr.account_id)
@@ -390,7 +392,9 @@ LEFT JOIN LATERAL (
       AND oe.client_request_id = rr.client_request_id
     )
     OR (
-      oe.created_at >= rr.created_at
+      rr.completed_at IS NOT NULL
+      AND rr.outcome IN ('error', 'cancelled')
+      AND oe.created_at >= rr.created_at
       AND oe.created_at < COALESCE(rr.completed_at, rr.updated_at, rr.created_at) + INTERVAL '5 minutes'
       AND (rr.user_id IS NULL OR oe.user_id = rr.user_id)
       AND (rr.api_key_id IS NULL OR oe.api_key_id = rr.api_key_id)

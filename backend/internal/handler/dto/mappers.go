@@ -669,6 +669,11 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		return nil
 	}
 	billingModel := strings.TrimSpace(l.Model)
+	if l.UpstreamModel != nil {
+		if upstreamModel := strings.TrimSpace(*l.UpstreamModel); upstreamModel != "" {
+			billingModel = upstreamModel
+		}
+	}
 	usageLog := usageLogFromServiceUser(l)
 	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
 	return &AdminUsageLog{
