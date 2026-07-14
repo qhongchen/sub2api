@@ -186,6 +186,7 @@ func (s *GatewayService) ForwardAsResponses(
 	} else {
 		result, handleErr = s.handleResponsesBufferedStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
 	}
+
 	return result, handleErr
 }
 

@@ -132,6 +132,7 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 	if account.SessionWindowStatus != "" {
 		builder.SetSessionWindowStatus(account.SessionWindowStatus)
 	}
+
 	builder.SetQuotaDimension(dbaccount.QuotaDimension(account.QuotaDimensionOrDefault()))
 	if account.ParentAccountID != nil {
 		builder.SetParentAccountID(*account.ParentAccountID)
@@ -407,6 +408,7 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 	if account.Notes == nil {
 		builder.ClearNotes()
 	}
+
 	builder.SetQuotaDimension(dbaccount.QuotaDimension(account.QuotaDimensionOrDefault()))
 	builder.SetNillableParentAccountID(account.ParentAccountID)
 

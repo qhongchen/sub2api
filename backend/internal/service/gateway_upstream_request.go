@@ -497,8 +497,7 @@ func (s *GatewayService) computeFinalAnthropicBeta(
 	if tokenType == "oauth" {
 		if mimicClaudeCode {
 			// mimic 路径：原代码跳过白名单透传，incomingBeta 总是空字符串。
-			// 但 1m context 是请求级能力选择：客户端显式带 context-1m 时保留，
-			// 避免全局强制关闭后非 Claude Code 客户端无法按请求开启 1m。
+			// 这里传空 string 以严格对齐原行为。
 			requiredBetas := []string{claude.BetaOAuth, claude.BetaInterleavedThinking}
 			if !strings.Contains(strings.ToLower(modelID), "haiku") {
 				requiredBetas = claude.FullClaudeCodeMimicryBetas()

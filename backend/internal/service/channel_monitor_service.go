@@ -240,10 +240,6 @@ func (s *ChannelMonitorService) ListHistory(ctx context.Context, id int64, model
 	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return nil, err
 	}
-	return s.listHistory(ctx, id, model, limit)
-}
-
-func (s *ChannelMonitorService) listHistory(ctx context.Context, id int64, model string, limit int) ([]*ChannelMonitorHistoryEntry, error) {
 	if limit <= 0 {
 		limit = MonitorHistoryDefaultLimit
 	}
