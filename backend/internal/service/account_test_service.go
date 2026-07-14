@@ -21,6 +21,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
@@ -71,7 +72,6 @@ type AccountTestService struct {
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
-	settingService            *SettingService
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -84,7 +84,6 @@ func NewAccountTestService(
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
-	settingService *SettingService,
 ) *AccountTestService {
 	return &AccountTestService{
 		accountRepo:               accountRepo,
@@ -95,7 +94,6 @@ func NewAccountTestService(
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
-		settingService:            settingService,
 	}
 }
 
@@ -568,6 +566,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+		}
+		if !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+			return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
 		}
 		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
 	} else {

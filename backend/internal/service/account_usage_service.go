@@ -609,8 +609,6 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 		}
 	}
 
-	s.tryClearOpenAIRateLimitAfterUsageRefresh(ctx, account, usage, now)
-
 	if s.usageLogRepo == nil {
 		return usage, nil
 	}
@@ -646,47 +644,6 @@ func shouldRefreshOpenAICodexSnapshot(account *Account, usage *UsageInfo, now ti
 		return true
 	}
 	return isOpenAICodexSnapshotStale(account, now)
-}
-
-func (s *AccountUsageService) tryClearOpenAIRateLimitAfterUsageRefresh(ctx context.Context, account *Account, usage *UsageInfo, now time.Time) {
-	if s == nil || s.accountRepo == nil || account == nil || !account.IsOpenAIOAuth() || !account.IsRateLimited() {
-		return
-	}
-	if account.IsOverloaded() {
-		return
-	}
-	if !isOpenAICodexSnapshotFresh(account, now) || !openAIUsageWindowsRecovered(usage) {
-		return
-	}
-
-	if err := s.accountRepo.ClearRateLimit(ctx, account.ID); err != nil {
-		slog.Warn("openai_rate_limit_clear_after_usage_refresh_failed", "account_id", account.ID, "error", err)
-		return
-	}
-	account.RateLimitedAt = nil
-	account.RateLimitResetAt = nil
-}
-
-func openAIUsageWindowsRecovered(usage *UsageInfo) bool {
-	if usage == nil || usage.FiveHour == nil || usage.SevenDay == nil {
-		return false
-	}
-	return usage.FiveHour.Utilization < 100 && usage.SevenDay.Utilization < 100
-}
-
-func isOpenAICodexSnapshotFresh(account *Account, now time.Time) bool {
-	if account == nil || account.Extra == nil {
-		return false
-	}
-	raw, ok := account.Extra["codex_usage_updated_at"]
-	if !ok {
-		return false
-	}
-	ts, err := parseTime(fmt.Sprint(raw))
-	if err != nil {
-		return false
-	}
-	return now.Before(ts) || now.Sub(ts) < openAIProbeCacheTTL
 }
 
 func isOpenAICodexSnapshotStale(account *Account, now time.Time) bool {

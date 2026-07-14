@@ -27,22 +27,6 @@ To manually update this file with the latest pricing data (if automation is unav
 curl -s https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json -o model_prices_and_context_window.json
 ```
 
-## Convert CCH TOML Catalog
-The `pricingconv` helper converts CCH's `prices-base.toml` catalog into the
-LiteLLM-compatible JSON shape consumed by sub2api. It flattens per-provider
-pricing and keeps one selected provider per model.
-
-Default provider selection prefers official providers first, then the catalog's
-`litellm_provider`, then a stable provider preference list. For example,
-`deepseek-v4-pro` selects `pricing.deepseek` when available.
-
-```bash
-go run ./cmd/pricingconv \
-  -input https://claude-code-hub.app/config/prices-base.toml \
-  -output /tmp/model_prices_and_context_window.json \
-  -stats /tmp/model_prices_and_context_window.stats.json
-```
-
 ## File Format
 The file contains JSON data with model pricing information including:
 - Model names and identifiers
