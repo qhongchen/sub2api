@@ -186,10 +186,6 @@ func (s *GatewayService) ForwardAsResponses(
 	} else {
 		result, handleErr = s.handleResponsesBufferedStreamingResponse(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
 	}
-	if result != nil {
-		result.ClaudeContext1M = requestUsesClaudeContext1M(upstreamReq)
-	}
-
 	return result, handleErr
 }
 

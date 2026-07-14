@@ -57,25 +57,6 @@ export interface UserMonitorDetail {
   models: UserMonitorModelDetail[]
 }
 
-export interface MonitorHistoryItem {
-  id: number
-  model: string
-  status: MonitorStatus
-  latency_ms: number | null
-  ping_latency_ms: number | null
-  message: string
-  checked_at: string
-}
-
-export interface MonitorHistoryParams {
-  model?: string
-  limit?: number
-}
-
-export interface MonitorHistoryResponse {
-  items: MonitorHistoryItem[]
-}
-
 /**
  * List all monitor views available to the current user.
  */
@@ -94,23 +75,9 @@ export async function status(id: number): Promise<UserMonitorDetail> {
   return data
 }
 
-/**
- * Get recent probe history for a single monitor.
- */
-export async function history(
-  id: number,
-  params: MonitorHistoryParams = {}
-): Promise<MonitorHistoryResponse> {
-  const { data } = await apiClient.get<MonitorHistoryResponse>(`/channel-monitors/${id}/history`, {
-    params,
-  })
-  return data
-}
-
 export const channelMonitorUserAPI = {
   list,
   status,
-  history,
 }
 
 export default channelMonitorUserAPI

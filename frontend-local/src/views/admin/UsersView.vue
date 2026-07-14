@@ -429,6 +429,17 @@
             </div>
           </template>
 
+          <template #cell-balance_platform_quota="{ row }">
+            <button
+              type="button"
+              class="block text-left underline decoration-dashed decoration-gray-300 underline-offset-4 transition-colors hover:decoration-primary-400 dark:decoration-dark-500"
+              :title="t('admin.users.platformQuota.cellColumnTooltip')"
+              @click="handlePlatformQuota(row)"
+            >
+              <UserPlatformQuotaCell :quotas="platformQuotaStats[row.id]" />
+            </button>
+          </template>
+
           <template #cell-usage="{ row }">
             <PlatformUsageBreakdown
               :today="usageStats[row.id]?.today_actual_cost ?? 0"
@@ -600,6 +611,13 @@
               </button>
 
               <button
+                @click="handlePlatformQuota(user); closeActionMenu()"
+                class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                {{ t('admin.users.platformQuota.menuItem') }}
+              </button>
+
+              <button
                 @click="handleBalanceHistory(user); closeActionMenu()"
                 class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
@@ -622,6 +640,12 @@
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
+    <UserPlatformQuotaModal
+      :show="showPlatformQuotaModal"
+      :user="platformQuotaUser"
+      @close="closePlatformQuotaModal"
+      @success="loadUsers"
+    />
     <UserApiKeysModal :show="showApiKeysModal" :user="viewingUser" @close="closeApiKeysModal" />
     <UserAllowedGroupsModal :show="showAllowedGroupsModal" :user="allowedGroupsUser" @close="closeAllowedGroupsModal" @success="loadUsers" />
     <UserBalanceModal :show="showBalanceModal" :user="balanceUser" :operation="balanceOperation" @close="closeBalanceModal" @success="loadUsers" />
@@ -644,6 +668,7 @@ const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, PaginatedResponse, UserAttributeDefinition } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
+import type { PlatformQuotaItem } from '@/api/admin/users'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -658,8 +683,10 @@ import UserAttributesConfigModal from '@/components/user/UserAttributesConfigMod
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
 import PlatformUsageBreakdown from '@/components/user/PlatformUsageBreakdown.vue'
 import PlatformCostCell from '@/components/user/PlatformCostCell.vue'
+import UserPlatformQuotaCell from '@/components/user/UserPlatformQuotaCell.vue'
 import UserCreateModal from '@/components/admin/user/UserCreateModal.vue'
 import UserEditModal from '@/components/admin/user/UserEditModal.vue'
+import UserPlatformQuotaModal from '@/components/admin/user/UserPlatformQuotaModal.vue'
 import UserApiKeysModal from '@/components/admin/user/UserApiKeysModal.vue'
 import UserAllowedGroupsModal from '@/components/admin/user/UserAllowedGroupsModal.vue'
 import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
@@ -724,6 +751,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'groups', label: t('admin.users.columns.groups') },
   { key: 'subscriptions', label: t('admin.users.columns.subscriptions') },
   { key: 'balance', label: t('admin.users.columns.balance') },
+  { key: 'balance_platform_quota', label: t('admin.users.columns.balancePlatformQuota') },
   { key: 'usage', label: t('admin.users.columns.usage') },
   { key: 'usage_anthropic', label: t('admin.users.columns.usageAnthropic') },
   { key: 'usage_openai', label: t('admin.users.columns.usageOpenAI') },
@@ -770,10 +798,11 @@ const HIDDEN_COLUMNS_KEY = 'user-hidden-columns'
 // 并在 VERSION_NEW_HIDDEN_COLUMNS 中登记该版本新增的 key。
 // 这样老用户升级后这些新列会被自动隐藏一次，而不会影响他们对其它老列的偏好。
 const COLUMN_SETTINGS_VERSION_KEY = 'user-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 3
+const COLUMN_SETTINGS_VERSION = 4
 const getVersionNewHiddenColumns = (version: number): string[] => {
   if (version === 2) return ['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity']
   if (version === 3) return getDefaultHiddenColumns()
+  if (version === 4) return ['balance_platform_quota']
   return []
 }
 
@@ -837,7 +866,7 @@ const toggleColumn = (key: string) => {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
-  if (wasHidden && (key === 'usage' || key.startsWith('usage_') || key.startsWith('attr_'))) {
+  if (wasHidden && (key === 'usage' || key.startsWith('usage_') || key.startsWith('attr_') || key === 'balance_platform_quota')) {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
@@ -861,7 +890,7 @@ const PLATFORM_USAGE_COLUMNS = ['usage_anthropic', 'usage_openai', 'usage_gemini
 const hasVisibleUsageColumn = computed(
   () => !hiddenColumns.has('usage') || PLATFORM_USAGE_COLUMNS.some((k) => !hiddenColumns.has(k))
 )
-const hasVisibleSubscriptionsColumn = computed(() => !hiddenColumns.has('subscriptions'))
+const hasVisiblePlatformQuotaColumn = computed(() => !hiddenColumns.has('balance_platform_quota'))
 const hasVisibleAttributeColumns = computed(() =>
   attributeDefinitions.value.some((def) => def.enabled && !hiddenColumns.has(`attr_${def.id}`))
 )
@@ -1021,6 +1050,7 @@ const saveFiltersToStorage = () => {
 }
 
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
+const platformQuotaStats = ref<Record<string, PlatformQuotaItem[]>>({})
 
 const getPlatformUsage = (userId: number, platform: string) =>
   usageStats.value[userId]?.by_platform?.find((p) => p.platform === platform)
@@ -1034,9 +1064,21 @@ const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
+const showPlatformQuotaModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
 const viewingUser = ref<AdminUser | null>(null)
+const platformQuotaUser = ref<AdminUser | null>(null)
+
+const handlePlatformQuota = (user: AdminUser) => {
+  platformQuotaUser.value = user
+  showPlatformQuotaModal.value = true
+}
+
+const closePlatformQuotaModal = () => {
+  showPlatformQuotaModal.value = false
+  platformQuotaUser.value = null
+}
 let secondaryDataSeq = 0
 
 const loadUsersSecondaryData = async (
@@ -1080,6 +1122,36 @@ const loadUsersSecondaryData = async (
     )
   }
 
+  if (hasVisiblePlatformQuotaColumn.value) {
+    tasks.push(
+      (async () => {
+        try {
+          const chunkSize = 6
+          for (let index = 0; index < userIds.length; index += chunkSize) {
+            if (signal?.aborted) return
+            if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+            const chunk = userIds.slice(index, index + chunkSize)
+            const results = await Promise.allSettled(
+              chunk.map((userId) => adminAPI.users.getPlatformQuotas(userId))
+            )
+            if (signal?.aborted) return
+            if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+            const merged = { ...platformQuotaStats.value }
+            results.forEach((result, resultIndex) => {
+              if (result.status === 'fulfilled') {
+                merged[chunk[resultIndex]] = result.value.platform_quotas || []
+              }
+            })
+            platformQuotaStats.value = merged
+          }
+        } catch (e) {
+          if (signal?.aborted) return
+          console.error('Failed to load platform quotas:', e)
+        }
+      })()
+    )
+  }
+
   if (tasks.length > 0) {
     await Promise.allSettled(tasks)
   }
@@ -1100,7 +1172,7 @@ const buildUserListFilters = () => {
     group_name: filters.group || undefined,
     api_key_group_id: filters.apiKeyGroup ?? undefined,
     attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
-    include_subscriptions: hasVisibleSubscriptionsColumn.value,
+    include_subscriptions: true,
     sort_by: USER_DEFAULT_SORT.sort_by,
     sort_order: USER_DEFAULT_SORT.sort_order
   }
@@ -1136,6 +1208,7 @@ const {
       secondaryDataSeq += 1
       usageStats.value = {}
       userAttributeValues.value = {}
+      platformQuotaStats.value = {}
     }
     const userIds = (response.items || []).map((user) => user.id)
     if (userIds.length === 0) return
@@ -1159,6 +1232,7 @@ const loadUsers = () => {
   secondaryDataSeq += 1
   usageStats.value = {}
   userAttributeValues.value = {}
+  platformQuotaStats.value = {}
   return resetUsers()
 }
 

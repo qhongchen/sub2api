@@ -1,4 +1,8 @@
 export default {
+  batchImageGuide: {
+    title: 'Batch Image Generation',
+    description: 'Submit multiple prompts in one job and download the generated images when complete'
+  },
   // Home Page
   home: {
     viewOnGithub: 'View on GitHub',
@@ -381,6 +385,7 @@ export default {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    batchImage: 'Batch Images',
     usage: 'Usage',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
@@ -692,10 +697,20 @@ export default {
     quickActions: 'Quick Actions',
     createApiKey: 'Create API Key',
     generateNewKey: 'Generate a new API key',
+    batchImageAgent: 'Batch Image Assistant',
+    batchImageAgentDesc: 'Copy instructions for an agent',
     viewUsage: 'View Usage',
     checkDetailedLogs: 'Check detailed usage logs',
     redeemCode: 'Redeem Code',
-    addBalanceWithCode: 'Add balance with a code'
+    addBalanceWithCode: 'Add balance with a code',
+    platformQuota: {
+      title: 'Platform Quotas',
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly',
+      resetsAt: 'Resets at {time}',
+      disabled: 'Disabled'
+    }
   },
 
   // Groups (shared)
@@ -830,6 +845,8 @@ export default {
     quotaAmountPlaceholder: 'Enter quota limit in USD',
     quotaAmountHint: 'Set the maximum amount this key can spend. 0 = unlimited.',
     quotaUsed: 'Quota Used',
+    currentConcurrency: 'Current Concurrency',
+    lastUsedIP: 'Last Used IP',
     reset: 'Reset',
     resetQuotaUsed: 'Reset used quota to 0',
     resetQuotaTitle: 'Confirm Reset Quota',
@@ -1016,7 +1033,42 @@ export default {
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    tabs: { usage: 'Usage', errors: 'Error Requests' },
+    errors: {
+      time: 'Time',
+      model: 'Model',
+      endpoint: 'Endpoint',
+      status: 'Status',
+      category: 'Category',
+      platform: 'Platform',
+      message: 'Message',
+      keyName: 'Key Name',
+      keyDeleted: 'Deleted',
+      allKeys: 'All keys',
+      modelPlaceholder: 'Search model',
+      allCategories: 'All categories',
+      allStatuses: 'All status codes',
+      empty: 'No error requests',
+      failedToLoad: 'Failed to load error requests',
+      categories: {
+        auth: 'Auth failed',
+        rate_limit: 'Rate limited',
+        quota: 'Balance/Subscription',
+        invalid_request: 'Invalid request',
+        service_unavailable: 'Service unavailable',
+        upstream: 'Upstream error',
+        internal: 'Platform error',
+        other: 'Other',
+        cyber: 'Cyber policy'
+      },
+      detail: {
+        title: 'Error Request Detail',
+        responseBody: 'Response Body',
+        upstreamStatus: 'Upstream Status',
+        loadFailed: 'Failed to load detail, please try again'
+      }
+    }
   },
 
   // Shared keys for channel monitor (admin + user views)
@@ -1467,6 +1519,8 @@ export default {
     dashboard: {
       title: 'Admin Dashboard',
       description: 'System overview and real-time statistics',
+      batchImage: 'Batch Image',
+      batchImageDesc: 'Submit jobs and copy agent instructions',
       apiKeys: 'API Keys',
       accounts: 'Accounts',
       users: 'Users',
@@ -1932,6 +1986,7 @@ export default {
         usageOpenAI: 'Usage (OpenAI)',
         usageGemini: 'Usage (Gemini)',
         usageAntigravity: 'Usage (Antigravity)',
+        balancePlatformQuota: 'Balance (Platform Quota)',
         concurrency: 'Concurrency',
         status: 'Status',
         lastActive: 'Last Active',
@@ -2053,6 +2108,41 @@ export default {
       failedToLoadBalanceHistory: 'Failed to load balance history',
       createdAt: 'Created',
       totalRecharged: 'Total Recharged',
+      platformQuota: {
+        menuItem: 'Platform Quotas',
+        title: 'Platform Quotas',
+        subtitle: 'Configure daily, weekly, and monthly USD limits for each upstream platform for user {email}',
+        subscriptionWarning: 'This user has an active subscription. Platform quotas apply only to balance-mode requests, not subscription-mode requests.',
+        columns: {
+          platform: 'Platform',
+          daily: 'Daily (USD)',
+          weekly: 'Weekly (USD)',
+          monthly: 'Monthly (USD, 30-day rolling)',
+          usage: 'Current Usage'
+        },
+        placeholder: 'Unlimited',
+        hint: 'Leave blank for no limit in that window.',
+        save: 'Save',
+        saving: 'Saving...',
+        cancel: 'Cancel',
+        clearAll: 'Clear All Limits',
+        clearAllConfirm: 'Clear daily, weekly, and monthly limits for all platforms? Every platform will become unlimited.',
+        loadFailed: 'Load failed',
+        updateSuccess: 'Platform quotas updated',
+        updateFailed: 'Save failed',
+        invalidNumber: 'The following fields contain invalid numbers: {fields}',
+        windowDaily: 'daily',
+        windowWeekly: 'weekly',
+        windowMonthly: 'monthly',
+        cellNotConfigured: 'Not configured',
+        cellColumnTooltip: 'Only platforms with at least one configured limit are shown',
+        reset: {
+          button: 'Reset window',
+          confirm: 'Reset the {window} usage for {platform} immediately?',
+          success: 'Reset {platform} {window} usage',
+          failed: 'Reset failed'
+        }
+      },
       roles: {
         admin: 'Admin',
         user: 'User'
@@ -2180,6 +2270,12 @@ export default {
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).'
       },
+      webSearchPricing: {
+        title: 'Codex Web Search Billing',
+        pricePerCall: 'Price per search (USD/call)',
+        pricePerCallHint: 'Leave blank for the default $0.01/call; enter 0 for free. The group rate multiplier is applied to the final charge.',
+        finalPricePreview: 'Price after the current multiplier: {price}'
+      },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
       platformHint: 'Select the platform this group is associated with',
@@ -2239,6 +2335,7 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        grok: 'Grok',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -3034,7 +3131,12 @@ export default {
       dataExportConfirmMessage: 'The exported data contains sensitive account and proxy information. Store it securely.',
       dataExportConfirm: 'Confirm Export',
       dataExported: 'Data exported successfully',
+      dataExportedSkippedShadows: 'Data exported. Skipped {count} Spark shadow account(s); recreate and re-tune them after restore.',
       dataExportFailed: 'Failed to export data',
+      createSparkShadow: 'Create Spark Shadow',
+      createSparkShadowConfirm: 'Create a linked Spark shadow account for "{name}"? It shares the parent credentials and serves only Spark models.',
+      createSparkShadowSuccess: 'Spark shadow account created',
+      createSparkShadowFailed: 'Failed to create Spark shadow account',
       dataImportTitle: 'Import Data',
       dataImportHint: 'Upload the exported JSON file to import accounts and proxies.',
       dataImportWarning: 'Import will create new accounts/proxies; groups must be bound manually. Ensure existing data does not conflict.',
@@ -3043,6 +3145,9 @@ export default {
       dataImporting: 'Importing...',
       dataImportSelectFile: 'Please select a data file',
       dataImportParseFailed: 'Failed to parse data file',
+      dataImportParseFailedFile: 'Failed to parse {name}',
+      dataImportInvalidFile: '{name} is not a supported data export file',
+      dataImportIgnoredFiles: 'Ignored {count} non-JSON file(s)',
       dataImportFailed: 'Data import failed',
       dataImportResult: 'Import Result',
       dataImportResultSummary: 'Proxies created {proxy_created}, reused {proxy_reused}, failed {proxy_failed}; Accounts created {account_created}, failed {account_failed}',
@@ -3116,6 +3221,7 @@ export default {
         googleOauth: 'Google OAuth',
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
+        grokOauth: 'Grok OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
         upstream: 'Upstream',
         upstreamDesc: 'Connect via Base URL + API Key'
@@ -3429,6 +3535,9 @@ export default {
         responsesStatusAutoUnknown: 'Auto probe: unknown',
         responsesStatusForcedResponses: 'Forced Responses',
         responsesStatusForcedChatCompletions: 'Forced Chat Completions',
+        planType: 'Plan tier (manual override)',
+        planTypeDesc: 'Manually correct the ChatGPT plan tier. Token refreshes or 429 responses may overwrite it with the detected tier.',
+        planTypeClear: 'Clear (auto-detect)',
         codexCLIOnly: 'Codex official clients only',
         codexCLIOnlyDesc:
           'Only applies to OpenAI OAuth. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
@@ -3462,6 +3571,11 @@ export default {
         testModeDefault: 'Default request',
         testModeCompact: 'Compact probe',
         modelRestrictionDisabledByPassthrough: 'Automatic passthrough is enabled: model whitelist/mapping will not take effect.',
+      },
+      grokAccount: 'Grok Account',
+      grok: {
+        baseUrlHint: 'OAuth uses the Grok CLI subscription proxy; API Key accounts use the official xAI API.',
+        apiKeyHint: 'Your xAI API Key'
       },
       anthropic: {
         apiKeyPassthrough: 'Auto passthrough (auth only)',
@@ -3551,8 +3665,6 @@ export default {
       },
       autoPauseOnExpired: 'Auto Pause On Expired',
       autoPauseOnExpiredDesc: 'When enabled, the account will auto pause scheduling after it expires',
-      forceClaudeContext1M: 'Force Claude 1M Context',
-      forceClaudeContext1MDesc: 'When enabled, all Claude requests from this account will use the 1M context window',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: 'Quota Control',
@@ -3815,6 +3927,40 @@ export default {
           validateAndCreate: 'Validate & Create Account',
           pleaseEnterRefreshToken: 'Please enter Refresh Token',
           pleaseEnterSessionToken: 'Please enter Session Token'
+        },
+        grok: {
+          title: 'Grok Account Authorization',
+          followSteps: 'Follow these steps to authorize your xAI/Grok account:',
+          step1GenerateUrl: 'Generate the xAI authorization URL',
+          generateAuthUrl: 'Generate Auth URL',
+          step2OpenUrl: 'Open the URL in your browser and complete authorization',
+          openUrlDesc: 'Open the authorization URL in a new tab, sign in to xAI, and authorize API access.',
+          importantNotice: 'When the browser reaches the local callback URL, copy the full URL or code parameter back here.',
+          step3EnterCode: 'Enter Authorization URL or Code',
+          authCodeDesc: 'Paste the callback URL, query string, or authorization code:',
+          authCode: 'Authorization URL or Code',
+          authCodePlaceholder: 'Paste the full callback URL, ?code=... query string, or code value',
+          authCodeHint: 'Full callback URLs, query strings, and bare codes are accepted.',
+          refreshTokenAuth: 'Manual RT Input',
+          refreshTokenDesc: 'Enter existing xAI refresh token(s), one per line.',
+          refreshTokenPlaceholder: 'Paste your xAI refresh token...\nSupports multiple, one per line',
+          validating: 'Validating...',
+          validateAndCreate: 'Validate & Create Account',
+          pleaseEnterRefreshToken: 'Please enter Refresh Token',
+          failedToGenerateUrl: 'Failed to generate Grok auth URL',
+          missingExchangeParams: 'Missing authorization code, state, or OAuth session',
+          failedToExchangeCode: 'Failed to exchange Grok authorization code',
+          failedToValidateRT: 'Failed to validate Grok refresh token',
+          errors: {
+            GROK_OAUTH_SESSION_NOT_FOUND: 'Grok OAuth session was not found or has expired. Generate a new auth URL.',
+            GROK_OAUTH_INVALID_STATE: 'Grok OAuth state does not match this session.',
+            GROK_OAUTH_STATE_REQUIRED: 'The callback URL is missing OAuth state. Paste the full callback URL.',
+            GROK_OAUTH_CODE_REQUIRED: 'The Grok authorization code is missing.',
+            GROK_OAUTH_NO_REFRESH_TOKEN: 'The Grok response did not include a refresh token. Authorize again.',
+            GROK_OAUTH_PROXY_NOT_AVAILABLE: 'Grok OAuth proxy lookup is unavailable.',
+            GROK_OAUTH_PROXY_NOT_FOUND: 'The selected proxy could not be found.'
+          },
+          oauthOnlyHint: 'Grok OAuth uses the subscription proxy for Responses API text and reasoning traffic.'
         },
         // Gemini specific
 	        gemini: {
@@ -4111,6 +4257,18 @@ export default {
         gemini3Flash: 'G3F',
         gemini3Image: 'G31FI',
         claude: 'Claude',
+        grokRequests: 'Requests',
+        grokTokens: 'Tokens',
+        grokUnknown: 'Grok quota appears after an upstream response includes xAI rate-limit headers.',
+        grokRetryAfter: 'Retry in {time}',
+        grokProbe: 'Probe',
+        grokProbeTooltip: 'Send a minimal xAI Responses request and read quota headers',
+        grokResetUnsupported: 'Reset unsupported',
+        grokResetUnsupportedTooltip: 'xAI does not expose a quota reset endpoint for Grok OAuth accounts',
+        grokNoHeaders: 'No quota headers observed',
+        grokLastStatus: 'Status {status}',
+        grokLastProbe: 'Probed {time}',
+        grokLastHeadersSeen: 'Headers {time}',
         passiveSampled: 'Passive',
         activeQuery: 'Query'
       },
@@ -4803,7 +4961,6 @@ export default {
         cacheReadTokens: 'Cache read tokens',
         imageCount: 'Image count',
         cacheTtlOverridden: 'Cache TTL override',
-        claudeContext1M: 'Claude 1M Context',
         totalCost: 'Raw cost',
         actualCost: 'User billed',
         accountStatsCost: 'Account stats cost',
@@ -5885,7 +6042,17 @@ export default {
         defaultSubscriptionsDuplicate:
           'Duplicate subscription group: {groupId}. Each group can only appear once.',
         subscriptionGroup: 'Subscription Group',
-        subscriptionValidityDays: 'Validity (days)'
+        subscriptionValidityDays: 'Validity (days)',
+        defaultPlatformQuotas: 'Default Platform Quotas (on signup)',
+        defaultPlatformQuotasHint: 'Automatically assigned to new users on signup; existing users are not affected. Leave blank for unlimited.',
+        platformQuotaNotice: 'Monthly quotas use a 30-day rolling window, not a calendar month.'
+      },
+      platformQuota: {
+        platform: 'Platform',
+        daily: 'Daily (USD)',
+        weekly: 'Weekly (USD)',
+        monthly: 'Monthly (USD, 30-day rolling)',
+        placeholder: 'Unlimited'
       },
       claudeCode: {
         title: 'Claude Code Settings',
@@ -5916,8 +6083,6 @@ export default {
         cchSigningHint: 'Sign the billing header in forwarded requests with CCH hash. When disabled, the placeholder is preserved.',
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
-        claudeContext1MForce: 'Force Claude 1M Context',
-        claudeContext1MForceHint: 'Disabled by default. When enabled, Sonnet 4, Opus 4.8, and Fable 5 forwarding still appends context-1m-2025-08-07 automatically. When disabled, requests can choose freely and the proxy only keeps client-provided or policy-generated beta tokens.',
         rewriteMessageCacheControl: 'Rewrite Message Cache Breakpoints',
         rewriteMessageCacheControlHint: 'Default off: preserve client cache_control on message content blocks. When enabled, client breakpoints are stripped and proxy breakpoints are injected for clients that do not manage caching themselves.',
         antigravityUserAgentVersion: 'Antigravity UA Version',
@@ -6624,7 +6789,9 @@ export default {
         grantOnFirstBindHint: 'Grant default entitlements when an existing user first binds this source.',
         defaultSubscriptionsLabel: 'Default subscriptions',
         defaultSubscriptionsHint: 'Applies only to this auth source. Leave empty to skip source-specific subscriptions.',
-        noSourceSubscriptions: 'No source-specific default subscriptions configured.'
+        noSourceSubscriptions: 'No source-specific default subscriptions configured.',
+        platformQuotasOverride: 'Platform Quota Overrides',
+        platformQuotasOverrideHint: 'Blank fields inherit the system defaults. Set a field to 0 to block that window.'
       },
       paymentVisibleMethods: {
         methodLabel: '{title} visible method',

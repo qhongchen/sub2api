@@ -75,6 +75,17 @@
             />
           </button>
 
+          <button
+            type="button"
+            class="inline-flex h-9 items-center rounded-lg border px-3 text-sm font-semibold transition-colors"
+            :class="params.platform === 'grok'
+              ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-200 dark:hover:bg-white/[0.04]'"
+            @click="toggleGrokFilter"
+          >
+            Grok
+          </button>
+
           <div class="ml-auto flex items-center gap-2">
             <div ref="columnDropdownRef" class="relative">
               <button
@@ -325,9 +336,9 @@
                           mode="planPrivacy"
                           :platform="account.platform"
                           :type="account.type"
-                          :plan-type="getCredentialString(account, 'plan_type')"
-                          :privacy-mode="getExtraString(account, 'privacy_mode')"
-                          :subscription-expires-at="getCredentialString(account, 'subscription_expires_at')"
+                          :plan-type="getCredentialString(account, 'plan_type') || getAccountParentString(account, 'parent_plan_type')"
+                          :privacy-mode="getExtraString(account, 'privacy_mode') || getAccountParentString(account, 'parent_privacy_mode')"
+                          :subscription-expires-at="getCredentialString(account, 'subscription_expires_at') || getAccountParentString(account, 'parent_subscription_expires_at')"
                         />
                         <span v-if="isExpired(account.expires_at)" class="account-state-badge account-state-badge-warning">
                           {{ t('admin.accounts.expired') }}
@@ -483,13 +494,13 @@
         </div>
       </TablePanel>
     </div>
-    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
-    <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
+    <CreateAccountModal v-if="showCreate" :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <EditAccountModal v-if="showEdit" :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
-    <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
+    <AccountStatsModal v-if="showStats" :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
     <Teleport to="body">
       <div
         v-if="accountStatusTooltip.show"
@@ -512,10 +523,11 @@
         />
       </div>
     </Teleport>
-    <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
+    <SyncFromCrsModal v-if="showSync" :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
-    <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
+    <TempUnschedStatusModal v-if="showTempUnsched" :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog :show="showCreateShadowDialog" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: creatingShadowAcc?.name })" @confirm="confirmCreateSparkShadow" @cancel="showCreateShadowDialog = false" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
@@ -528,7 +540,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -538,13 +550,11 @@ import { useTableLoader } from '@/composables/useTableLoader'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import TablePanel from '@/components/common/TablePanel.vue'
-import { CreateAccountModal, EditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
-import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
@@ -557,6 +567,12 @@ import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import type { Account, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+
+const CreateAccountModal = defineAsyncComponent(() => import('@/components/account/CreateAccountModal.vue'))
+const EditAccountModal = defineAsyncComponent(() => import('@/components/account/EditAccountModal.vue'))
+const SyncFromCrsModal = defineAsyncComponent(() => import('@/components/account/SyncFromCrsModal.vue'))
+const TempUnschedStatusModal = defineAsyncComponent(() => import('@/components/account/TempUnschedStatusModal.vue'))
+const AccountStatsModal = defineAsyncComponent(() => import('@/components/admin/account/AccountStatsModal.vue'))
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -573,6 +589,7 @@ const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
 const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
+const showCreateShadowDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
 const showStats = ref(false)
@@ -581,6 +598,7 @@ const showTLSFingerprintProfiles = ref(false)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
+const creatingShadowAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
@@ -957,6 +975,11 @@ const activeFilterCount = computed(() => {
   return count
 })
 
+const toggleGrokFilter = () => {
+  params.platform = params.platform === 'grok' ? '' : 'grok'
+  debouncedReload()
+}
+
 const accountListRefreshing = computed(() => loading.value || autoRefreshFetching.value)
 const autoRefreshTitle = computed(() =>
   autoRefreshEnabled.value
@@ -1276,6 +1299,11 @@ const getExtraString = (account: Account, key: string) => {
   return getRecordString(account.extra, key)
 }
 
+const getAccountParentString = (account: Account, key: string) => {
+  const value = (account as unknown as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : ''
+}
+
 const isAccountPrivacyModeDisplayable = (account: Account) => {
   if (account.type !== 'oauth') return false
   if (account.platform !== 'openai' && account.platform !== 'antigravity') return false
@@ -1291,8 +1319,11 @@ const isAccountPrivacyModeDisplayable = (account: Account) => {
 const hasAccountPlanDisplay = (account: Account) => {
   return Boolean(
     getCredentialString(account, 'plan_type') ||
+    getAccountParentString(account, 'parent_plan_type') ||
     isAccountPrivacyModeDisplayable(account) ||
-    getCredentialString(account, 'subscription_expires_at')
+    getAccountParentString(account, 'parent_privacy_mode') ||
+    getCredentialString(account, 'subscription_expires_at') ||
+    getAccountParentString(account, 'parent_subscription_expires_at')
   )
 }
 
@@ -1300,7 +1331,8 @@ const getAccountEmail = (account: Account) => {
   return (
     getExtraString(account, 'email_address') ||
     getExtraString(account, 'email') ||
-    getCredentialString(account, 'email')
+    getCredentialString(account, 'email') ||
+    getAccountParentString(account, 'parent_email')
   )
 }
 
@@ -1716,7 +1748,11 @@ const handleExportData = async () => {
     link.download = filename
     link.click()
     URL.revokeObjectURL(url)
-    appStore.showSuccess(t('admin.accounts.dataExported'))
+    if (dataPayload.skipped_shadows && dataPayload.skipped_shadows > 0) {
+      appStore.showWarning(t('admin.accounts.dataExportedSkippedShadows', { count: dataPayload.skipped_shadows }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.dataExported'))
+    }
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.dataExportFailed'))
   } finally {
@@ -1791,6 +1827,24 @@ const onRevertFallback = async (a: Account) => {
   } catch (error: any) {
     console.error('Failed to revert proxy fallback:', error)
     appStore.showError(error?.response?.data?.message || t('admin.accounts.revertProxyFailed'))
+  }
+}
+const handleCreateSparkShadow = (a: Account) => {
+  creatingShadowAcc.value = a
+  showCreateShadowDialog.value = true
+}
+const confirmCreateSparkShadow = async () => {
+  const account = creatingShadowAcc.value
+  if (!account) return
+  try {
+    await adminAPI.accounts.createSparkShadow(account.id, { name: `${account.name} (Spark)` })
+    showCreateShadowDialog.value = false
+    creatingShadowAcc.value = null
+    appStore.showSuccess(t('admin.accounts.createSparkShadowSuccess'))
+    reload()
+  } catch (error: any) {
+    console.error('Failed to create spark shadow:', error)
+    appStore.showError(error?.response?.data?.message || t('admin.accounts.createSparkShadowFailed'))
   }
 }
 const handleDelete = (a: Account) => { deletingAcc.value = a; showDeleteDialog.value = true }

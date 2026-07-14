@@ -77,8 +77,6 @@ type Account struct {
 	SessionWindowEnd *time.Time `json:"session_window_end,omitempty"`
 	// SessionWindowStatus holds the value of the "session_window_status" field.
 	SessionWindowStatus *string `json:"session_window_status,omitempty"`
-	// Force enable Claude 1M context for this account
-	ForceClaudeContext1m bool `json:"force_claude_context_1m,omitempty"`
 	// Parent account id for a linked spark shadow (NULL = normal).
 	ParentAccountID *int64 `json:"parent_account_id,omitempty"`
 	// 'global' (default) or 'spark' (shadow reads codex_bengalfox).
@@ -173,7 +171,7 @@ func (*Account) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case account.FieldCredentials, account.FieldExtra:
 			values[i] = new([]byte)
-		case account.FieldAutoPauseOnExpired, account.FieldSchedulable, account.FieldForceClaudeContext1m:
+		case account.FieldAutoPauseOnExpired, account.FieldSchedulable:
 			values[i] = new(sql.NullBool)
 		case account.FieldRateMultiplier:
 			values[i] = new(sql.NullFloat64)
@@ -398,12 +396,6 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 				_m.SessionWindowStatus = new(string)
 				*_m.SessionWindowStatus = value.String
 			}
-		case account.FieldForceClaudeContext1m:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field force_claude_context_1m", values[i])
-			} else if value.Valid {
-				_m.ForceClaudeContext1m = value.Bool
-			}
 		case account.FieldParentAccountID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field parent_account_id", values[i])
@@ -601,9 +593,6 @@ func (_m *Account) String() string {
 		builder.WriteString("session_window_status=")
 		builder.WriteString(*v)
 	}
-	builder.WriteString(", ")
-	builder.WriteString("force_claude_context_1m=")
-	builder.WriteString(fmt.Sprintf("%v", _m.ForceClaudeContext1m))
 	builder.WriteString(", ")
 	if v := _m.ParentAccountID; v != nil {
 		builder.WriteString("parent_account_id=")

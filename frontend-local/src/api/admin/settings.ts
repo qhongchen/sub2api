@@ -16,6 +16,61 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
+export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok";
+export type QuotaWindowType = "daily" | "weekly" | "monthly";
+
+export interface PlatformQuotaLimits {
+  daily: number | null;
+  weekly: number | null;
+  monthly: number | null;
+}
+
+export type DefaultPlatformQuotasMap = Partial<
+  Record<PlatformType, PlatformQuotaLimits>
+>;
+
+const PLATFORM_TYPES: PlatformType[] = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "antigravity",
+  "grok",
+];
+
+export function normalizePlatformQuotasMap(
+  input?: DefaultPlatformQuotasMap | null,
+): DefaultPlatformQuotasMap {
+  const result: DefaultPlatformQuotasMap = {};
+  for (const platform of PLATFORM_TYPES) {
+    const source = input?.[platform];
+    result[platform] = {
+      daily: typeof source?.daily === "number" ? source.daily : null,
+      weekly: typeof source?.weekly === "number" ? source.weekly : null,
+      monthly: typeof source?.monthly === "number" ? source.monthly : null,
+    };
+  }
+  return result;
+}
+
+export function sanitizePlatformQuotasMap(
+  input?: DefaultPlatformQuotasMap | null,
+): DefaultPlatformQuotasMap {
+  const normalizeLimit = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? value
+      : null;
+  const result: DefaultPlatformQuotasMap = {};
+  for (const platform of PLATFORM_TYPES) {
+    const source = input?.[platform];
+    result[platform] = {
+      daily: normalizeLimit(source?.daily),
+      weekly: normalizeLimit(source?.weekly),
+      monthly: normalizeLimit(source?.monthly),
+    };
+  }
+  return result;
+}
+
 export type AuthSourceType =
   | "email"
   | "linuxdo"
@@ -31,6 +86,7 @@ export interface AuthSourceDefaultsValue {
   subscriptions: DefaultSubscriptionSetting[];
   grant_on_signup: boolean;
   grant_on_first_bind: boolean;
+  platform_quotas: DefaultPlatformQuotasMap;
 }
 
 export type AuthSourceDefaultsState = Record<
@@ -193,6 +249,11 @@ export function buildAuthSourceDefaultsState(
         raw[`auth_source_default_${source}_grant_on_signup`] === true,
       grant_on_first_bind:
         raw[`auth_source_default_${source}_grant_on_first_bind`] === true,
+      platform_quotas: normalizePlatformQuotasMap(
+        raw[
+          `auth_source_default_${source}_platform_quotas`
+        ] as DefaultPlatformQuotasMap | undefined,
+      ),
     };
     return acc;
   }, {} as AuthSourceDefaultsState);
@@ -220,6 +281,8 @@ export function appendAuthSourceDefaultsToUpdateRequest(
       current.grant_on_signup;
     target[`auth_source_default_${source}_grant_on_first_bind`] =
       current.grant_on_first_bind;
+    target[`auth_source_default_${source}_platform_quotas`] =
+      sanitizePlatformQuotasMap(current.platform_quotas);
   }
 
   return payload;
@@ -370,6 +433,14 @@ export interface SystemSettings {
   auth_source_default_google_grant_on_signup?: boolean;
   auth_source_default_google_grant_on_first_bind?: boolean;
   force_email_on_third_party_signup?: boolean;
+  default_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_oidc_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_wechat_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_github_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_google_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_dingtalk_platform_quotas?: DefaultPlatformQuotasMap;
   // OEM settings
   site_name: string;
   site_logo: string;
@@ -503,7 +574,6 @@ export interface SystemSettings {
   enable_metadata_passthrough: boolean;
   enable_cch_signing: boolean;
   enable_anthropic_cache_ttl_1h_injection: boolean;
-  enable_claude_context_1m_force: boolean;
   rewrite_message_cache_control: boolean;
   antigravity_user_agent_version: string;
   openai_codex_user_agent: string;
@@ -642,6 +712,14 @@ export interface UpdateSettingsRequest {
   auth_source_default_google_grant_on_signup?: boolean;
   auth_source_default_google_grant_on_first_bind?: boolean;
   force_email_on_third_party_signup?: boolean;
+  default_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_oidc_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_wechat_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_github_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_google_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_dingtalk_platform_quotas?: DefaultPlatformQuotasMap;
   site_name?: string;
   site_logo?: string;
   site_subtitle?: string;
@@ -816,7 +894,6 @@ export interface UpdateSettingsRequest {
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
 
-  enable_claude_context_1m_force?: boolean;
   allow_user_view_error_requests?: boolean;
 }
 

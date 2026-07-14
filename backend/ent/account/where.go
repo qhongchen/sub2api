@@ -190,11 +190,6 @@ func SessionWindowStatus(v string) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldSessionWindowStatus, v))
 }
 
-// ForceClaudeContext1m applies equality check predicate on the "force_claude_context_1m" field. It's identical to ForceClaudeContext1mEQ.
-func ForceClaudeContext1m(v bool) predicate.Account {
-	return predicate.Account(sql.FieldEQ(FieldForceClaudeContext1m, v))
-}
-
 // ParentAccountID applies equality check predicate on the "parent_account_id" field. It's identical to ParentAccountIDEQ.
 func ParentAccountID(v int64) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldParentAccountID, v))
@@ -1558,16 +1553,6 @@ func SessionWindowStatusEqualFold(v string) predicate.Account {
 // SessionWindowStatusContainsFold applies the ContainsFold predicate on the "session_window_status" field.
 func SessionWindowStatusContainsFold(v string) predicate.Account {
 	return predicate.Account(sql.FieldContainsFold(FieldSessionWindowStatus, v))
-}
-
-// ForceClaudeContext1mEQ applies the EQ predicate on the "force_claude_context_1m" field.
-func ForceClaudeContext1mEQ(v bool) predicate.Account {
-	return predicate.Account(sql.FieldEQ(FieldForceClaudeContext1m, v))
-}
-
-// ForceClaudeContext1mNEQ applies the NEQ predicate on the "force_claude_context_1m" field.
-func ForceClaudeContext1mNEQ(v bool) predicate.Account {
-	return predicate.Account(sql.FieldNEQ(FieldForceClaudeContext1m, v))
 }
 
 // ParentAccountIDEQ applies the EQ predicate on the "parent_account_id" field.

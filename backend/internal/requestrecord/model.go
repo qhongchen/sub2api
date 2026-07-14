@@ -101,7 +101,6 @@ type Record struct {
 	AccountRateMultiplier *float64       `json:"account_rate_multiplier,omitempty"`
 	AccountStatsCost      *float64       `json:"account_stats_cost,omitempty"`
 	CacheTTLOverridden    *bool          `json:"cache_ttl_overridden,omitempty"`
-	ClaudeContext1M       *bool          `json:"claude_context_1m,omitempty"`
 
 	IPAddress    string `json:"ip_address,omitempty"`
 	UserAgent    string `json:"user_agent,omitempty"`

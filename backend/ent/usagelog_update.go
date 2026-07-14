@@ -893,20 +893,6 @@ func (_u *UsageLogUpdate) SetNillableCacheTTLOverridden(v *bool) *UsageLogUpdate
 	return _u
 }
 
-// SetClaudeContext1m sets the "claude_context_1m" field.
-func (_u *UsageLogUpdate) SetClaudeContext1m(v bool) *UsageLogUpdate {
-	_u.mutation.SetClaudeContext1m(v)
-	return _u
-}
-
-// SetNillableClaudeContext1m sets the "claude_context_1m" field if the given value is not nil.
-func (_u *UsageLogUpdate) SetNillableClaudeContext1m(v *bool) *UsageLogUpdate {
-	if v != nil {
-		_u.SetClaudeContext1m(*v)
-	}
-	return _u
-}
-
 // SetUser sets the "user" edge to the User entity.
 func (_u *UsageLogUpdate) SetUser(v *User) *UsageLogUpdate {
 	return _u.SetUserID(v.ID)
@@ -1320,9 +1306,6 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.ClaudeContext1m(); ok {
-		_spec.SetField(usagelog.FieldClaudeContext1m, field.TypeBool, value)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2350,20 +2333,6 @@ func (_u *UsageLogUpdateOne) SetNillableCacheTTLOverridden(v *bool) *UsageLogUpd
 	return _u
 }
 
-// SetClaudeContext1m sets the "claude_context_1m" field.
-func (_u *UsageLogUpdateOne) SetClaudeContext1m(v bool) *UsageLogUpdateOne {
-	_u.mutation.SetClaudeContext1m(v)
-	return _u
-}
-
-// SetNillableClaudeContext1m sets the "claude_context_1m" field if the given value is not nil.
-func (_u *UsageLogUpdateOne) SetNillableClaudeContext1m(v *bool) *UsageLogUpdateOne {
-	if v != nil {
-		_u.SetClaudeContext1m(*v)
-	}
-	return _u
-}
-
 // SetUser sets the "user" edge to the User entity.
 func (_u *UsageLogUpdateOne) SetUser(v *User) *UsageLogUpdateOne {
 	return _u.SetUserID(v.ID)
@@ -2807,9 +2776,6 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.ClaudeContext1m(); ok {
-		_spec.SetField(usagelog.FieldClaudeContext1m, field.TypeBool, value)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

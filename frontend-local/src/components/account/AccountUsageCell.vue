@@ -1,37 +1,5 @@
 <template>
-  <div
-    ref="rootRef"
-    v-if="showUsageWindows"
-    :class="[
-      'relative',
-      showCompactRefreshButton ? 'pr-5' : ''
-    ]"
-  >
-    <button
-      v-if="showCompactRefreshButton"
-      type="button"
-      class="account-usage-refresh-button"
-      :disabled="refreshButtonLoading"
-      :aria-label="t('common.refresh')"
-      :title="t('common.refresh')"
-      @click.stop="handleRefreshClick"
-    >
-      <svg
-        class="h-3 w-3"
-        :class="{ 'animate-spin': refreshButtonLoading }"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-        />
-      </svg>
-    </button>
-
+  <div ref="rootRef" v-if="showUsageWindows">
     <!-- Anthropic OAuth and Setup Token accounts: fetch real usage data -->
     <template
       v-if="
@@ -90,7 +58,6 @@
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
           color="emerald"
-          :compact="compact"
         />
 
         <!-- 7d Sonnet Window (OAuth only) -->
@@ -100,11 +67,19 @@
           :utilization="usageInfo.seven_day_sonnet.utilization"
           :resets-at="usageInfo.seven_day_sonnet.resets_at"
           color="purple"
-          :compact="compact"
+        />
+
+        <!-- 7d Fable Window (7d_oi) -->
+        <UsageProgressBar
+          v-if="usageInfo.seven_day_fable"
+          label="7d F"
+          :utilization="usageInfo.seven_day_fable.utilization"
+          :resets-at="usageInfo.seven_day_fable.resets_at"
+          color="amber"
         />
 
         <!-- Passive sampling label + active query button -->
-        <div v-if="!compact" class="flex items-center gap-1.5 mt-0.5">
+        <div class="flex items-center gap-1.5 mt-0.5">
           <span
             v-if="usageInfo.source === 'passive'"
             class="text-[9px] text-gray-400 dark:text-gray-500 italic"
@@ -137,7 +112,11 @@
       </div>
 
       <!-- No data yet -->
-      <div v-else class="text-xs text-gray-400">-</div>
+      <div v-else class="space-y-1">
+        <div class="text-xs text-gray-400">-</div>
+        <!-- Always allow on-demand upstream quota probe, even before passive headers exist. -->
+        <GrokQuotaProbeCell :account="account" />
+      </div>
     </template>
 
     <!-- OpenAI OAuth accounts: single source from /usage API -->
@@ -163,16 +142,32 @@
           color="emerald"
           :compact="compact"
         />
-        <OpenAIQuotaResetCell v-if="!compact" :account="account">
+        <!--
+          Upstream codex /wham/usage quota query + reset. The local active-sampling
+          refresh button is rendered via the pre-actions slot so the user sees a
+          single row of related buttons instead of two stacked rows.
+        -->
+        <OpenAIQuotaResetCell :account="account">
           <template #pre-actions>
             <button
               type="button"
-              class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+              class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="activeQueryLoading"
               @click="loadActiveUsage"
             >
-              <svg class="h-2.5 w-2.5" :class="{ 'animate-spin': activeQueryLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                class="h-2.5 w-2.5"
+                :class="{ 'animate-spin': activeQueryLoading }"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               {{ t('admin.accounts.usageWindow.activeQuery') }}
             </button>
@@ -193,7 +188,8 @@
       </div>
       <div v-else>
         <div class="text-xs text-gray-400">-</div>
-        <OpenAIQuotaResetCell v-if="!compact" :account="account" class="mt-1" />
+        <!-- Always allow on-demand upstream quota query, even before local data exists. -->
+        <OpenAIQuotaResetCell :account="account" class="mt-1" />
       </div>
     </template>
 
@@ -301,7 +297,6 @@
           :utilization="antigravity3ProUsageFromAPI.utilization"
           :resets-at="antigravity3ProUsageFromAPI.resetTime"
           color="indigo"
-          :compact="compact"
         />
 
         <!-- Gemini 3 Flash -->
@@ -311,7 +306,6 @@
           :utilization="antigravity3FlashUsageFromAPI.utilization"
           :resets-at="antigravity3FlashUsageFromAPI.resetTime"
           color="emerald"
-          :compact="compact"
         />
 
         <!-- Gemini 3 Image -->
@@ -321,7 +315,6 @@
           :utilization="antigravity3ImageUsageFromAPI.utilization"
           :resets-at="antigravity3ImageUsageFromAPI.resetTime"
           color="purple"
-          :compact="compact"
         />
 
         <!-- Claude -->
@@ -331,15 +324,95 @@
           :utilization="antigravityClaudeUsageFromAPI.utilization"
           :resets-at="antigravityClaudeUsageFromAPI.resetTime"
           color="amber"
-          :compact="compact"
         />
 
-        <div v-if="aiCreditsDisplay && !compact" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+        <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
           💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
         </div>
       </div>
-      <div v-else-if="aiCreditsDisplay && !compact" class="text-[10px] text-gray-500 dark:text-gray-400">
+      <div v-else-if="aiCreditsDisplay" class="text-[10px] text-gray-500 dark:text-gray-400">
         💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
+    <!-- Grok OAuth accounts: passive xAI quota headers + local Sub2API usage -->
+    <template v-else-if="account.platform === 'grok' && account.type === 'oauth'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="flex items-center gap-1">
+          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">
+        {{ error }}
+      </div>
+      <div v-else-if="needsReauth" class="space-y-1">
+        <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+          {{ t('admin.accounts.needsReauth') }}
+        </span>
+      </div>
+      <div v-else-if="isForbidden" class="space-y-1">
+        <span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+          {{ grokEntitlementLabel || t('admin.accounts.forbidden') }}
+        </span>
+      </div>
+      <div v-else-if="usageInfo" class="space-y-1">
+        <div v-if="grokEntitlementLabel" class="mb-0.5">
+          <span class="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+            {{ grokEntitlementLabel }}
+          </span>
+        </div>
+        <div v-if="grokLocalUsage" class="mb-0.5 flex items-center">
+          <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+              {{ formatWindowRequests(grokLocalUsage) }} req
+            </span>
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+              {{ formatWindowTokens(grokLocalUsage) }}
+            </span>
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
+              A ${{ formatWindowCost(grokLocalUsage) }}
+            </span>
+            <span
+              v-if="grokLocalUsage.user_cost != null"
+              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+              :title="t('usage.userBilled')"
+            >
+              U ${{ formatWindowUserCost(grokLocalUsage) }}
+            </span>
+          </div>
+        </div>
+        <UsageProgressBar
+          v-if="grokRequestQuotaBar"
+          :label="t('admin.accounts.usageWindow.grokRequests')"
+          :utilization="grokRequestQuotaBar.utilization"
+          :resets-at="grokRequestQuotaBar.resetsAt"
+          :remaining-capacity="true"
+          color="indigo"
+        />
+        <UsageProgressBar
+          v-if="grokTokenQuotaBar"
+          :label="t('admin.accounts.usageWindow.grokTokens')"
+          :utilization="grokTokenQuotaBar.utilization"
+          :resets-at="grokTokenQuotaBar.resetsAt"
+          :remaining-capacity="true"
+          color="emerald"
+        />
+        <div v-if="grokRetryAfterLabel" class="text-[10px] text-amber-600 dark:text-amber-400">
+          {{ t('admin.accounts.usageWindow.grokRetryAfter', { time: grokRetryAfterLabel }) }}
+        </div>
+        <div v-if="grokQuotaUnknown" class="text-[10px] text-gray-500 dark:text-gray-400">
+          {{ grokQuotaUnknownLabel }}
+        </div>
+        <div v-else-if="usageInfo.error" class="truncate text-xs text-amber-600 dark:text-amber-400 max-w-[200px]" :title="usageInfo.error">
+          {{ usageErrorLabel }}
+        </div>
+        <div v-if="grokQuotaStatusLine" class="text-[10px] text-gray-500 dark:text-gray-400">
+          {{ grokQuotaStatusLine }}
+        </div>
+        <GrokQuotaProbeCell :account="account" />
       </div>
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
@@ -392,7 +465,7 @@
       <!-- Usage data or unlimited flow -->
       <div class="space-y-1">
         <div
-          v-if="showGeminiTodayStats && todayStats && !compact"
+          v-if="showGeminiTodayStats && todayStats"
           class="mb-0.5 flex items-center"
         >
           <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
@@ -444,7 +517,7 @@
             :color="bar.color"
             :compact="compact"
           />
-          <p v-if="!compact" class="mt-1 text-[9px] leading-tight text-gray-400 dark:text-gray-500 italic">
+          <p class="mt-1 text-[9px] leading-tight text-gray-400 dark:text-gray-500 italic">
             * {{ t('admin.accounts.gemini.quotaPolicy.simulatedNote') || 'Simulated quota' }}
           </p>
         </div>
@@ -464,44 +537,19 @@
   <!-- Non-OAuth/Setup-Token accounts -->
   <div ref="rootRef" v-else>
     <!-- Gemini API Key accounts: show quota info -->
-    <AccountQuotaInfo v-if="account.platform === 'gemini' && !compact" :account="account" />
-    <div
-      v-else-if="account.platform === 'gemini' && todayStats"
-      class="account-usage-key-summary"
-      tabindex="0"
-    >
-      <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-          {{ formatKeyRequests }} req
-        </span>
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-          A ${{ formatKeyCost }}
-        </span>
-        <span
-          v-if="todayStats.user_cost != null"
-          class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-          :title="t('usage.userBilled')"
-        >
-          U ${{ formatKeyUserCost }}
-        </span>
-      </div>
-      <span class="account-usage-key-popover">
-        {{ formatKeyTokens }}
-      </span>
-    </div>
+    <AccountQuotaInfo v-if="account.platform === 'gemini'" :account="account" />
     <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
     <div v-else class="space-y-1">
       <!-- Today stats row (requests, tokens, cost, user_cost) -->
       <div
         v-if="todayStats"
-        class="account-usage-key-summary"
-        tabindex="0"
+        class="mb-0.5 flex items-center"
       >
         <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
           <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
             {{ formatKeyRequests }} req
           </span>
-          <span v-if="!compact" class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
             {{ formatKeyTokens }}
           </span>
           <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
@@ -515,9 +563,6 @@
             U ${{ formatKeyUserCost }}
           </span>
         </div>
-        <span v-if="compact" class="account-usage-key-popover">
-          {{ formatKeyTokens }}
-        </span>
       </div>
       <!-- Loading skeleton for today stats -->
       <div
@@ -531,27 +576,24 @@
 
       <!-- API Key accounts with quota limits: show progress bars -->
       <UsageProgressBar
-        v-if="quotaDailyBar && !compact"
+        v-if="quotaDailyBar"
         label="1d"
         :utilization="quotaDailyBar.utilization"
         :resets-at="quotaDailyBar.resetsAt"
         color="indigo"
-        :compact="compact"
       />
       <UsageProgressBar
-        v-if="quotaWeeklyBar && !compact"
+        v-if="quotaWeeklyBar"
         label="7d"
         :utilization="quotaWeeklyBar.utilization"
         :resets-at="quotaWeeklyBar.resetsAt"
         color="emerald"
-        :compact="compact"
       />
       <UsageProgressBar
-        v-if="quotaTotalBar && !compact"
+        v-if="quotaTotalBar"
         label="total"
         :utilization="quotaTotalBar.utilization"
         color="purple"
-        :compact="compact"
       />
 
       <!-- No data at all -->
@@ -567,10 +609,11 @@ import { adminAPI } from '@/api/admin'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
-import { formatCompactNumber } from '@/utils/format'
+import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
+import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
 
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
@@ -591,10 +634,6 @@ const props = withDefaults(
     compact: false
   }
 )
-
-const emit = defineEmits<{
-  (e: 'usage-refreshed', accountId: number): void
-}>()
 
 const { t } = useI18n()
 const desktopViewportQuery = '(min-width: 768px)'
@@ -635,6 +674,9 @@ const shouldFetchUsage = computed(() => {
   if (props.account.platform === 'antigravity') {
     return props.account.type === 'oauth'
   }
+  if (props.account.platform === 'grok') {
+    return props.account.type === 'oauth'
+  }
   if (props.account.platform === 'openai') {
     return props.account.type === 'oauth'
   }
@@ -659,19 +701,6 @@ const geminiUsageAvailable = computed(() => {
 const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
-})
-
-const supportsActiveUsageQuery = computed(() => {
-  if (props.account.platform === 'openai' && props.account.type === 'oauth') return true
-  return isAnthropicOAuthOrSetupToken.value
-})
-
-const showCompactRefreshButton = computed(() => {
-  return props.compact && shouldFetchUsage.value
-})
-
-const refreshButtonLoading = computed(() => {
-  return loading.value || activeQueryLoading.value
 })
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
@@ -1008,6 +1037,73 @@ const geminiUsageBars = computed(() => {
   return bars
 })
 
+interface GrokQuotaBarInfo {
+  utilization: number
+  resetsAt: string | null
+}
+
+const makeGrokQuotaBar = (quota?: { limit?: number | null; remaining?: number | null; reset_at?: string | null } | null): GrokQuotaBarInfo | null => {
+  if (!quota || quota.limit == null || quota.remaining == null || quota.limit <= 0) return null
+  const remaining = Math.min(quota.limit, Math.max(0, quota.remaining))
+  return {
+    utilization: (remaining / quota.limit) * 100,
+    resetsAt: quota.reset_at || null
+  }
+}
+
+const grokRequestQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_request_quota))
+const grokTokenQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_token_quota))
+const grokQuotaUnknown = computed(() => {
+  if (props.account.platform !== 'grok') return false
+  if (grokRequestQuotaBar.value || grokTokenQuotaBar.value) return false
+  return usageInfo.value?.grok_quota_snapshot_state !== 'observed'
+})
+const grokQuotaUnknownLabel = computed(() => {
+  return usageInfo.value?.grok_quota_snapshot_state === 'no_headers'
+    ? t('admin.accounts.usageWindow.grokNoHeaders')
+    : t('admin.accounts.usageWindow.grokUnknown')
+})
+const grokQuotaStatusLine = computed(() => {
+  if (props.account.platform !== 'grok') return null
+  const parts: string[] = []
+  const status = usageInfo.value?.grok_last_status_code
+  if (status) {
+    parts.push(t('admin.accounts.usageWindow.grokLastStatus', { status }))
+  }
+  if (usageInfo.value?.grok_last_quota_probe_at) {
+    parts.push(
+      t('admin.accounts.usageWindow.grokLastProbe', {
+        time: formatRelativeTime(usageInfo.value.grok_last_quota_probe_at)
+      })
+    )
+  }
+  if (usageInfo.value?.grok_last_headers_seen_at) {
+    parts.push(
+      t('admin.accounts.usageWindow.grokLastHeadersSeen', {
+        time: formatRelativeTime(usageInfo.value.grok_last_headers_seen_at)
+      })
+    )
+  }
+  return parts.length > 0 ? parts.join(' | ') : null
+})
+const grokLocalUsage = computed(() => usageInfo.value?.grok_local_usage || props.todayStats || null)
+const grokEntitlementLabel = computed(() => {
+  const status = (usageInfo.value?.grok_entitlement_status || '').trim()
+  return status || null
+})
+const grokRetryAfterLabel = computed(() => {
+  const seconds = usageInfo.value?.grok_retry_after_seconds
+  if (seconds == null || seconds <= 0) return null
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.ceil(seconds / 60)
+  return `${minutes}m`
+})
+
+const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
+const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
+const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
+const formatWindowUserCost = (stats: WindowStats) => (stats.user_cost ?? 0).toFixed(2)
+
 // 账户类型显示标签
 const antigravityTierLabel = computed(() => {
   switch (antigravityTier.value) {
@@ -1097,7 +1193,7 @@ const isAnthropicOAuthOrSetupToken = computed(() => {
   return props.account.platform === 'anthropic' && (props.account.type === 'oauth' || props.account.type === 'setup-token')
 })
 
-const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean; notifyParent?: boolean }) => {
+const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean }) => {
   if (!shouldFetchUsage.value) return
 
   // Check cache
@@ -1114,14 +1210,13 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   error.value = null
 
   try {
-    const fetchFn = () => adminAPI.accounts.getUsage(props.account.id, options?.source)
+    const fetchFn = () => options?.source
+      ? adminAPI.accounts.getUsage(props.account.id, options.source)
+      : adminAPI.accounts.getUsage(props.account.id)
     const result = await enqueueUsageRequest(props.account, fetchFn)
     if (!unmounted.value) {
       usageInfo.value = result
       _usageCache.set(props.account.id, { data: result, ts: Date.now() })
-      if (options?.notifyParent) {
-        emit('usage-refreshed', props.account.id)
-      }
     }
   } catch (e: any) {
     if (!unmounted.value) {
@@ -1184,33 +1279,14 @@ const attachVisibilityObserver = () => {
 }
 
 const loadActiveUsage = async () => {
-  const hadUsageInfo = !!usageInfo.value
   activeQueryLoading.value = true
-  error.value = null
   try {
-    const result = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
-    usageInfo.value = result
-    _usageCache.set(props.account.id, { data: result, ts: Date.now() })
-    emit('usage-refreshed', props.account.id)
+    usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
   } catch (e: any) {
-    if (!hadUsageInfo) {
-      error.value = t('common.error')
-    }
     console.error('Failed to load active usage:', e)
   } finally {
     activeQueryLoading.value = false
   }
-}
-
-const handleRefreshClick = async () => {
-  if (supportsActiveUsageQuery.value) {
-    await loadActiveUsage()
-    return
-  }
-
-  _usageCache.delete(props.account.id)
-  const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
-  await loadUsage({ source, bypassCache: true, notifyParent: true })
 }
 
 // ===== API Key quota progress bars =====
@@ -1323,6 +1399,7 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return
 
+  _usageCache.delete(props.account.id)
   requestAutoLoad()
 })
 
@@ -1334,7 +1411,7 @@ watch(
 
     const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
     _usageCache.delete(props.account.id)
-    loadUsage({ source, bypassCache: true, notifyParent: true }).catch((e) => {
+    loadUsage({ source, bypassCache: true }).catch((e) => {
       console.error('Failed to refresh usage after manual refresh:', e)
     })
   }
@@ -1376,25 +1453,3 @@ onUnmounted(() => {
   desktopViewportMediaQuery = null
 })
 </script>
-
-<style scoped>
-.account-usage-key-summary {
-  @apply relative mb-0.5 flex items-center outline-none;
-}
-
-.account-usage-key-popover {
-  @apply pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-max max-w-[180px] -translate-x-1/2 whitespace-normal rounded-md bg-gray-900 px-3 py-2 text-center text-xs font-normal leading-relaxed text-white shadow-xl dark:bg-gray-700;
-}
-
-.account-usage-refresh-button {
-  @apply absolute right-0 top-0 inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 transition-colors;
-  @apply hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50;
-  @apply dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300;
-}
-
-.account-usage-key-summary:hover .account-usage-key-popover,
-.account-usage-key-summary:focus .account-usage-key-popover,
-.account-usage-key-summary:focus-visible .account-usage-key-popover {
-  @apply block;
-}
-</style>

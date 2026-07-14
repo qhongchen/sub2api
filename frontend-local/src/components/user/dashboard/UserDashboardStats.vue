@@ -177,6 +177,70 @@
             </span>
           </div>
         </div>
+
+        <div
+          v-if="hasAnyLimit(item.quota) && !item.isOther"
+          class="mt-3 space-y-1.5 border-t border-gray-200 pt-2 dark:border-dark-700"
+        >
+          <p class="text-[10px] uppercase text-gray-400">
+            {{ t('dashboard.platformQuota.title') }}
+          </p>
+          <template v-for="quotaWindow in QUOTA_WINDOWS" :key="quotaWindow">
+            <div
+              v-if="quotaValue(item.quota, `${quotaWindow}_limit_usd`) != null"
+              class="space-y-0.5"
+            >
+              <template
+                v-if="(quotaValue(item.quota, `${quotaWindow}_limit_usd`) as number) === 0"
+              >
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-gray-600 dark:text-gray-300">
+                    {{ t(`dashboard.platformQuota.${quotaWindow}`) }}
+                  </span>
+                  <span class="font-mono text-red-500">
+                    {{ t('dashboard.platformQuota.disabled') }}
+                  </span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
+                  <div class="h-full w-full rounded-full bg-red-500" />
+                </div>
+              </template>
+              <template v-else>
+                <div class="flex items-center justify-between gap-2 text-xs">
+                  <span class="text-gray-600 dark:text-gray-300">
+                    {{ t(`dashboard.platformQuota.${quotaWindow}`) }}
+                  </span>
+                  <span class="font-mono text-gray-700 dark:text-gray-200">
+                    ${{ formatUsd((quotaValue(item.quota, `${quotaWindow}_usage_usd`) as number) ?? 0) }} /
+                    ${{ formatUsd(quotaValue(item.quota, `${quotaWindow}_limit_usd`) as number) }}
+                  </span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
+                  <div
+                    class="h-full rounded-full transition-all"
+                    :class="quotaBarClass(quotaPercent(item.quota, quotaWindow))"
+                    :style="{ width: `${quotaPercent(item.quota, quotaWindow)}%` }"
+                  />
+                </div>
+                <p
+                  v-if="quotaValue(item.quota, `${quotaWindow}_window_resets_at`)"
+                  class="text-[10px] text-gray-400"
+                >
+                  {{
+                    t('dashboard.platformQuota.resetsAt', {
+                      time: formatResetTime(
+                        quotaValue(
+                          item.quota,
+                          `${quotaWindow}_window_resets_at`
+                        ) as string
+                      )
+                    })
+                  }}
+                </p>
+              </template>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -187,11 +251,23 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { UserDashboardStats as UserStatsType } from '@/api/usage'
+import type { PlatformQuotaItem, PlatformQuotaWindow } from '@/api/admin/users'
+
+interface PlatformCard {
+  platform: string
+  total_actual_cost: number
+  today_actual_cost: number
+  total_requests: number
+  total_tokens: number
+  isOther?: boolean
+  quota?: PlatformQuotaItem
+}
 
 const props = defineProps<{
   stats: UserStatsType
   balance: number
   isSimple: boolean
+  platformQuotas?: PlatformQuotaItem[] | null
 }>()
 const { t } = useI18n()
 
@@ -199,8 +275,11 @@ const PLATFORM_LABELS: Record<string, string> = {
   anthropic: 'Claude',
   openai: 'OpenAI',
   gemini: 'Gemini',
-  antigravity: 'Antigravity'
+  antigravity: 'Antigravity',
+  grok: 'Grok'
 }
+const PLATFORM_ORDER = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok']
+const QUOTA_WINDOWS: PlatformQuotaWindow[] = ['daily', 'weekly', 'monthly']
 
 const platformLabel = (p: string) => PLATFORM_LABELS[p] ?? p
 
@@ -213,15 +292,41 @@ const sortedPlatforms = computed(() => {
 // （group 与 account 都缺 platform）。这里把差值作为"其他"卡片显式展示，
 // 避免 Row 1 总值与 Row 3 平台拆分加总对不上、用户困惑。
 const OTHER_THRESHOLD = 0.0001
-const platformCards = computed(() => {
-  const cards: Array<{
-    platform: string
-    total_actual_cost: number
-    today_actual_cost: number
-    total_requests: number
-    total_tokens: number
-    isOther?: boolean
-  }> = sortedPlatforms.value.map((p) => ({ ...p }))
+const platformCards = computed<PlatformCard[]>(() => {
+  const usageByPlatform = new Map<string, (typeof sortedPlatforms.value)[number]>()
+  for (const item of props.stats?.by_platform ?? []) {
+    usageByPlatform.set(item.platform, item)
+  }
+
+  const quotaByPlatform = new Map<string, PlatformQuotaItem>()
+  for (const item of props.platformQuotas ?? []) {
+    quotaByPlatform.set(item.platform, item)
+  }
+
+  const cards: PlatformCard[] = []
+  const platforms = new Set([...usageByPlatform.keys(), ...quotaByPlatform.keys()])
+  for (const platform of platforms) {
+    const usage = usageByPlatform.get(platform)
+    cards.push({
+      platform,
+      total_actual_cost: usage?.total_actual_cost ?? 0,
+      today_actual_cost: usage?.today_actual_cost ?? 0,
+      total_requests: usage?.total_requests ?? 0,
+      total_tokens: usage?.total_tokens ?? 0,
+      quota: quotaByPlatform.get(platform)
+    })
+  }
+
+  cards.sort((left, right) => {
+    const leftIndex = PLATFORM_ORDER.indexOf(left.platform)
+    const rightIndex = PLATFORM_ORDER.indexOf(right.platform)
+    if (leftIndex === -1 && rightIndex === -1) {
+      return left.platform.localeCompare(right.platform)
+    }
+    if (leftIndex === -1) return 1
+    if (rightIndex === -1) return -1
+    return leftIndex - rightIndex
+  })
 
   const total = props.stats?.total_actual_cost ?? 0
   const today = props.stats?.today_actual_cost ?? 0
@@ -242,6 +347,70 @@ const platformCards = computed(() => {
   }
   return cards
 })
+
+type QuotaField =
+  | `${PlatformQuotaWindow}_limit_usd`
+  | `${PlatformQuotaWindow}_usage_usd`
+  | `${PlatformQuotaWindow}_window_resets_at`
+
+function quotaValue(
+  quota: PlatformQuotaItem | undefined,
+  field: QuotaField
+): PlatformQuotaItem[QuotaField] {
+  return quota?.[field]
+}
+
+function hasAnyLimit(quota: PlatformQuotaItem | undefined): boolean {
+  if (!quota) return false
+  return (
+    quota.daily_limit_usd != null ||
+    quota.weekly_limit_usd != null ||
+    quota.monthly_limit_usd != null
+  )
+}
+
+function calcPercent(usage: number, limit: number): number {
+  if (!limit || limit <= 0) return 0
+  return Math.min(100, Math.max(0, Math.round((usage / limit) * 100)))
+}
+
+function quotaPercent(
+  quota: PlatformQuotaItem | undefined,
+  quotaWindow: PlatformQuotaWindow
+): number {
+  return calcPercent(
+    (quotaValue(quota, `${quotaWindow}_usage_usd`) as number) ?? 0,
+    (quotaValue(quota, `${quotaWindow}_limit_usd`) as number) ?? 0
+  )
+}
+
+function quotaBarClass(percent: number): string {
+  if (percent >= 95) return 'bg-red-500'
+  if (percent >= 75) return 'bg-amber-500'
+  return 'bg-green-500'
+}
+
+const usdFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+function formatUsd(value: number): string {
+  return Number.isFinite(value) ? usdFormatter.format(value) : '0.00'
+}
+
+function formatResetTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
 
 const formatBalance = (b: number) =>
   new Intl.NumberFormat('en-US', {

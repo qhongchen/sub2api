@@ -560,7 +560,6 @@ export interface SystemSettings {
   claude_oauth_system_prompt: string;
   claude_oauth_system_prompt_blocks: string;
   enable_anthropic_cache_ttl_1h_injection: boolean;
-  enable_claude_context_1m_force: boolean;
   rewrite_message_cache_control: boolean;
   enable_client_dateline_normalization: boolean;
   antigravity_user_agent_version: string;
@@ -913,7 +912,6 @@ export interface UpdateSettingsRequest {
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
 
-  enable_claude_context_1m_force?: boolean;
   allow_user_view_error_requests?: boolean;
 }
 

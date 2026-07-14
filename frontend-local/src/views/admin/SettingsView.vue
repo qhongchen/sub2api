@@ -3340,6 +3340,83 @@
                   </div>
                 </div>
               </div>
+
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <div class="mb-3">
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t("admin.settings.defaults.defaultPlatformQuotas") }}
+                  </label>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.defaults.defaultPlatformQuotasHint") }}
+                  </p>
+                  <p class="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                    {{ t("admin.settings.defaults.platformQuotaNotice") }}
+                  </p>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead>
+                      <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
+                        <th class="pb-2 pr-4 font-medium">
+                          {{ t("admin.settings.platformQuota.platform") }}
+                        </th>
+                        <th class="pb-2 pr-4 font-medium">
+                          {{ t("admin.settings.platformQuota.daily") }}
+                        </th>
+                        <th class="pb-2 pr-4 font-medium">
+                          {{ t("admin.settings.platformQuota.weekly") }}
+                        </th>
+                        <th class="pb-2 font-medium">
+                          {{ t("admin.settings.platformQuota.monthly") }}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="platform in PLATFORM_QUOTA_TYPES"
+                        :key="platform"
+                        class="align-top"
+                      >
+                        <td class="py-1 pr-4">
+                          <span class="font-mono text-xs text-gray-700 dark:text-gray-300">
+                            {{ platform }}
+                          </span>
+                        </td>
+                        <td class="py-1 pr-4">
+                          <input
+                            v-model.number="form.default_platform_quotas[platform]!.daily"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="input h-8 w-28 text-sm"
+                            :placeholder="t('admin.settings.platformQuota.placeholder')"
+                          />
+                        </td>
+                        <td class="py-1 pr-4">
+                          <input
+                            v-model.number="form.default_platform_quotas[platform]!.weekly"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="input h-8 w-28 text-sm"
+                            :placeholder="t('admin.settings.platformQuota.placeholder')"
+                          />
+                        </td>
+                        <td class="py-1">
+                          <input
+                            v-model.number="form.default_platform_quotas[platform]!.monthly"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="input h-8 w-28 text-sm"
+                            :placeholder="t('admin.settings.platformQuota.placeholder')"
+                          />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -3611,6 +3688,80 @@
                             {{ t("common.delete") }}
                           </button>
                         </div>
+                      </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                      <div class="mb-3">
+                        <label class="font-medium text-gray-900 dark:text-white">
+                          {{ t("admin.settings.authSourceDefaults.platformQuotasOverride") }}
+                        </label>
+                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          {{ t("admin.settings.authSourceDefaults.platformQuotasOverrideHint") }}
+                        </p>
+                      </div>
+                      <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                          <thead>
+                            <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
+                              <th class="pb-2 pr-4 font-medium">
+                                {{ t("admin.settings.platformQuota.platform") }}
+                              </th>
+                              <th class="pb-2 pr-4 font-medium">
+                                {{ t("admin.settings.platformQuota.daily") }}
+                              </th>
+                              <th class="pb-2 pr-4 font-medium">
+                                {{ t("admin.settings.platformQuota.weekly") }}
+                              </th>
+                              <th class="pb-2 font-medium">
+                                {{ t("admin.settings.platformQuota.monthly") }}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr
+                              v-for="platform in PLATFORM_QUOTA_TYPES"
+                              :key="`${authSource.source}-platform-quota-${platform}`"
+                              class="align-top"
+                            >
+                              <td class="py-1 pr-4">
+                                <span class="font-mono text-xs text-gray-700 dark:text-gray-300">
+                                  {{ platform }}
+                                </span>
+                              </td>
+                              <td class="py-1 pr-4">
+                                <input
+                                  v-model.number="authSourceDefaults[authSource.source].platform_quotas[platform]!.daily"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  class="input h-8 w-28 text-sm"
+                                  :placeholder="t('admin.settings.platformQuota.placeholder')"
+                                />
+                              </td>
+                              <td class="py-1 pr-4">
+                                <input
+                                  v-model.number="authSourceDefaults[authSource.source].platform_quotas[platform]!.weekly"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  class="input h-8 w-28 text-sm"
+                                  :placeholder="t('admin.settings.platformQuota.placeholder')"
+                                />
+                              </td>
+                              <td class="py-1">
+                                <input
+                                  v-model.number="authSourceDefaults[authSource.source].platform_quotas[platform]!.monthly"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  class="input h-8 w-28 text-sm"
+                                  :placeholder="t('admin.settings.platformQuota.placeholder')"
+                                />
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
@@ -3890,29 +4041,6 @@
                 <Toggle
                   v-model="form.enable_anthropic_cache_ttl_1h_injection"
                 />
-              </div>
-
-              <!-- Claude 1M Context Force -->
-              <div class="flex items-center justify-between">
-                <div>
-                  <label
-                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{
-                      t(
-                        "admin.settings.gatewayForwarding.claudeContext1MForce",
-                      )
-                    }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{
-                      t(
-                        "admin.settings.gatewayForwarding.claudeContext1MForceHint",
-                      )
-                    }}
-                  </p>
-                </div>
-                <Toggle v-model="form.enable_claude_context_1m_force" />
               </div>
 
               <!-- messages cache_control 改写 -->
@@ -6736,11 +6864,14 @@ import {
   defaultWeChatConnectScopesForMode,
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
+  normalizePlatformQuotasMap,
   resolveWeChatConnectModeCapabilities,
+  sanitizePlatformQuotasMap,
 } from "@/api/admin/settings";
 import type {
   AuthSourceDefaultsState,
   AuthSourceType,
+  DefaultPlatformQuotasMap,
   SystemSettings,
   UpdateSettingsRequest,
   DefaultSubscriptionSetting,
@@ -6749,6 +6880,7 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
+  PlatformType,
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
@@ -6816,6 +6948,13 @@ type SettingsTab =
   | "email"
   | "backup";
 const activeTab = ref<SettingsTab>("general");
+const PLATFORM_QUOTA_TYPES: PlatformType[] = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "antigravity",
+  "grok",
+];
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "agreement" as SettingsTab, icon: "document" as const },
@@ -7051,6 +7190,7 @@ type SettingsForm = Omit<
   openai_advanced_scheduler_weight_quota_headroom: string;
   openai_advanced_scheduler_weight_previous_response: string;
   openai_advanced_scheduler_weight_session_sticky: string;
+  default_platform_quotas: DefaultPlatformQuotasMap;
 };
 
 const form = reactive<SettingsForm>({
@@ -7067,6 +7207,7 @@ const form = reactive<SettingsForm>({
   login_agreement_updated_at: "2026-03-31",
   login_agreement_documents: defaultLoginAgreementDocuments(),
   default_balance: 0,
+  default_platform_quotas: normalizePlatformQuotasMap(),
   affiliate_rebate_rate: 20,
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
@@ -7254,7 +7395,6 @@ const form = reactive<SettingsForm>({
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
-  enable_claude_context_1m_force: false,
   rewrite_message_cache_control: false,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
@@ -7987,6 +8127,9 @@ async function loadSettings() {
           }))
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
+    form.default_platform_quotas = normalizePlatformQuotasMap(
+      settings.default_platform_quotas,
+    );
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
       settings.default_subscriptions,
@@ -8457,7 +8600,6 @@ async function saveSettings() {
       enable_cch_signing: form.enable_cch_signing,
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
-      enable_claude_context_1m_force: form.enable_claude_context_1m_force,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
       antigravity_user_agent_version:
         form.antigravity_user_agent_version?.trim() || "",
@@ -8571,6 +8713,9 @@ async function saveSettings() {
       };
     }
 
+    payload.default_platform_quotas = sanitizePlatformQuotasMap(
+      form.default_platform_quotas,
+    );
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
 
     const updated = await adminAPI.settings.updateSettings(payload);
@@ -8581,6 +8726,9 @@ async function saveSettings() {
       }
     }
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(updated));
+    form.default_platform_quotas = normalizePlatformQuotasMap(
+      updated.default_platform_quotas,
+    );
     registrationEmailSuffixWhitelistTags.value =
       normalizeRegistrationEmailSuffixDomains(
         updated.registration_email_suffix_whitelist,

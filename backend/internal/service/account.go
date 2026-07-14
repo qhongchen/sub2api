@@ -56,7 +56,6 @@ type Account struct {
 	SessionWindowEnd    *time.Time
 	SessionWindowStatus string
 
-	ForceClaudeContext1M bool
 	ParentAccountID *int64 // non-nil → 影子账号（不持凭据，透传母账号凭据）
 	QuotaDimension  string // 用量维度："" / "global" / "spark"
 

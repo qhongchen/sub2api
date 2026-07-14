@@ -25,13 +25,6 @@
           <div class="text-right">
             <p class="text-sm font-semibold">
               <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">${{ formatCost(log.actual_cost) }}</span>
-              <span
-                v-if="log.claude_context_1m"
-                class="ml-1 inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-purple-100 text-purple-700 ring-1 ring-inset ring-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:ring-purple-500/30"
-                title="1M Context"
-              >
-                1M
-              </span>
               <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / ${{ formatCost(log.total_cost) }}</span>
             </p>
             <p class="text-xs text-gray-500 dark:text-dark-400">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>

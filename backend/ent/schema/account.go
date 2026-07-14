@@ -197,11 +197,6 @@ func (Account) Fields() []ent.Field {
 			Nillable().
 			MaxLen(20),
 
-		// force_claude_context_1m: 强制启用 Claude 1M 上下文
-		// 当设置为 true 时，该账号的所有 Claude 请求都会强制使用 1M 上下文
-		field.Bool("force_claude_context_1m").
-			Default(false).
-			Comment("Force enable Claude 1M context for this account"),
 		field.Int64("parent_account_id").Optional().Nillable().
 			Comment("Parent account id for a linked spark shadow (NULL = normal)."),
 		field.Enum("quota_dimension").Values("global", "spark").Default("global").

@@ -508,13 +508,6 @@
                 >
                   {{ t('admin.requestLogs.diagnostics.pendingHint') }}
                 </span>
-                <span
-                  v-if="selectedLog.claude_context_1m"
-                  class="inline-flex items-center rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700 ring-1 ring-inset ring-purple-200/70 dark:bg-purple-500/10 dark:text-purple-200 dark:ring-purple-400/20"
-                  title="1M Context"
-                >
-                  1M
-                </span>
               </div>
               <div class="space-y-1">
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-dark-400">
@@ -1114,7 +1107,6 @@ const resourceBillingFields = computed<DiagnosticField[]>(() => {
     field('cache_read_tokens', t('admin.requestLogs.diagnostics.cacheReadTokens'), formatTokenCount(log.cache_read_tokens), true),
     field('image_count', t('admin.requestLogs.diagnostics.imageCount'), formatTokenCount(log.image_count), true),
     field('cache_ttl_overridden', t('admin.requestLogs.diagnostics.cacheTtlOverridden'), formatBoolean(log.cache_ttl_overridden)),
-    field('claude_context_1m', t('admin.requestLogs.diagnostics.claudeContext1M'), formatBoolean(log.claude_context_1m)),
     field('total_cost', t('admin.requestLogs.diagnostics.totalCost'), formatCost(log.total_cost), true),
     field('actual_cost', t('admin.requestLogs.diagnostics.actualCost'), formatCost(log.actual_cost), true),
     field('account_stats_cost', t('admin.requestLogs.diagnostics.accountStatsCost'), formatCost(log.account_stats_cost), true),

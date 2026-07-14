@@ -81,9 +81,14 @@ export default defineConfig(({ mode }) => {
               return 'vendor-vue'
             }
 
-            // UI 工具库（较大，单独分离）
-            if (id.includes('/@vueuse/') || id.includes('/xlsx/')) {
+            // UI 工具库
+            if (id.includes('/@vueuse/')) {
               return 'vendor-ui'
+            }
+
+            // Excel 仅在导出时动态加载，必须保持独立边界
+            if (id.includes('/xlsx/')) {
+              return 'vendor-xlsx'
             }
 
             // 图表库
@@ -96,8 +101,8 @@ export default defineConfig(({ mode }) => {
               return 'vendor-i18n'
             }
 
-            // 其他小型第三方库合并
-            return 'vendor-misc'
+            // 其余依赖交给 Rollup 按动态导入关系拆分，避免无关功能被强制合包
+            return undefined
           }
 
           // 应用代码：按入口点自动分包，不手动干预

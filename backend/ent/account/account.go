@@ -74,8 +74,6 @@ const (
 	FieldSessionWindowEnd = "session_window_end"
 	// FieldSessionWindowStatus holds the string denoting the session_window_status field in the database.
 	FieldSessionWindowStatus = "session_window_status"
-	// FieldForceClaudeContext1m holds the string denoting the force_claude_context_1m field in the database.
-	FieldForceClaudeContext1m = "force_claude_context_1m"
 	// FieldParentAccountID holds the string denoting the parent_account_id field in the database.
 	FieldParentAccountID = "parent_account_id"
 	// FieldQuotaDimension holds the string denoting the quota_dimension field in the database.
@@ -162,7 +160,6 @@ var Columns = []string{
 	FieldSessionWindowStart,
 	FieldSessionWindowEnd,
 	FieldSessionWindowStatus,
-	FieldForceClaudeContext1m,
 	FieldParentAccountID,
 	FieldQuotaDimension,
 }
@@ -223,8 +220,6 @@ var (
 	DefaultSchedulable bool
 	// SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	SessionWindowStatusValidator func(string) error
-	// DefaultForceClaudeContext1m holds the default value on creation for the "force_claude_context_1m" field.
-	DefaultForceClaudeContext1m bool
 )
 
 // QuotaDimension defines the type for the "quota_dimension" enum field.
@@ -394,11 +389,6 @@ func BySessionWindowEnd(opts ...sql.OrderTermOption) OrderOption {
 // BySessionWindowStatus orders the results by the session_window_status field.
 func BySessionWindowStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSessionWindowStatus, opts...).ToFunc()
-}
-
-// ByForceClaudeContext1m orders the results by the force_claude_context_1m field.
-func ByForceClaudeContext1m(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldForceClaudeContext1m, opts...).ToFunc()
 }
 
 // ByParentAccountID orders the results by the parent_account_id field.

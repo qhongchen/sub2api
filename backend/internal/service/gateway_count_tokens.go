@@ -382,18 +382,11 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	if c != nil && c.Request != nil {
 		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
 	}
-	modelID := gjson.GetBytes(body, "model").String()
-	passthroughDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
-	forceClaudeContext1M := isClaudeContext1MForceEnabled(s.settingService, ctx)
-	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
-		return nil, err
-	}
 	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准
 	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
 		clientBeta = beta
 	}
-	finalBetaHeader, finalBetaShouldSet := computeForcedClaudeContextBeta(modelID, clientBeta, passthroughDropSet, forceClaudeContext1M)
-	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, finalBetaHeader); changed {
+	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
 		body = sanitized
 	}
 
@@ -420,10 +413,6 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
 	setAnthropicAPIKeyAuthHeader(req.Header, account, token)
-	deleteHeaderAllForms(req.Header, "anthropic-beta")
-	if finalBetaShouldSet {
-		setHeaderRaw(req.Header, "anthropic-beta", finalBetaHeader)
-	}
 
 	if req.Header.Get("content-type") == "" {
 		req.Header.Set("content-type", "application/json")
@@ -498,12 +487,8 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 	// === 计算最终 anthropic-beta header（先于 body sanitize 与 CCH 签名）===
 	// 顺序约束同 buildUpstreamRequest。
 	ctEffectiveDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
-	forceClaudeContext1M := isClaudeContext1MForceEnabled(s.settingService, ctx)
-	if err := s.checkForcedClaudeContextBetaPolicy(ctx, account, modelID, forceClaudeContext1M); err != nil {
-		return nil, nil, err
-	}
 	finalBetaHeader, finalBetaShouldSet := s.computeFinalCountTokensAnthropicBeta(
-		tokenType, mimicClaudeCode, modelID, clientHeaders, body, ctEffectiveDropSet, forceClaudeContext1M,
+		tokenType, mimicClaudeCode, modelID, clientHeaders, body, ctEffectiveDropSet,
 	)
 
 	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准

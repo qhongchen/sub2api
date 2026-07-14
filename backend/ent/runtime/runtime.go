@@ -255,10 +255,6 @@ func init() {
 	accountDescSessionWindowStatus := accountFields[25].Descriptor()
 	// account.SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	account.SessionWindowStatusValidator = accountDescSessionWindowStatus.Validators[0].(func(string) error)
-	// accountDescForceClaudeContext1m is the schema descriptor for force_claude_context_1m field.
-	accountDescForceClaudeContext1m := accountFields[26].Descriptor()
-	// account.DefaultForceClaudeContext1m holds the default value on creation for the force_claude_context_1m field.
-	account.DefaultForceClaudeContext1m = accountDescForceClaudeContext1m.Default.(bool)
 	accountgroupFields := schema.AccountGroup{}.Fields()
 	_ = accountgroupFields
 	// accountgroupDescPriority is the schema descriptor for priority field.
@@ -1992,12 +1988,8 @@ func init() {
 	usagelogDescCacheTTLOverridden := usagelogFields[42].Descriptor()
 	// usagelog.DefaultCacheTTLOverridden holds the default value on creation for the cache_ttl_overridden field.
 	usagelog.DefaultCacheTTLOverridden = usagelogDescCacheTTLOverridden.Default.(bool)
-	// usagelogDescClaudeContext1m is the schema descriptor for claude_context_1m field.
-	usagelogDescClaudeContext1m := usagelogFields[43].Descriptor()
-	// usagelog.DefaultClaudeContext1m holds the default value on creation for the claude_context_1m field.
-	usagelog.DefaultClaudeContext1m = usagelogDescClaudeContext1m.Default.(bool)
 	// usagelogDescCreatedAt is the schema descriptor for created_at field.
-	usagelogDescCreatedAt := usagelogFields[44].Descriptor()
+	usagelogDescCreatedAt := usagelogFields[43].Descriptor()
 	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	usagelog.DefaultCreatedAt = usagelogDescCreatedAt.Default.(func() time.Time)
 	userMixin := schema.User{}.Mixin()

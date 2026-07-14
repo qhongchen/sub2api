@@ -1,6 +1,12 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <div v-if="canUseBatchImage" class="flex justify-end">
+        <button type="button" class="btn btn-secondary inline-flex items-center gap-2" @click="router.push('/batch-image')">
+          <span>{{ t('admin.dashboard.batchImage') }}</span>
+          <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.dashboard.batchImageDesc') }}</span>
+        </button>
+      </div>
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
       </div>
@@ -70,10 +76,12 @@ import type {
   DashboardUsageLegendItem,
   UsageMetricKey
 } from '@/components/admin/dashboard/types'
+import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const router = useRouter()
+const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
@@ -1087,6 +1095,7 @@ const loadChartData = async () => {
 }
 
 onMounted(() => {
+  void refreshBatchImageAccess()
   void loadDashboardStats()
 })
 </script>

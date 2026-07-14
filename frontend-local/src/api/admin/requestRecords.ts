@@ -87,7 +87,6 @@ export interface AdminRequestLog {
   account_rate_multiplier?: number | null
   account_stats_cost?: number | null
   cache_ttl_overridden?: boolean | null
-  claude_context_1m?: boolean | null
 
   user_id?: number | null
   user?: AdminRequestLogIdentity | null

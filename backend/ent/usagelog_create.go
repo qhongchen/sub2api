@@ -581,20 +581,6 @@ func (_c *UsageLogCreate) SetNillableCacheTTLOverridden(v *bool) *UsageLogCreate
 	return _c
 }
 
-// SetClaudeContext1m sets the "claude_context_1m" field.
-func (_c *UsageLogCreate) SetClaudeContext1m(v bool) *UsageLogCreate {
-	_c.mutation.SetClaudeContext1m(v)
-	return _c
-}
-
-// SetNillableClaudeContext1m sets the "claude_context_1m" field if the given value is not nil.
-func (_c *UsageLogCreate) SetNillableClaudeContext1m(v *bool) *UsageLogCreate {
-	if v != nil {
-		_c.SetClaudeContext1m(*v)
-	}
-	return _c
-}
-
 // SetCreatedAt sets the "created_at" field.
 func (_c *UsageLogCreate) SetCreatedAt(v time.Time) *UsageLogCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -740,10 +726,6 @@ func (_c *UsageLogCreate) defaults() {
 	if _, ok := _c.mutation.CacheTTLOverridden(); !ok {
 		v := usagelog.DefaultCacheTTLOverridden
 		_c.mutation.SetCacheTTLOverridden(v)
-	}
-	if _, ok := _c.mutation.ClaudeContext1m(); !ok {
-		v := usagelog.DefaultClaudeContext1m
-		_c.mutation.SetClaudeContext1m(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := usagelog.DefaultCreatedAt()
@@ -891,9 +873,6 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.CacheTTLOverridden(); !ok {
 		return &ValidationError{Name: "cache_ttl_overridden", err: errors.New(`ent: missing required field "UsageLog.cache_ttl_overridden"`)}
-	}
-	if _, ok := _c.mutation.ClaudeContext1m(); !ok {
-		return &ValidationError{Name: "claude_context_1m", err: errors.New(`ent: missing required field "UsageLog.claude_context_1m"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "UsageLog.created_at"`)}
@@ -1085,10 +1064,6 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
 		_node.CacheTTLOverridden = value
-	}
-	if value, ok := _c.mutation.ClaudeContext1m(); ok {
-		_spec.SetField(usagelog.FieldClaudeContext1m, field.TypeBool, value)
-		_node.ClaudeContext1m = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(usagelog.FieldCreatedAt, field.TypeTime, value)
@@ -1990,18 +1965,6 @@ func (u *UsageLogUpsert) SetCacheTTLOverridden(v bool) *UsageLogUpsert {
 // UpdateCacheTTLOverridden sets the "cache_ttl_overridden" field to the value that was provided on create.
 func (u *UsageLogUpsert) UpdateCacheTTLOverridden() *UsageLogUpsert {
 	u.SetExcluded(usagelog.FieldCacheTTLOverridden)
-	return u
-}
-
-// SetClaudeContext1m sets the "claude_context_1m" field.
-func (u *UsageLogUpsert) SetClaudeContext1m(v bool) *UsageLogUpsert {
-	u.Set(usagelog.FieldClaudeContext1m, v)
-	return u
-}
-
-// UpdateClaudeContext1m sets the "claude_context_1m" field to the value that was provided on create.
-func (u *UsageLogUpsert) UpdateClaudeContext1m() *UsageLogUpsert {
-	u.SetExcluded(usagelog.FieldClaudeContext1m)
 	return u
 }
 
@@ -2936,20 +2899,6 @@ func (u *UsageLogUpsertOne) SetCacheTTLOverridden(v bool) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateCacheTTLOverridden() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheTTLOverridden()
-	})
-}
-
-// SetClaudeContext1m sets the "claude_context_1m" field.
-func (u *UsageLogUpsertOne) SetClaudeContext1m(v bool) *UsageLogUpsertOne {
-	return u.Update(func(s *UsageLogUpsert) {
-		s.SetClaudeContext1m(v)
-	})
-}
-
-// UpdateClaudeContext1m sets the "claude_context_1m" field to the value that was provided on create.
-func (u *UsageLogUpsertOne) UpdateClaudeContext1m() *UsageLogUpsertOne {
-	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateClaudeContext1m()
 	})
 }
 
@@ -4050,20 +3999,6 @@ func (u *UsageLogUpsertBulk) SetCacheTTLOverridden(v bool) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateCacheTTLOverridden() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheTTLOverridden()
-	})
-}
-
-// SetClaudeContext1m sets the "claude_context_1m" field.
-func (u *UsageLogUpsertBulk) SetClaudeContext1m(v bool) *UsageLogUpsertBulk {
-	return u.Update(func(s *UsageLogUpsert) {
-		s.SetClaudeContext1m(v)
-	})
-}
-
-// UpdateClaudeContext1m sets the "claude_context_1m" field to the value that was provided on create.
-func (u *UsageLogUpsertBulk) UpdateClaudeContext1m() *UsageLogUpsertBulk {
-	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateClaudeContext1m()
 	})
 }
 

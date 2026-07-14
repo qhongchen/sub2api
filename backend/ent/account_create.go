@@ -391,20 +391,6 @@ func (_c *AccountCreate) SetNillableSessionWindowStatus(v *string) *AccountCreat
 	return _c
 }
 
-// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
-func (_c *AccountCreate) SetForceClaudeContext1m(v bool) *AccountCreate {
-	_c.mutation.SetForceClaudeContext1m(v)
-	return _c
-}
-
-// SetNillableForceClaudeContext1m sets the "force_claude_context_1m" field if the given value is not nil.
-func (_c *AccountCreate) SetNillableForceClaudeContext1m(v *bool) *AccountCreate {
-	if v != nil {
-		_c.SetForceClaudeContext1m(*v)
-	}
-	return _c
-}
-
 // SetParentAccountID sets the "parent_account_id" field.
 func (_c *AccountCreate) SetParentAccountID(v int64) *AccountCreate {
 	_c.mutation.SetParentAccountID(v)
@@ -591,10 +577,6 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultSchedulable
 		_c.mutation.SetSchedulable(v)
 	}
-	if _, ok := _c.mutation.ForceClaudeContext1m(); !ok {
-		v := account.DefaultForceClaudeContext1m
-		_c.mutation.SetForceClaudeContext1m(v)
-	}
 	if _, ok := _c.mutation.QuotaDimension(); !ok {
 		v := account.DefaultQuotaDimension
 		_c.mutation.SetQuotaDimension(v)
@@ -667,9 +649,6 @@ func (_c *AccountCreate) check() error {
 		if err := account.SessionWindowStatusValidator(v); err != nil {
 			return &ValidationError{Name: "session_window_status", err: fmt.Errorf(`ent: validator failed for field "Account.session_window_status": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.ForceClaudeContext1m(); !ok {
-		return &ValidationError{Name: "force_claude_context_1m", err: errors.New(`ent: missing required field "Account.force_claude_context_1m"`)}
 	}
 	if _, ok := _c.mutation.QuotaDimension(); !ok {
 		return &ValidationError{Name: "quota_dimension", err: errors.New(`ent: missing required field "Account.quota_dimension"`)}
@@ -817,10 +796,6 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SessionWindowStatus(); ok {
 		_spec.SetField(account.FieldSessionWindowStatus, field.TypeString, value)
 		_node.SessionWindowStatus = &value
-	}
-	if value, ok := _c.mutation.ForceClaudeContext1m(); ok {
-		_spec.SetField(account.FieldForceClaudeContext1m, field.TypeBool, value)
-		_node.ForceClaudeContext1m = value
 	}
 	if value, ok := _c.mutation.QuotaDimension(); ok {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
@@ -1423,18 +1398,6 @@ func (u *AccountUpsert) UpdateSessionWindowStatus() *AccountUpsert {
 // ClearSessionWindowStatus clears the value of the "session_window_status" field.
 func (u *AccountUpsert) ClearSessionWindowStatus() *AccountUpsert {
 	u.SetNull(account.FieldSessionWindowStatus)
-	return u
-}
-
-// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
-func (u *AccountUpsert) SetForceClaudeContext1m(v bool) *AccountUpsert {
-	u.Set(account.FieldForceClaudeContext1m, v)
-	return u
-}
-
-// UpdateForceClaudeContext1m sets the "force_claude_context_1m" field to the value that was provided on create.
-func (u *AccountUpsert) UpdateForceClaudeContext1m() *AccountUpsert {
-	u.SetExcluded(account.FieldForceClaudeContext1m)
 	return u
 }
 
@@ -2049,20 +2012,6 @@ func (u *AccountUpsertOne) UpdateSessionWindowStatus() *AccountUpsertOne {
 func (u *AccountUpsertOne) ClearSessionWindowStatus() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearSessionWindowStatus()
-	})
-}
-
-// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
-func (u *AccountUpsertOne) SetForceClaudeContext1m(v bool) *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.SetForceClaudeContext1m(v)
-	})
-}
-
-// UpdateForceClaudeContext1m sets the "force_claude_context_1m" field to the value that was provided on create.
-func (u *AccountUpsertOne) UpdateForceClaudeContext1m() *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.UpdateForceClaudeContext1m()
 	})
 }
 
@@ -2848,20 +2797,6 @@ func (u *AccountUpsertBulk) UpdateSessionWindowStatus() *AccountUpsertBulk {
 func (u *AccountUpsertBulk) ClearSessionWindowStatus() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearSessionWindowStatus()
-	})
-}
-
-// SetForceClaudeContext1m sets the "force_claude_context_1m" field.
-func (u *AccountUpsertBulk) SetForceClaudeContext1m(v bool) *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.SetForceClaudeContext1m(v)
-	})
-}
-
-// UpdateForceClaudeContext1m sets the "force_claude_context_1m" field to the value that was provided on create.
-func (u *AccountUpsertBulk) UpdateForceClaudeContext1m() *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.UpdateForceClaudeContext1m()
 	})
 }
 

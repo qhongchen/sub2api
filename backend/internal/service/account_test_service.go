@@ -99,17 +99,6 @@ func NewAccountTestService(
 	}
 }
 
-func (s *AccountTestService) isClaudeContext1MForceEnabled(ctx context.Context) bool {
-	if s == nil {
-		return false
-	}
-	return isClaudeContext1MForceEnabled(s.settingService, ctx)
-}
-
-func claudeAccountTestBetaHeader(modelID string, baseBetaHeader string, forceContext1M bool) string {
-	return mergeAnthropicBetaDroppingForModel(modelID, nil, baseBetaHeader, nil, forceContext1M)
-}
-
 func (s *AccountTestService) validateUpstreamBaseURL(raw string) (string, error) {
 	if s.cfg == nil {
 		return "", errors.New("config is not available")
@@ -300,12 +289,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 
 	// Set authentication header
-	forceContext1M := s.isClaudeContext1MForceEnabled(ctx)
 	if account.IsOAuth() {
-		req.Header.Set("anthropic-beta", claudeAccountTestBetaHeader(testModelID, claude.DefaultBetaHeader, forceContext1M))
+		req.Header.Set("anthropic-beta", claude.DefaultBetaHeader)
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	} else {
-		req.Header.Set("anthropic-beta", claudeAccountTestBetaHeader(testModelID, claude.APIKeyBetaHeader, forceContext1M))
+		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
 		setAnthropicAPIKeyAuthHeader(req.Header, account, authToken)
 	}
 

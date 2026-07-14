@@ -122,7 +122,6 @@ func RegisterUserRoutes(
 		{
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
-			monitors.GET("/:id/history", h.ChannelMonitor.History)
 		}
 	}
 }

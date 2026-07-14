@@ -194,10 +194,6 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	} else {
 		result, handleErr = s.handleCCBufferedFromAnthropic(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
 	}
-	if result != nil {
-		result.ClaudeContext1M = requestUsesClaudeContext1M(upstreamReq)
-	}
-
 	return result, handleErr
 }
 

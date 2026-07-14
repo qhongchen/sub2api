@@ -71,7 +71,6 @@ var usageLogInsertArgTypes = [...]string{
 	"text",        // inbound_endpoint
 	"text",        // upstream_endpoint
 	"boolean",     // cache_ttl_overridden
-	"boolean",     // claude_context_1m
 	"bigint",      // channel_id
 	"text",        // model_mapping_chain
 	"text",        // billing_tier
@@ -264,7 +263,6 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			inbound_endpoint,
 			upstream_endpoint,
 			cache_ttl_overridden,
-			claude_context_1m,
 			channel_id,
 			model_mapping_chain,
 			billing_tier,
@@ -800,7 +798,6 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				inbound_endpoint,
 				upstream_endpoint,
 				cache_ttl_overridden,
-				claude_context_1m,
 				channel_id,
 				model_mapping_chain,
 				billing_tier,
@@ -856,7 +853,6 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				inbound_endpoint,
 				upstream_endpoint,
 				cache_ttl_overridden,
-				claude_context_1m,
 				channel_id,
 				model_mapping_chain,
 				billing_tier,
@@ -952,7 +948,6 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			inbound_endpoint,
 			upstream_endpoint,
 			cache_ttl_overridden,
-			claude_context_1m,
 			channel_id,
 			model_mapping_chain,
 			billing_tier,
@@ -1269,7 +1264,6 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			inboundEndpoint,
 			upstreamEndpoint,
 			log.CacheTTLOverridden,
-			log.ClaudeContext1M,
 			channelID,
 			modelMappingChain,
 			billingTier,
