@@ -29,6 +29,7 @@ type GrokQuotaProbeResult struct {
 	Model             string              `json:"model,omitempty"`
 	Billing           *xai.BillingSummary `json:"billing,omitempty"`
 	Snapshot          *xai.QuotaSnapshot  `json:"snapshot,omitempty"`
+	LocalUsage24h     *WindowStats        `json:"local_usage_24h,omitempty"`
 	LocalUsage7d      *WindowStats        `json:"local_usage_7d,omitempty"`
 	LocalUsageMonthly *WindowStats        `json:"local_usage_monthly,omitempty"`
 	StatusCode        int                 `json:"status_code,omitempty"`
@@ -99,6 +100,7 @@ func (s *GrokQuotaService) QueryQuota(ctx context.Context, accountID int64) (*Gr
 	if billingResult != nil {
 		probeResult.Source = "hybrid_probe"
 		probeResult.Billing = billingResult.Billing
+		probeResult.LocalUsage24h = billingResult.LocalUsage24h
 		probeResult.LocalUsage7d = billingResult.LocalUsage7d
 		probeResult.LocalUsageMonthly = billingResult.LocalUsageMonthly
 		probeResult.Persisted = probeResult.Persisted || billingResult.Persisted
@@ -133,7 +135,7 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "GROK_QUOTA_PROBE_BODY_ERROR", "failed to build probe body: %v", err)
 	}
-	targetURL, err := xai.BuildResponsesURL(account.GetGrokBaseURL())
+	targetURL, err := buildGrokResponsesURL(account, nil)
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "GROK_QUOTA_BASE_URL_INVALID", "invalid Grok base_url: %v", err)
 	}
@@ -147,7 +149,9 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	applyGrokCLIHeaders(req.Header)
+	if account.IsGrokOAuth() {
+		applyGrokCLIHeaders(req.Header)
+	}
 
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, maxInt(account.Concurrency, 1))
 	if err != nil {
@@ -156,7 +160,7 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	defer func() { _ = resp.Body.Close() }()
 
 	snapshot := xai.ObserveQuotaHeaders(resp.Header, resp.StatusCode, "active_probe")
-	resetAt, limited := grokRateLimitResetAt(snapshot, time.Now())
+	resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, time.Now())
 	if limited {
 		normalizeGrokExhaustedWindowResets(snapshot, resetAt, time.Now())
 	}
@@ -165,6 +169,8 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	})
 	if limited {
 		persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
+	} else if isSuccessfulGrokRateLimitRecovery(account, snapshot) {
+		clearGrokRateLimitAfterRecovery(ctx, s.accountRepo, account)
 	}
 
 	result := &GrokQuotaProbeResult{
@@ -181,10 +187,22 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 		return result, nil
 	}
 	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 240))
-		bodyText := truncate(strings.TrimSpace(string(bodyBytes)), 240)
-		slog.Warn("grok_quota_probe_failed", "account_id", account.ID, "model", probeModel, "status", resp.StatusCode, "body", bodyText)
-		return nil, infraerrors.Newf(mapUpstreamStatus(resp.StatusCode), "GROK_QUOTA_PROBE_UPSTREAM_ERROR", "upstream returned %d for probe model %q: %s", resp.StatusCode, probeModel, bodyText)
+		const reason = "GROK_QUOTA_PROBE_UPSTREAM_ERROR"
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+		slog.Warn(
+			"grok_quota_probe_failed",
+			"account_id", account.ID,
+			"model", probeModel,
+			"status", resp.StatusCode,
+			"reason", reason,
+		)
+		return nil, infraerrors.Newf(
+			mapUpstreamStatus(resp.StatusCode),
+			reason,
+			"upstream returned %d for probe model %q",
+			resp.StatusCode,
+			probeModel,
+		)
 	}
 	return result, nil
 }
@@ -238,14 +256,16 @@ func (s *GrokQuotaService) probeBilling(ctx context.Context, accountID int64) (*
 	if persistErr != nil {
 		slog.Warn("grok_billing_persist_failed", "account_id", account.ID, "error", persistErr)
 	}
-	localUsage7d, localUsageMonthly := grokLocalUsageForBilling(ctx, s.usageLogRepo, account.ID, billing, time.Now().UTC())
+	now := time.Now().UTC()
+	localUsage24h, localUsage7d, localUsageMonthly := grokLocalUsageForQuota(ctx, s.usageLogRepo, account.ID, billing, now)
 	return &GrokQuotaProbeResult{
 		Source:            "billing_probe",
 		Billing:           billing,
+		LocalUsage24h:     localUsage24h,
 		LocalUsage7d:      localUsage7d,
 		LocalUsageMonthly: localUsageMonthly,
 		StatusCode:        statusCode,
-		FetchedAt:         time.Now().Unix(),
+		FetchedAt:         now.Unix(),
 		Persisted:         persistErr == nil,
 	}, nil
 }
@@ -371,6 +391,7 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 	if err != nil {
 		return nil, "", "", err
 	}
+	proxyURL := s.resolveProxyURL(ctx, account)
 
 	token, err := s.tokenProvider.GetAccessToken(ctx, account)
 	if err != nil {
@@ -380,7 +401,7 @@ func (s *GrokQuotaService) prepareProbe(ctx context.Context, accountID int64) (*
 		return nil, "", "", infraerrors.New(http.StatusBadGateway, "GROK_QUOTA_TOKEN_UNAVAILABLE", "access token is empty")
 	}
 
-	return account, token, s.resolveProxyURL(ctx, account), nil
+	return account, token, proxyURL, nil
 }
 
 func (s *GrokQuotaService) resolveProxyURL(ctx context.Context, account *Account) string {
@@ -392,6 +413,7 @@ func (s *GrokQuotaService) resolveProxyURL(ctx context.Context, account *Account
 		return account.Proxy.URL()
 	case s != nil && s.proxyRepo != nil:
 		if proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && proxy != nil {
+			account.Proxy = proxy
 			return proxy.URL()
 		}
 	}
