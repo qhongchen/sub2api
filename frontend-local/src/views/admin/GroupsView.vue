@@ -404,6 +404,19 @@
               </button>
               <button
                 type="button"
+                @click="handleDuplicate(row)"
+                class="admin-row-action"
+                :disabled="duplicatingGroupIds.has(row.id)"
+                :aria-label="t('admin.groups.duplicate', '复制')"
+                :title="duplicatingGroupIds.has(row.id) ? t('admin.groups.duplicating', '复制中') : t('admin.groups.duplicate', '复制')"
+              >
+                <Icon name="copy" size="sm" />
+                <span class="admin-row-action-label">
+                  {{ duplicatingGroupIds.has(row.id) ? t('admin.groups.duplicating', '复制中') : t('admin.groups.duplicate', '复制') }}
+                </span>
+              </button>
+              <button
+                type="button"
                 @click="handleRateMultipliers(row)"
                 class="admin-row-action"
                 :aria-label="t('admin.groups.rateMultipliers')"
@@ -3115,6 +3128,7 @@ import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesMo
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
+import { extractApiErrorMessage } from "@/utils/apiError";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import { useInfinitePagedList } from "@/composables/useInfinitePagedList";
@@ -3418,6 +3432,7 @@ const submitting = ref(false);
 const sortSubmitting = ref(false);
 const editingGroup = ref<AdminGroup | null>(null);
 const deletingGroup = ref<AdminGroup | null>(null);
+const duplicatingGroupIds = reactive(new Set<number>());
 const showRateMultipliersModal = ref(false);
 const rateMultipliersGroup = ref<AdminGroup | null>(null);
 const showRPMOverridesModal = ref(false);
@@ -4308,6 +4323,25 @@ const handleRateMultipliers = (group: AdminGroup) => {
 const handleRPMOverrides = (group: AdminGroup) => {
   rpmOverridesGroup.value = group;
   showRPMOverridesModal.value = true;
+};
+
+const handleDuplicate = async (group: AdminGroup) => {
+  if (duplicatingGroupIds.has(group.id)) return;
+
+  duplicatingGroupIds.add(group.id);
+  try {
+    const duplicate = await adminAPI.groups.duplicate(group.id);
+    appStore.showSuccess(
+      t("admin.groups.duplicateSuccess", { name: duplicate.name }, `已复制 ${duplicate.name}`),
+    );
+    await loadGroups();
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(error, t("admin.groups.duplicateFailed", "复制分组失败")),
+    );
+  } finally {
+    duplicatingGroupIds.delete(group.id);
+  }
 };
 
 const handleDelete = (group: AdminGroup) => {

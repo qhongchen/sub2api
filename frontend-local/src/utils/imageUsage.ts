@@ -18,6 +18,24 @@ export const textOutputTokens = (row: ImageOutputTokenRow | null | undefined): n
 export const hasImageOutputCost = (row: ImageOutputCostRow | null | undefined): boolean =>
   (row?.image_output_cost ?? 0) > 0
 
+type ImageInputTokenRow = {
+  input_tokens?: number | null
+  image_input_tokens?: number | null
+}
+
+type ImageInputCostRow = {
+  image_input_cost?: number | null
+}
+
+export const hasImageInputTokens = (row: ImageInputTokenRow | null | undefined): boolean =>
+  (row?.image_input_tokens ?? 0) > 0
+
+export const textInputTokens = (row: ImageInputTokenRow | null | undefined): number =>
+  Math.max(0, (row?.input_tokens ?? 0) - (row?.image_input_tokens ?? 0))
+
+export const hasImageInputCost = (row: ImageInputCostRow | null | undefined): boolean =>
+  (row?.image_input_cost ?? 0) > 0
+
 const knownImageSizeSources = new Set(['output', 'input', 'default', 'legacy'])
 const knownImageBillingSizes = new Set(['1K', '2K', '4K', 'mixed'])
 

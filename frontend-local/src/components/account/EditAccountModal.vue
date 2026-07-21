@@ -47,6 +47,11 @@
             "
           />
           <p v-if="baseUrlHint" class="input-hint">{{ baseUrlHint }}</p>
+          <GrokBaseUrlPresets
+            v-if="account.platform === 'grok'"
+            class="mt-2"
+            @select="editBaseUrl = $event"
+          />
         </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.apiKey') }}</label>
@@ -423,7 +428,7 @@
 
         <!-- Header Override Section (anthropic/openai apikey only) -->
         <div
-          v-if="isHeaderOverridePlatform(account.platform)"
+          v-if="isHeaderOverrideCapable(account.platform, 'apikey')"
           class="border-t border-gray-200 pt-4 dark:border-dark-600"
         >
           <div class="mb-3 flex items-center justify-between">
@@ -517,6 +522,10 @@
               >
                 + {{ t('admin.accounts.headerOverride.fillTemplate') }}
               </button>
+              <HeaderOverrideJsonTools
+                :rows="headerOverrideRows"
+                @update:rows="headerOverrideRows = $event"
+              />
             </div>
 
             <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -525,6 +534,56 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Grok OAuth 自定义转发端点与请求头覆写。OAuth 授权/刷新仍走官方链路。 -->
+      <div
+        v-if="account.platform === 'grok' && account.type === 'oauth'"
+        class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div>
+          <label class="input-label">{{ t('admin.accounts.grokCustomBaseUrl.title', 'Grok upstream URL') }}</label>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.grokCustomBaseUrl.hint', 'Override only the forwarding endpoint; OAuth authorization and refresh are unchanged.') }}
+          </p>
+          <label class="mt-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="grokOAuthCustomBaseUrlEnabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600" />
+            {{ t('admin.accounts.grokCustomBaseUrl.title', 'Use custom upstream URL') }}
+          </label>
+          <div v-if="grokOAuthCustomBaseUrlEnabled" class="mt-2 space-y-2">
+            <input
+              v-model="grokOAuthBaseUrl"
+              type="text"
+              class="input"
+              data-testid="grok-custom-base-url-input"
+              :placeholder="t('admin.accounts.grokCustomBaseUrl.placeholder', 'https://api.x.ai/v1')"
+            />
+            <GrokBaseUrlPresets @select="grokOAuthBaseUrl = $event" />
+          </div>
+        </div>
+        <div v-if="isHeaderOverrideCapable(account.platform, account.type)" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="input-label mb-0">{{ t('admin.accounts.headerOverride.title') }}</label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.headerOverride.hint') }}</p>
+            </div>
+            <input v-model="headerOverrideEnabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600" />
+          </div>
+          <div v-if="headerOverrideEnabled" class="space-y-3">
+            <div v-if="headerOverrideRows.length > 0" class="space-y-2">
+              <div v-for="(row, index) in headerOverrideRows" :key="getHeaderOverrideRowKey(row)" class="flex items-center gap-2">
+                <input v-model="row.name" type="text" class="input flex-1" :placeholder="t('admin.accounts.headerOverride.namePlaceholder')" />
+                <input v-model="row.value" type="text" class="input flex-1" :placeholder="t('admin.accounts.headerOverride.valuePlaceholder')" />
+                <button type="button" class="rounded-lg p-2 text-red-500" @click="removeHeaderOverrideRow(index)">x</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" @click="addHeaderOverrideRow">{{ t('admin.accounts.headerOverride.addRow') }}</button>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="rounded-lg bg-primary-50 px-3 py-1 text-xs text-primary-700" @click="fillHeaderOverrideTemplate">+ {{ t('admin.accounts.headerOverride.fillTemplate') }}</button>
+              <HeaderOverrideJsonTools :rows="headerOverrideRows" @update:rows="headerOverrideRows = $event" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- OpenAI/Grok OAuth Model Mapping (OAuth 类型没有 apikey 容器，需要独立的模型映射区域) -->
@@ -1614,6 +1673,23 @@
         </div>
       </div>
 
+      <div
+        v-if="account?.platform === 'openai' && account?.type === 'apikey'"
+        class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div>
+          <label class="input-label mb-0">{{ t('admin.accounts.upstreamBilling.autoProbe') }}</label>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.upstreamBilling.autoProbeHint') }}
+          </p>
+        </div>
+        <Toggle
+          v-model="upstreamBillingAutoProbeEnabled"
+          data-testid="upstream-billing-auto-probe"
+          :aria-label="t('admin.accounts.upstreamBilling.autoProbe')"
+        />
+      </div>
+
       <!-- Anthropic API Key 自动透传开关 -->
       <div
         v-if="account?.platform === 'anthropic' && account?.type === 'apikey'"
@@ -2550,11 +2626,14 @@ import type {
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
+import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
+import HeaderOverrideJsonTools from '@/components/account/HeaderOverrideJsonTools.vue'
 import {
   applyAntigravityProjectID,
   applyHeaderOverride,
@@ -2563,7 +2642,8 @@ import {
   buildPlanTypeOptions,
   readPlanType,
   getHeaderOverrideTemplate,
-  isHeaderOverridePlatform,
+  isHeaderOverrideCapable,
+  isCustomGrokBaseUrl,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
@@ -2702,6 +2782,8 @@ const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
 const headerOverrideEnabled = ref(false)
 const headerOverrideRows = ref<HeaderOverrideRow[]>([])
+const grokOAuthCustomBaseUrlEnabled = ref(false)
+const grokOAuthBaseUrl = ref('')
 
 const addHeaderOverrideRow = () => {
   headerOverrideRows.value.push({ name: '', value: '' })
@@ -2730,6 +2812,7 @@ const autoPause5hThreshold = ref<number | null>(null)
 const autoPause7dThreshold = ref<number | null>(null)
 const autoPause5hDisabled = ref(false)
 const autoPause7dDisabled = ref(false)
+const upstreamBillingAutoProbeEnabled = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityProjectId = ref('')
@@ -3211,6 +3294,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 	autoPause7dThreshold.value = typeof extra?.auto_pause_7d_threshold === 'number' ? extra.auto_pause_7d_threshold * 100 : null
 	autoPause5hDisabled.value = extra?.auto_pause_5h_disabled === true
 	autoPause7dDisabled.value = extra?.auto_pause_7d_disabled === true
+	upstreamBillingAutoProbeEnabled.value = extra?.upstream_billing_probe_enabled === true
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
   openaiPassthroughEnabled.value = false
@@ -3359,9 +3443,23 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   loadTempUnschedRules(credentials)
 
-  // Reset header override state (loaded below only for apikey accounts)
+  // Load header override state for eligible account types.
   headerOverrideEnabled.value = false
   headerOverrideRows.value = []
+  if (newAccount.credentials && isHeaderOverrideCapable(newAccount.platform, newAccount.type)) {
+    headerOverrideEnabled.value = credentials?.[HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY] === true
+    headerOverrideRows.value = splitHeaderOverridesObject(credentials?.[HEADER_OVERRIDES_CREDENTIAL_KEY])
+  }
+
+  // Grok OAuth custom upstream URL: only the default CLI gateway is treated as unset.
+  grokOAuthCustomBaseUrlEnabled.value = false
+  grokOAuthBaseUrl.value = ''
+  if (newAccount.platform === 'grok' && newAccount.type === 'oauth' && credentials) {
+    if (isCustomGrokBaseUrl(credentials.base_url)) {
+      grokOAuthCustomBaseUrlEnabled.value = true
+      grokOAuthBaseUrl.value = String(credentials.base_url).trim()
+    }
+  }
 
   // Initialize API Key fields for apikey type
   if (newAccount.type === 'apikey' && newAccount.credentials) {
@@ -3395,13 +3493,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       selectedErrorCodes.value = []
     }
 
-    // Load header override (anthropic/openai apikey only)
-    headerOverrideEnabled.value =
-      isHeaderOverridePlatform(newAccount.platform) &&
-      credentials[HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY] === true
-    headerOverrideRows.value = splitHeaderOverridesObject(
-      credentials[HEADER_OVERRIDES_CREDENTIAL_KEY]
-    )
   } else if (newAccount.type === 'bedrock' && newAccount.credentials) {
     const bedrockCreds = newAccount.credentials as Record<string, unknown>
     const authMode = (bedrockCreds.auth_mode as string) || 'sigv4'
@@ -4039,8 +4130,8 @@ const handleSubmit = async () => {
         delete newCredentials.custom_error_codes
       }
 
-      // Add header override if enabled (anthropic/openai apikey only)
-      if (isHeaderOverridePlatform(props.account.platform)) {
+      // Add header override if enabled (anthropic/openai/grok apikey)
+      if (isHeaderOverrideCapable(props.account.platform, 'apikey')) {
         if (headerOverrideEnabled.value) {
           const headerError = validateHeaderOverrideRows(headerOverrideRows.value)
           if (headerError) {
@@ -4210,6 +4301,28 @@ const handleSubmit = async () => {
         } else {
           delete newCredentials.model_mapping
         }
+        if (grokOAuthCustomBaseUrlEnabled.value) {
+          const baseUrl = grokOAuthBaseUrl.value.trim()
+          if (!baseUrl) {
+            appStore.showError(t('admin.accounts.grokCustomBaseUrl.required', 'Grok upstream URL is required'))
+            return
+          }
+          if (!/^https?:\/\//i.test(baseUrl)) {
+            appStore.showError(t('admin.accounts.grokCustomBaseUrl.invalid', 'Grok upstream URL must use http or https'))
+            return
+          }
+          newCredentials.base_url = baseUrl
+        } else {
+          delete newCredentials.base_url
+        }
+        if (headerOverrideEnabled.value) {
+          const headerError = validateHeaderOverrideRows(headerOverrideRows.value)
+          if (headerError) {
+            appStore.showError(t(`admin.accounts.headerOverride.${headerError}`))
+            return
+          }
+        }
+        applyHeaderOverride(newCredentials, headerOverrideEnabled.value, headerOverrideRows.value, 'edit')
       }
 
       updatePayload.credentials = newCredentials
@@ -4410,6 +4523,7 @@ const handleSubmit = async () => {
         } else {
           newExtra.openai_responses_mode = openAIResponsesMode.value
         }
+			newExtra.upstream_billing_probe_enabled = upstreamBillingAutoProbeEnabled.value
 		}
 		if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {
 			newExtra.auto_pause_5h_threshold = autoPause5hThreshold.value / 100

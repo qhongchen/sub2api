@@ -71,6 +71,7 @@ type DisplayMode = 'all' | 'platformType' | 'planPrivacy'
 interface Props {
   platform: AccountPlatform
   type: AccountType
+  authMode?: string
   mode?: DisplayMode
   planType?: string
   privacyMode?: string
@@ -90,6 +91,12 @@ const platformLabel = computed(() => {
 })
 
 const typeLabel = computed(() => {
+  if (props.platform === 'openai' && props.type === 'oauth') {
+    const normalizedAuthMode = (props.authMode || '').trim().toLowerCase().replace(/[\s_-]+/g, '')
+    if (normalizedAuthMode === 'agentidentity') return 'Agent Identity'
+    if (normalizedAuthMode === 'personalaccesstoken') return 'PAT'
+  }
+
   switch (props.type) {
     case 'oauth':
       return 'OAuth'

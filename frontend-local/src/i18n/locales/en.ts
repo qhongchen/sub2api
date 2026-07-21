@@ -320,6 +320,13 @@ export default {
     unknownError: 'Unknown error occurred',
     saving: 'Saving...',
     selectedCount: '({count} selected)',
+    apply: 'Apply',
+    clear: 'Clear',
+    creating: 'Creating...',
+    login: 'Login',
+    required: 'Required',
+    sending: 'Sending...',
+    tryAgain: 'Please try again',
     refresh: 'Refresh',
     autoRefresh: {
       title: 'Auto Refresh',
@@ -404,6 +411,9 @@ export default {
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
     requestLogs: 'Request Logs',
+    auditLogs: 'Audit Logs',
+    securityAudit: 'Security Audit',
+    promptAudit: 'Prompt Audit',
     promoCodes: 'Promo Codes',
     settings: 'Settings',
     my: 'Mine',
@@ -653,6 +663,14 @@ export default {
     invalidOrExpiredToken: 'The password reset link is invalid or has expired. Please request a new one.'
   },
 
+  stepUp: {
+    title: 'Two-Factor Verification Required',
+    hint: 'Enter the 6-digit code from your authenticator app to continue this sensitive operation.',
+    verifyFailed: 'Verification failed, please try again',
+    notEnabled: 'This operation requires two-factor authentication. Please enable TOTP in your profile first.',
+    adminApiKeyForbidden: 'Admin API keys cannot perform this operation. Use a two-factor verified admin session.'
+  },
+
   // Dashboard
   dashboard: {
     title: 'Dashboard',
@@ -721,6 +739,7 @@ export default {
   // API Keys
   keys: {
     title: 'API Keys',
+    columnSettings: 'Column Settings',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',
     endpoints: {
@@ -783,10 +802,16 @@ export default {
       copy: 'Copy',
       copied: 'Copied',
       note: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
+      claudeSettingsHint: 'User-level persistent configuration. Do not commit this file containing your API key to a project repository.',
       noGroupTitle: 'Please assign a group first',
       noGroupDescription: 'This API key has not been assigned to a group. Please click the group column in the key list to assign one before viewing the configuration.',
       openai: {
         description: 'Add the following configuration files to your Codex CLI config directory.',
+        authModeTitle: 'Codex authentication mode',
+        authModeDescription: 'Compatibility mode keeps the existing setup for older Codex clients. API Key Mode authorizes the client-side image executor.',
+        authModeLegacy: 'Compatibility mode',
+        authModeApiKey: 'API Key Mode',
+        authModeApiKeyRestartNotice: 'After saving this configuration, completely quit and restart Codex Desktop or CLI, then create a new task so the client can rebuild its tool registry.',
         configTomlHint: 'Make sure the following content is at the beginning of the config.toml file',
         note: 'Make sure the config directory exists. macOS/Linux users can run mkdir -p ~/.codex to create it.',
         noteWindows: 'Press Win+R and enter %userprofile%\\.codex to open the config directory. Create it manually if it does not exist.',
@@ -796,6 +821,7 @@ export default {
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
+        grokCli: 'Grok CLI',
         opencode: 'OpenCode',
       },
       antigravity: {
@@ -809,6 +835,18 @@ export default {
         description: 'Add the following environment variables to your terminal profile or run directly in terminal to configure Gemini CLI access.',
         modelComment: 'If you have Gemini 3 access, you can use: gemini-3-pro-preview',
         note: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
+      },
+      grok: {
+        description: 'Configure Grok Build, Claude Code, Codex, or OpenCode to send requests through your Sub2API Grok group.',
+        claudeDescription: 'Configure Claude Code to send Messages API traffic through your Sub2API Grok group.',
+        codexDescription: 'Configure Codex to send Responses API traffic through your Sub2API Grok group.',
+        configTomlHint: 'Back up an existing config.toml before merging this model entry. Run grok inspect after saving to verify the effective configuration.',
+        codexConfigTomlHint: 'Back up an existing config.toml before merging this provider configuration.',
+        note: 'Save the file as ~/.grok/config.toml, then run grok inspect and select grok from /model.',
+        noteWindows: 'Save the file as %USERPROFILE%\\.grok\\config.toml, then run grok inspect and select grok from /model.',
+        claudeNote: 'Choose one method: run the terminal commands for the current session, or save settings.json for user-level persistent configuration.',
+        codexNote: 'Save config.toml under ~/.codex and set SUB2API_API_KEY before starting Codex.',
+        codexNoteWindows: 'Save config.toml under %USERPROFILE%\\.codex and set SUB2API_API_KEY in PowerShell before starting Codex.'
       },
       opencode: {
         title: 'OpenCode Example',
@@ -1006,6 +1044,9 @@ export default {
     imageOutputTokens: 'Image Output Tokens',
     imageOutputTokenPrice: 'Image Output Price',
     imageOutputCost: 'Image Output Cost',
+    imageInputTokens: 'Image Input Tokens',
+    imageInputTokenPrice: 'Image Input Price',
+    imageInputCost: 'Image Input Cost',
     imageSizeSource: 'Size source',
     imageSizeBreakdown: 'Size breakdown',
     imageSizeSourceOutput: 'Upstream output',
@@ -1187,6 +1228,7 @@ export default {
       outputPrice: 'Output',
       cacheWritePrice: 'Cache Write',
       cacheReadPrice: 'Cache Read',
+      imageInputPrice: 'Image Input',
       imageOutputPrice: 'Image Output',
       perRequestPrice: 'Per Request',
       intervals: 'Tiered Pricing',
@@ -1515,10 +1557,152 @@ export default {
 
   // Admin
   admin: {
+    audit: {
+      title: 'Audit Logs',
+      description: 'Records management-plane operations by admins and users. Header credentials keep only their first/last characters and request bodies are redacted. Entries cannot be deleted individually; clearing all requires two-factor verification.',
+      clearAll: 'Clear All',
+      empty: 'No audit logs yet',
+      loadFailed: 'Failed to load audit logs',
+      filters: {
+        all: 'All',
+        q: 'Keyword',
+        qPlaceholder: 'Path / action / actor email',
+        actorEmail: 'Actor Email',
+        action: 'Action',
+        clientIp: 'Client IP',
+        method: 'Method',
+        authMethod: 'Auth Method',
+        result: 'Result',
+        resultSuccess: 'Success',
+        resultFailure: 'Failure',
+        startTime: 'Start Time',
+        endTime: 'End Time'
+      },
+      columns: {
+        time: 'Time',
+        actor: 'Actor',
+        action: 'Action',
+        method: 'Method',
+        result: 'Result',
+        clientIp: 'Client IP',
+        detail: 'Detail'
+      },
+      detail: {
+        title: 'Audit Log Detail',
+        actorRole: 'Role',
+        methodPath: 'Method / Path',
+        latency: 'Latency',
+        requestId: 'Request ID',
+        credential: 'Credential (masked)',
+        userAgent: 'User-Agent',
+        requestBody: 'Request Body (redacted)',
+        extra: 'Extra'
+      },
+      clearConfirm: {
+        title: 'Clear All Audit Logs',
+        message: 'This permanently deletes all audit logs and cannot be undone. The clear action itself is recorded. Continue?',
+        totpTitle: 'Enter Two-Factor Code',
+        totpHint: 'Clearing audit logs requires a fresh TOTP verification.',
+        success: 'Cleared {count} audit log(s)',
+        failed: 'Failed to clear audit logs'
+      }
+    },
+    promptAudit: {
+      title: 'Prompt Audit',
+      description: 'Review user input asynchronously or block it synchronously through OpenAI-compatible Qwen3Guard nodes. Full prompts are stored with events for admin review.',
+      configVersion: 'Config version v{version}',
+      tabs: { config: 'Configuration', events: 'Events' },
+      actions: { refresh: 'Refresh runtime', retry: 'Retry', Allow: 'Allow', Warn: 'Warn', Block: 'Block' },
+      common: { actions: 'Actions', never: 'Never' },
+      mode: { off: 'Off', async_audit: 'Async audit only', blocking: 'Synchronous audit and block' },
+      status: { disabled: 'Disabled', running: 'Running', degraded: 'Degraded', error: 'Error', healthy: 'Healthy', failed: 'Failed', stale: 'Stale heartbeat' },
+      decisions: { pass: 'Pass', flag: 'Flag', critical: 'Critical' },
+      riskLevels: { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' },
+      scanners: {
+        violent: 'Violent',
+        non_violent_illegal_acts: 'Non-violent Illegal Acts',
+        sexual_content_or_sexual_acts: 'Sexual Content or Sexual Acts',
+        pii: 'PII',
+        suicide_and_self_harm: 'Suicide & Self-Harm',
+        unethical_acts: 'Unethical Acts',
+        politically_sensitive_topics: 'Politically Sensitive Topics',
+        copyright_violation: 'Copyright Violation',
+        jailbreak: 'Jailbreak'
+      },
+      scannerDescriptions: {
+        violent: 'Violence or threats of violence',
+        non_violent_illegal_acts: 'Non-violent illegal activity',
+        sexual_content_or_sexual_acts: 'Sexual content or sexual acts',
+        pii: 'Personal identifying information',
+        suicide_and_self_harm: 'Suicide or self-harm',
+        unethical_acts: 'Unethical behavior',
+        politically_sensitive_topics: 'Politically sensitive topics',
+        copyright_violation: 'Copyright infringement',
+        jailbreak: 'Prompt injection or jailbreak attempt'
+      },
+      runtime: {
+        title: 'Runtime overview',
+        description: 'Shows the configuration currently active on the server. Unsaved draft changes do not affect these values.',
+        process: 'Process status', mode: 'Effective mode', version: 'Active / expected version', workers: 'Active / total workers',
+        queue: 'Active jobs / capacity', dependencies: 'Dependencies', guardMetrics: 'Synchronous Guard metrics', latest: 'Latest processing and error',
+        queueBreakdown: 'queued {queued} · processing {processing} · retry {retry} · done {done} · failed {failed}',
+        deliveryTotals: 'Total enqueued {enqueued} · dropped {dropped} · processed {processed} · failed {failed}'
+      },
+      metrics: { total: 'Total', allowed: 'Allowed', flagged: 'Flagged', blocked: 'Blocked', unavailable: 'Unavailable', timeouts: 'Timeouts', failovers: 'Failovers' },
+      pool: {
+        title: 'Audit pool', description: 'Enabled OpenAI-compatible nodes are tried in order. Probes run from the server network.',
+        add: 'Add node', edit: 'Edit node', empty: 'No audit nodes configured.', node: 'Node', model: 'Model', limits: 'Timeout / chunk limit', credential: 'Credential and probe',
+        configured: 'API Key configured', missing: 'API Key missing', probe: 'Test connection', probing: 'Probing...',
+        probeProgress: 'Config validated - request sent - awaiting service response...', probeResult: 'Config OK - request OK - HTTP {http} - {status} - {latency} ms',
+        name: 'Node name', id: 'Stable node ID', baseUrl: 'Base URL', apiKey: 'API Key', keepSecret: 'Leave blank to keep the saved API Key',
+        secretHint: 'Plaintext exists only in this editor and is cleared immediately after a successful save.', clearSecret: 'Explicitly clear the saved API Key', timeout: 'Total timeout (ms)', inputLimit: 'Unicode characters per chunk',
+        toggleNode: 'Toggle node {name}', deleteConfirm: 'Remove "{name}" from the draft? It takes effect after saving.'
+      },
+      policy: {
+        title: 'Audit policy', description: 'Configure group scope, nine input-risk categories, workers, and queue bounds.', scope: 'Scope', allGroups: 'All groups', selectedGroups: 'Selected groups',
+        searchGroups: 'Search groups', noGroups: 'No matching groups', missingGroups: 'Configured IDs for groups that no longer exist', selectedCount: '{count} groups selected',
+        scanners: 'Qwen3Guard input-risk categories', workerCount: 'Worker count', queueCapacity: 'Persistent queue capacity', strategy: 'Node strategy', strategyHint: 'Try nodes in configuration order and fail over when allowed.'
+      },
+      saveBar: { enabled: 'Enable prompt audit', blocking: 'Synchronous blocking', storePass: 'Store safe events', dirty: 'Unsaved changes', synced: 'Configuration synced' },
+      blockingConfirm: {
+        title: 'Enable synchronous blocking?',
+        message: 'Applicable requests wait for Guard before account selection, billing, or upstream access. Block, unavailable Guard, and invalid responses all prevent upstream access.',
+        confirm: 'I understand; enable it'
+      },
+      events: {
+        title: 'Audit events', description: 'Review events by identity, route, risk, hash, and time; the detail view shows the full prompt.', decision: 'Decision', risk: 'Risk level', endpoint: 'Endpoint', groupId: 'Group ID', userId: 'User ID', apiKeyId: 'API Key ID', keyword: 'Keyword',
+        startAt: 'Start time', endAt: 'End time', deleteSelected: 'Delete selected ({count})', deleteByFilter: 'Delete by filter',
+        filterDeleteDialogTitle: 'Delete audit events by filter', filterDeleteDialogDesc: 'Choose the time range and risk criteria, then delete directly. Deletion is permanent. Generate a preview first if you want to see the match count.',
+        filterTimeRange: 'Deletion time range', filterTimeRangeHint: 'Deletes events created before the selected cutoff. Events created after the preview are not affected.',
+        timePresets: { '1d': 'Older than 1 day', '7d': 'Older than 7 days', '30d': 'Older than 30 days', '90d': 'Older than 90 days', all: 'All time', custom: 'Custom range' },
+        customRangeInvalid: 'A custom range needs a valid start and end time, with the start before the end.',
+        moreConditions: 'More conditions (endpoint / keyword / group / user)',
+        filterDeletePreviewAction: 'Generate delete preview', filterDeletePreviewing: 'Generating preview...', filterDeleteNeedPreview: 'You can delete directly, or generate a preview first to see the match count.',
+        filterDeleteConfirmInvalidRange: 'Select a valid deletion time range first (a custom range needs a start before the end).', filterDeleteConfirmNoMatches: 'The current filters matched 0 events, so there is nothing to delete.',
+        selectAll: 'Select all events on this page', selectEvent: 'Select event {id}', time: 'Time', identity: 'User / email / API Key', user: 'Username', email: 'User email', apiKey: 'API Key name', group: 'Group', route: 'Endpoint / model', result: 'Decision / risk', preview: 'Redacted preview', empty: 'No matching events.',
+        passEventsDisabled: '"Store safe events" is off. Safe requests are still audited but do not appear in this list; Flag and Critical risk events are still stored.', openConfiguration: 'Open configuration',
+        detailTitle: 'Prompt audit event details', tabs: { summary: 'Audit summary', risks: 'Specific risks', technical: 'Technical details' },
+        promptFull: 'Full prompt (unredacted)', promptFullHint: 'The full prompt is stored with this event for admin review only. Treat it as sensitive data and do not share it.',
+        guardReturn: 'Model audit return', guardReturnHint: 'Normalized Guard result (decision, categories, scores, and redacted evidence). Raw response bodies are not stored.',
+        riskSummaries: 'Risk summaries', evidence: 'Redacted evidence', score: 'Score', categories: 'Categories', model: 'Model', stage: 'Request stage', noRisks: 'No derived risk summaries for this event.',
+        requestId: 'Request ID', promptHash: 'Prompt SHA-256',
+        technical: { scanner: 'Scanner', policy: 'Policy', guardEndpoint: 'Guard endpoint', config: 'Config', chunks: 'Chunks', latency: 'Latency', protocol: 'Protocol' },
+        deleteConfirmTitle: 'Delete audit events?', deleteConfirmMessage: 'This permanently deletes {count} events and eligible orphan jobs.', filterDeleteCount: 'The server snapshot matches {count} events.', snapshotMax: 'Snapshot maximum event ID', expiresAt: 'Confirmation token expires', filterDeleteWarning: 'Only events at or below the preview high-water mark are deleted. Newer events survive. Any filter change requires a new preview.', confirmFilterDelete: 'Permanently delete'
+      },
+      messages: { saved: 'Prompt Audit configuration saved; plaintext API Key state was cleared.', probeSucceeded: 'The audit node is reachable.', deleted: 'Deleted {count} audit events.' },
+      errors: {
+        loadConfig: 'Unable to load Prompt Audit configuration.', loadRuntime: 'Unable to load Prompt Audit runtime.', loadGroups: 'Unable to load groups.', loadEvents: 'Unable to load audit events.', loadDetail: 'Unable to load event details.', saveConfig: 'Unable to save the configuration.', probe: 'Node probe failed.', delete: 'Unable to delete events.', previewDelete: 'Unable to create a deletion preview. Check the time range.', deleteConfirmation: 'The deletion confirmation is invalid or expired. Preview again.',
+        prompt_audit_config_conflict: 'Another administrator updated this configuration. Reload the server version before deciding how to merge your draft.', prompt_guard_requires_audit_enabled: 'Enable Prompt Audit before synchronous blocking.', prompt_audit_invalid_endpoint: 'The audit node configuration is invalid.', prompt_audit_endpoint_required: 'Enable at least one audit node before enabling Prompt Audit.', prompt_audit_groups_required: 'Select at least one group in selected-group mode.', prompt_audit_scanners_required: 'Enable at least one risk category.'
+      }
+    },
     // Dashboard
     dashboard: {
       title: 'Admin Dashboard',
       description: 'System overview and real-time statistics',
+      todayCost: 'Today Cost',
+      input: 'Input',
+      output: 'Output',
+      averageTime: 'Average Time',
       batchImage: 'Batch Image',
       batchImageDesc: 'Submit jobs and copy agent instructions',
       apiKeys: 'API Keys',
@@ -1963,6 +2147,7 @@ export default {
       leaveEmptyToKeep: 'Leave empty to keep current password',
       generatePassword: 'Generate random password',
       copyPassword: 'Copy password',
+      passwordCopied: 'Password copied',
       creating: 'Creating...',
       updating: 'Updating...',
       form: {
@@ -2057,6 +2242,20 @@ export default {
       useDefaultRate: 'Use Default',
       customRatePlaceholder: 'Leave empty for default',
       groupConfigUpdated: 'Group configuration updated successfully',
+      batchLimits: {
+        title: 'Batch update limits',
+        selected: '{count} users selected',
+        concurrency: 'Concurrency',
+        concurrencyPlaceholder: 'Leave empty to keep current value',
+        rpmLimit: 'Requests per minute (RPM)',
+        rpmLimitPlaceholder: 'Leave empty to keep current value',
+        confirm: 'Apply these limits to the selected users?',
+        save: 'Apply limits',
+        saved: 'Updated limits for {count} users',
+        failed: 'Failed to update user limits',
+        invalid: 'Enter a non-negative integer for each selected limit.',
+        maxSelected: 'Select no more than 500 users.'
+      },
       replaceGroup: 'Replace Group',
       clickToReplace: 'Click to replace',
       replaceGroupTitle: 'Replace Exclusive Group',
@@ -2224,6 +2423,11 @@ export default {
       sortOrderHint: 'Drag groups to adjust display order, groups at the top will be displayed first',
       sortOrderUpdated: 'Sort order updated',
       failedToUpdateSortOrder: 'Failed to update sort order',
+      failedToSave: 'Failed to save group',
+      duplicate: 'Duplicate',
+      duplicating: 'Duplicating',
+      duplicateSuccess: 'Group duplicated as "{name}" and disabled. Review its configuration before enabling it.',
+      duplicateFailed: 'Failed to duplicate group',
       allPlatforms: 'All Platforms',
       allStatus: 'All Status',
       allGroups: 'All Groups',
@@ -2523,6 +2727,8 @@ export default {
       createError: 'Failed to create channel',
       updateError: 'Failed to update channel',
       deleteError: 'Failed to delete channel',
+      noGroupsSelected: 'Please select at least one group.',
+      emptyModelsInPricing: 'Please add at least one model to every pricing rule.',
       nameRequired: 'Please enter a channel name',
       duplicateModels: 'Model "{0}" appears in multiple pricing entries',
       modelConflict: "Model patterns '{model1}' and '{model2}' conflict: overlapping match range",
@@ -2561,6 +2767,7 @@ export default {
         outputPrice: 'Output',
         cacheWritePrice: 'Cache Write',
         cacheReadPrice: 'Cache Read',
+        imageInputPrice: 'Image Input',
         imageTokenPrice: 'Image Output',
         imageOutputPrice: 'Image Output Price',
         pricePlaceholder: 'Default',
@@ -2871,6 +3078,11 @@ export default {
       runNow: 'Run Now',
       runSuccess: 'Check completed',
       runFailed: 'Check failed',
+      duplicate: 'Duplicate',
+      duplicating: 'Duplicating',
+      duplicateSuccess: 'Monitor duplicated as "{name}" and disabled. Review its configuration before enabling it.',
+      duplicateFailed: 'Failed to duplicate monitor',
+      duplicateKeyUnavailable: 'The API key cannot be decrypted. Re-enter it before duplicating this monitor.',
       apiKeyDecryptFailed: 'API Key decryption failed. Please re-edit this monitor with a fresh key.',
       createSuccess: 'Monitor created',
       updateSuccess: 'Monitor updated',
@@ -3107,6 +3319,10 @@ export default {
     accounts: {
       title: 'Account Management',
       description: 'Manage AI platform accounts and credentials',
+      antigravityProjectIdLabel: 'GCP Project ID (optional)',
+      antigravityProjectIdPlaceholder: 'your-gcp-project-id',
+      antigravityProjectIdHint:
+        'Antigravity standard-tier accounts that do not receive an automatic project_id need a user-owned GCP project.',
       createAccount: 'Create Account',
       autoRefresh: 'Auto Refresh',
       enableAutoRefresh: 'Enable auto refresh',
@@ -3259,6 +3475,7 @@ export default {
         notes: 'Notes',
         priority: 'Priority',
         billingRateMultiplier: 'Billing Rate',
+        upstreamBillingRate: 'Upstream Declared Rate',
         weight: 'Weight',
         schedulerScore: 'Scheduler Score',
         status: 'Status',
@@ -3276,6 +3493,31 @@ export default {
         stickyShort: 'Sticky',
         ungrouped: 'Ungrouped',
         hint: 'Displayed as "group / base score / sticky bonus". The base score is computed within the current filtered candidate set and includes priority, load, queue depth, error rate, first-token latency, reset window, quota headroom, and related factors. The sticky bonus applies only when sticky weighting is enabled for previous_response_id or session_hash. Higher scores are preferred.'
+      },
+      upstreamBilling: {
+        trustWarning: 'This rate is declared by the upstream site for the current API key. Sub2API cannot verify that it matches actual charges. Verify it against bills, balance changes, and actual usage.',
+        autoProbeSettings: 'Upstream rate auto probe',
+        intervalMinutes: 'Probe interval (minutes)',
+        autoProbe: 'Auto probe',
+        autoProbeHint: 'Probe this account on the global interval when global probing is enabled.',
+        manualProbe: 'Probe upstream rate now',
+        stale: 'Stale',
+        unsupported: 'Unsupported',
+        failed: 'Failed',
+        notProbed: 'Not probed',
+        groupRate: 'Group default: {value}x',
+        userRate: 'User rate: {value}x',
+        peakRate: 'Peak: {start}-{end}, {value}x ({timezone})',
+        noPeakRate: 'Peak rate: disabled',
+        effectiveRate: 'Current rate: {value}x',
+        updatedAt: 'Updated: {value}',
+        settingsSaved: 'Upstream rate probe settings saved',
+        settingsFailed: 'Failed to save upstream rate probe settings',
+        probeFailed: 'Failed to probe upstream rate',
+        noEligibleAccounts: 'Select OpenAI API key accounts',
+        batchLimit: 'A batch can probe at most 20 accounts',
+        batchCompleted: 'Probed {count} account(s)',
+        batchPartial: 'Probe partially completed: {success} succeeded, {failed} failed'
       },
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
@@ -3418,6 +3660,7 @@ export default {
         disableScheduling: 'Disable Scheduling',
         resetStatus: 'Reset Status',
         refreshToken: 'Refresh Token',
+        probeUpstreamBilling: 'Probe Upstream Rate',
         resetStatusSuccess: 'Successfully reset {count} account(s) status',
         refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
         partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
@@ -3451,6 +3694,9 @@ export default {
       revertProxy: 'Revert proxy',
       revertProxySuccess: 'Successfully reverted to original proxy',
       revertProxyFailed: 'Failed to revert proxy',
+      duplicateAccount: 'Duplicate Account',
+      duplicateSuccess: 'Account duplicated as "{name}" and paused. Review its credentials before enabling it.',
+      duplicateFailed: 'Failed to duplicate account',
       resetStatus: 'Reset Status',
       statusReset: 'Account status reset successfully',
       failedToResetStatus: 'Failed to reset account status',
@@ -3500,6 +3746,15 @@ export default {
       openai: {
         baseUrlHint: 'Leave default for official OpenAI API',
         apiKeyHint: 'Your OpenAI API Key',
+        endpointCapabilities: 'Endpoint capabilities',
+        endpointCapabilitiesDesc:
+          'Used by account routing. The text endpoint follows the Responses API support setting above and is shown as Responses, Chat Completions, or auto mode; Embeddings independently controls /v1/embeddings.',
+        capabilityResponses: 'Responses',
+        capabilityResponsesAuto: 'Responses (auto probe)',
+        capabilityChatCompletions: 'Chat Completions',
+        capabilityChatCompletionsAuto: 'Chat Completions (auto probe)',
+        capabilityTextAuto: 'Responses / Chat Completions (Auto)',
+        capabilityEmbeddings: 'Embeddings',
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
           'When enabled, this OpenAI account uses automatic passthrough: the gateway forwards request/response as-is and only swaps auth, while keeping billing/concurrency/audit and necessary safety filtering.',
@@ -3509,6 +3764,7 @@ export default {
         wsMode: 'WS mode',
         wsModeDesc: 'Only applies to the current OpenAI account type.',
         wsModeOff: 'Off (off)',
+        wsModeHttpBridge: 'HTTP Bridge (http_bridge)',
         wsModeCtxPool: 'Context Pool (ctx_pool)',
         wsModePassthrough: 'Passthrough (passthrough)',
         wsModeShared: 'Shared (shared)',
@@ -3527,6 +3783,8 @@ export default {
         responsesMode: 'Responses API support',
         responsesModeDesc:
           'Only applies to OpenAI API Key accounts. Auto follows probe results; force modes override probing.',
+        responsesModeTextDisabledHint:
+          'Not applicable when the Responses / Chat Completions endpoint is not enabled.',
         responsesModeAuto: 'Auto',
         responsesModeForceResponses: 'Force Responses',
         responsesModeForceChatCompletions: 'Force Chat Completions',
@@ -3541,6 +3799,26 @@ export default {
         codexCLIOnly: 'Codex official clients only',
         codexCLIOnlyDesc:
           'Only applies to OpenAI OAuth. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
+        codexCLIOnlyAppServer: 'Allow Codex app-server clients',
+        codexCLIOnlyAppServerDesc:
+          "Effective only when the switch above is on. When enabled, this account also allows third-party clients that embed the Codex engine over the app-server protocol (e.g. Claude Code's codex plugin); they still pass the global engine-fingerprint gate. OR-combined with the global app-server toggle.",
+        codexImageTool: 'Codex image tool',
+        codexImageToolDesc:
+          'One policy for the image_generation tool on Codex /responses text requests: whether it is auto-injected, and whether client-provided tools pass through. Account policy takes precedence over channel and global settings; standalone image-generation endpoints are unaffected.',
+        codexImageToolInherit: 'Follow channel',
+        codexImageToolInheritDesc:
+          'No account override; injection follows the channel or global policy, and client-provided image tools pass through.',
+        codexImageToolEnabled: 'Force inject',
+        codexImageToolEnabledDesc: 'Always inject the image tool for Codex /responses requests.',
+        codexImageToolDisabled: 'No injection',
+        codexImageToolDisabledDesc: 'Never auto-inject; client-provided image tools still pass through.',
+        codexImageToolBlock: 'Block all',
+        codexImageToolBlockDesc:
+          'No injection, and client-provided image tools plus matching tool_choice are removed.',
+        codexImageToolBadgeInherit: 'Channel policy',
+        codexImageToolBadgeEnabled: 'Force inject',
+        codexImageToolBadgeDisabled: 'No injection',
+        codexImageToolBadgeBlock: 'Blocked',
         codexImageGenerationBridge: 'Codex image-generation bridge',
         codexImageGenerationBridgeDesc:
           'Account policy takes precedence over channel and global settings. Only controls whether Codex requests through the /responses text endpoint receive the image_generation tool; standalone image-generation endpoints are unaffected.',
@@ -3595,6 +3873,8 @@ export default {
       modelRestriction: 'Model Restriction (Optional)',
       modelWhitelist: 'Model Whitelist',
       modelMapping: 'Model Mapping',
+      fromModel: 'From model',
+      toModel: 'To model',
       selectAllowedModels: 'Select allowed models. Leave empty to support all models.',
       mapRequestModels:
         'Map request models to actual models. Left is the requested model, right is the actual model sent to API.',
@@ -3629,6 +3909,9 @@ export default {
       poolModeRetryCount: 'Same-Account Retries',
       poolModeRetryCountHint:
         'Only applies in pool mode. Use 0 to disable in-place retry. Default {default}, maximum {max}.',
+      poolModeRetryStatusCodes: 'Retry Status Codes',
+      poolModeRetryStatusCodesHint:
+        'Comma-separated HTTP status codes (100-599) that trigger same-account retry in pool mode. Leave blank to use defaults ({default}).',
       customErrorCodes: 'Custom Error Codes',
       customErrorCodesHint: 'Only stop scheduling for selected error codes',
       customErrorCodesWarning:
@@ -3661,10 +3944,33 @@ export default {
         blockedName: 'This header cannot be overridden because it is managed by the system',
         duplicateName: 'Duplicate header name (matching is case-insensitive)',
         invalidValue: 'Invalid header value (control characters are not allowed; max length 8192 bytes)',
-        tooManyEntries: 'Too many header override entries (max 64)'
+        tooManyEntries: 'Too many header override entries (max 64)',
+        importJson: 'Import JSON',
+        importJsonApply: 'Parse & Fill',
+        importJsonCancel: 'Cancel',
+        importJsonHint: 'Paste a flat JSON object (header name -> value). Parsing replaces the current rows.',
+        importJsonInvalid: 'Invalid JSON: expected a flat object of header name -> string, number, or boolean value',
+        copyJson: 'Copy as JSON'
+      },
+      grokCustomBaseUrl: {
+        title: 'Custom Upstream URL',
+        hint: 'When enabled, account traffic is forwarded to the specified address. OAuth authorization and token refresh remain on the official endpoints.',
+        placeholder: 'https://relay.example.com/v1',
+        required: 'An address is required when Custom Upstream URL is enabled',
+        invalid: 'Invalid upstream address (must be a full http(s):// URL)',
+        presets: {
+          cli: 'Grok Build CLI',
+          official: 'Official API'
+        }
       },
       autoPauseOnExpired: 'Auto Pause On Expired',
       autoPauseOnExpiredDesc: 'When enabled, the account will auto pause scheduling after it expires',
+      autoPause5hThreshold: '5h Usage Threshold (%)',
+      autoPause7dThreshold: '7d Usage Threshold (%)',
+      autoPauseThresholdHint: 'Leave empty or set 0 to use the global default threshold (configured in Ops settings); set a value to override the global default. Reaching the threshold only skips the account during scheduling and does not modify schedulable.',
+      autoPause5hDisabled: 'Disable 5h auto-pause',
+      autoPause7dDisabled: 'Disable 7d auto-pause',
+      autoPauseDisabledHint: 'When enabled, this account is never auto-paused (even if a global default threshold is configured).',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: 'Quota Control',
@@ -3774,6 +4080,9 @@ export default {
       creating: 'Creating...',
       updating: 'Updating...',
       accountCreated: 'Account created successfully',
+      messages: {
+        accountCreated: 'Account created successfully'
+      },
       accountUpdated: 'Account updated successfully',
       failedToCreate: 'Failed to create account',
       failedToUpdate: 'Failed to update account',
@@ -3890,6 +4199,8 @@ export default {
               'No proxy is configured and this server could not reach OpenAI directly, so the OpenAI OAuth request failed. Select a proxy that can access OpenAI and retry; if the authorization code has expired, regenerate the authorization URL.'
           },
           // Refresh Token auth
+          accessTokenAuth: 'Access Token authentication',
+          mobileRefreshTokenAuth: 'Mobile Refresh Token authentication',
           refreshTokenAuth: 'Manual RT Input',
           refreshTokenDesc: 'Enter your existing OpenAI Refresh Token(s). Supports batch input (one per line). The system will automatically validate and create accounts.',
           refreshTokenPlaceholder: 'Paste your OpenAI Refresh Token...\nSupports multiple, one per line',
@@ -3903,6 +4214,12 @@ export default {
           codexSessionImportFailed: 'Failed to import Codex account',
           codexSessionImportSuccess: 'Import completed: created {created}, updated {updated}, skipped {skipped}',
           codexSessionImportPartial: 'Partial success: created {created}, updated {updated}, skipped {skipped}, failed {failed}',
+          agentIdentityAuth: 'Agent Identity auth.json',
+          agentIdentityDesc: 'Import a Codex Agent Identity auth.json. No OAuth access or refresh token is stored.',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: 'Paste one Agent Identity auth.json object',
+          agentIdentityHint: 'The file must use auth_mode=agentIdentity. Upstream requests are signed dynamically.',
+          agentIdentityInvalid: 'Use a Codex auth.json with auth_mode=agentIdentity.',
           codexPatAuth: 'Codex Personal Access Token',
           codexPatDesc: 'Enter a Codex at- personal access token. The system validates it with OpenAI whoami before creating the account.',
           codexPatInputLabel: 'Codex PAT',
@@ -4085,16 +4402,24 @@ export default {
           builtInTitle: 'Built-in OAuth (Gemini CLI / Code Assist)',
           builtInDesc: 'Uses Google built-in client ID. No admin configuration required.',
           builtInRequirement: 'Requires a GCP project and Project ID.',
+          codeAssistDesc: 'Enterprise-grade, requires a GCP project',
+          codeAssistRequirement: 'Requires an active GCP project with billing enabled',
+          googleOneDesc: 'Personal account with Google One subscription quota',
           gcpProjectLink: 'Create project',
           customTitle: 'Custom OAuth (AI Studio OAuth)',
           customDesc: 'Uses admin-configured OAuth client for org management.',
           customRequirement: 'Admin must configure Client ID and add you as a test user.',
+          showAdvanced: 'Show advanced options (custom OAuth Client)',
+          hideAdvanced: 'Hide advanced options (custom OAuth Client)',
           badges: {
             recommended: 'Recommended',
             highConcurrency: 'High concurrency',
             noAdmin: 'No admin setup',
             orgManaged: 'Org managed',
-            adminRequired: 'Admin required'
+            adminRequired: 'Admin required',
+            enterprise: 'Enterprise users',
+            individuals: 'Recommended for individuals',
+            noGcp: 'No GCP required'
           }
         },
         setupGuide: {
@@ -4111,6 +4436,7 @@ export default {
           },
           links: {
             countryCheck: 'Check country association',
+            countryChange: 'Change country association',
             geminiWebActivation: 'Activate Gemini Web',
             gcpProject: 'Open GCP Console'
           }
@@ -4359,6 +4685,7 @@ export default {
     // Proxies
     proxies: {
       title: 'Proxy Management',
+      selectedCount: '{count} selected',
       description: 'Manage proxy servers for accounts',
       createProxy: 'Create Proxy',
       editProxy: 'Edit Proxy',
@@ -5045,6 +5372,7 @@ export default {
       lastRun: 'last_run:',
       lastSuccess: 'last_success:',
       lastError: 'last_error:',
+      result: 'Result',
       noData: 'No data.',
       loadingText: 'loading',
       ready: 'ready',
@@ -5119,7 +5447,8 @@ export default {
         '6h': 'Last 6 hours',
         '24h': 'Last 24 hours',
         '7d': 'Last 7 days',
-        '30d': 'Last 30 days'
+        '30d': 'Last 30 days',
+        custom: 'Custom Range'
       },
       openaiTokenStats: {
         title: 'OpenAI Token Request Stats',
@@ -5140,6 +5469,10 @@ export default {
           avgDurationMs: 'Avg Duration (ms)',
           requestsWithFirstToken: 'Requests With First Token'
         }
+      },
+      customTimeRange: {
+        startTime: 'Start Time',
+        endTime: 'End Time'
       },
       fullscreen: {
         enter: 'Enter Fullscreen'
@@ -5536,6 +5869,19 @@ export default {
         saveFailed: 'Failed to save runtime settings',
         alertTitle: 'Alert Evaluator',
         groupAvailabilityTitle: 'Group Availability Monitor',
+        metricThresholds: 'Metric Thresholds',
+        metricThresholdsHint:
+          'Configure alert thresholds for metrics, values exceeding thresholds will be displayed in red',
+        slaMinPercent: 'SLA Minimum Percentage',
+        slaMinPercentHint: 'SLA below this value will be displayed in red (default: 99.5%)',
+        ttftP99MaxMs: 'TTFT P99 Maximum (ms)',
+        ttftP99MaxMsHint: 'TTFT P99 above this value will be displayed in red (default: 500ms)',
+        requestErrorRateMaxPercent: 'Request Error Rate Maximum (%)',
+        requestErrorRateMaxPercentHint:
+          'Request error rate above this value will be displayed in red (default: 5%)',
+        upstreamErrorRateMaxPercent: 'Upstream Error Rate Maximum (%)',
+        upstreamErrorRateMaxPercentHint:
+          'Upstream error rate above this value will be displayed in red (default: 5%)',
         evalIntervalSeconds: 'Evaluation Interval (seconds)',
         silencing: {
           title: 'Alert Silencing (Maintenance Mode)',
@@ -5783,6 +6129,15 @@ export default {
         email: 'Email',
         backup: 'Backup',
         payment: 'Payment',
+      },
+      security: {
+        stepUp: 'Step-up 2FA for Sensitive Operations',
+        stepUpHint: 'When enabled, sensitive operations such as account exports, backup operations, S3 configuration changes, and administrator promotion require a recent TOTP verification.',
+        stepUpEnableRequiresTotp: 'Enable 2FA (TOTP) for your own account in Profile before turning on step-up verification.',
+        sessionBinding: 'Session IP/UA Binding',
+        sessionBindingHint: 'Bind login sessions to the client IP and User-Agent. A change invalidates the session and requires a new sign-in.',
+        auditRetention: 'Audit Log Retention (days)',
+        auditRetentionHint: 'Audit logs older than this are removed automatically. Set to 0 to keep them until manually cleared.'
       },
       features: {
         channelMonitor: {
@@ -7509,6 +7864,9 @@ export default {
       deletePlanConfirm: 'Are you sure you want to delete this plan?',
       originalPrice: 'Original Price',
       price: 'Price',
+      currency: 'Currency',
+      currencyPlaceholder: 'USD, CNY, HKD...',
+      currencyHint: 'Use the three-letter ISO 4217 currency code returned by the payment provider.',
       validityDays: 'Validity (days)',
       validityUnit: 'Validity Unit',
       sortOrder: 'Sort Order',

@@ -12,6 +12,15 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-2">
+          <button
+            v-if="selectedCount > 0"
+            type="button"
+            class="btn btn-secondary"
+            @click="showBulkEditModal = true"
+          >
+            <Icon name="users" size="md" class="mr-2" />
+            {{ text(`批量设置限制（${selectedCount}）`, `Set limits (${selectedCount})`) }}
+          </button>
           <button @click="showCreateModal = true" class="btn btn-primary">
             <Icon name="plus" size="md" class="mr-2" />
             {{ t('admin.users.createUser') }}
@@ -261,6 +270,26 @@
             mobile-card-class="space-y-3 p-4"
             mobile-empty-class="flex min-h-[220px] flex-col items-center justify-center gap-3 p-6 text-center"
           >
+            <template #header-select>
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                :checked="allVisibleSelected"
+                :disabled="users.length === 0"
+                :aria-label="text('选择当前列表中的全部用户', 'Select all visible users')"
+                @change="toggleVisible(($event.target as HTMLInputElement).checked)"
+              />
+            </template>
+            <template #cell-select="{ row }">
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                :checked="isSelected(row.id)"
+                :aria-label="text(`选择 ${row.email}`, `Select ${row.email}`)"
+                @click.stop
+                @change="toggle(row.id)"
+              />
+            </template>
             <template #cell-email="{ value, row }">
             <div class="flex items-center gap-2">
               <div
@@ -640,6 +669,12 @@
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
+    <BulkEditUserModal
+      :show="showBulkEditModal"
+      :selected-ids="selectedIds"
+      @close="showBulkEditModal = false"
+      @success="handleBulkLimitsSuccess"
+    />
     <UserPlatformQuotaModal
       :show="showPlatformQuotaModal"
       :user="platformQuotaUser"
@@ -661,10 +696,11 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useInfinitePagedList } from '@/composables/useInfinitePagedList'
+import { useTableSelection } from '@/composables/useTableSelection'
 import { formatDateTime, formatNumber } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, PaginatedResponse, UserAttributeDefinition } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
@@ -686,6 +722,7 @@ import PlatformCostCell from '@/components/user/PlatformCostCell.vue'
 import UserPlatformQuotaCell from '@/components/user/UserPlatformQuotaCell.vue'
 import UserCreateModal from '@/components/admin/user/UserCreateModal.vue'
 import UserEditModal from '@/components/admin/user/UserEditModal.vue'
+import BulkEditUserModal from '@/components/admin/user/BulkEditUserModal.vue'
 import UserPlatformQuotaModal from '@/components/admin/user/UserPlatformQuotaModal.vue'
 import UserApiKeysModal from '@/components/admin/user/UserApiKeysModal.vue'
 import UserAllowedGroupsModal from '@/components/admin/user/UserAllowedGroupsModal.vue'
@@ -694,6 +731,7 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 
 const appStore = useAppStore()
+const text = (zh: string, en: string) => locale.value.startsWith('zh') ? zh : en
 
 // Generate dynamic attribute columns from enabled definitions
 const attributeColumns = computed<Column[]>(() =>
@@ -742,6 +780,7 @@ const getAttributeValue = (userId: number, attrId: number): string => {
 
 // All possible columns (for column settings)
 const allColumns = computed<Column[]>(() => [
+  { key: 'select', label: '' },
   { key: 'email', label: t('admin.users.columns.user') },
   { key: 'id', label: t('admin.users.columns.id') },
   { key: 'notes', label: t('admin.users.columns.notes') },
@@ -767,7 +806,7 @@ const allColumns = computed<Column[]>(() => [
 
 // Columns that can be toggled (exclude email and actions which are always visible)
 const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'email' && col.key !== 'actions')
+  allColumns.value.filter(col => !['select', 'email', 'actions'].includes(col.key))
 )
 
 // Hidden columns (stored in Set - columns NOT in this set are visible)
@@ -776,6 +815,7 @@ const hiddenColumns = reactive<Set<string>>(new Set())
 
 // 用户管理页默认只展示高频判断字段，其余列仍可在"列设置"里手动打开。
 const DEFAULT_VISIBLE_COLUMNS = new Set([
+  'select',
   'email',
   'role',
   'usage',
@@ -1061,6 +1101,7 @@ const userAttributeValues = ref<Record<number, Record<number, string>>>({})
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showBulkEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
@@ -1234,6 +1275,24 @@ const loadUsers = () => {
   userAttributeValues.value = {}
   platformQuotaStats.value = {}
   return resetUsers()
+}
+
+const {
+  selectedIds,
+  selectedCount,
+  allVisibleSelected,
+  isSelected,
+  toggle,
+  toggleVisible,
+  clear: clearSelection
+} = useTableSelection<AdminUser>({
+  rows: users,
+  getId: (user) => user.id
+})
+
+const handleBulkLimitsSuccess = () => {
+  clearSelection()
+  void loadUsers()
 }
 
 const refreshCurrentPageSecondaryData = () => {

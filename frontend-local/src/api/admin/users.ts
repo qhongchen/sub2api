@@ -185,6 +185,28 @@ export async function updateConcurrency(id: number, concurrency: number): Promis
   return update(id, { concurrency })
 }
 
+export interface BatchUpdateUserLimitsRequest {
+  user_ids: number[]
+  all?: boolean
+  concurrency?: number
+  rpm_limit?: number
+}
+
+export interface BatchUpdateUserLimitsResponse {
+  affected: number
+}
+
+/** Overwrite concurrency and/or RPM limits for multiple users in one request. */
+export async function batchUpdateLimits(
+  request: BatchUpdateUserLimitsRequest
+): Promise<BatchUpdateUserLimitsResponse> {
+  const { data } = await apiClient.post<BatchUpdateUserLimitsResponse>(
+    '/admin/users/batch-limits',
+    request
+  )
+  return data
+}
+
 /**
  * Toggle user status
  * @param id - User ID
@@ -374,6 +396,7 @@ export const usersAPI = {
   delete: deleteUser,
   updateBalance,
   updateConcurrency,
+  batchUpdateLimits,
   toggleStatus,
   getUserApiKeys,
   getUserUsageStats,

@@ -320,6 +320,13 @@ export default {
     unknownError: '发生未知错误',
     saving: '保存中...',
     selectedCount: '（已选 {count} 个）',
+    apply: '应用',
+    clear: '清除',
+    creating: '创建中...',
+    login: '登录',
+    required: '必填',
+    sending: '发送中...',
+    tryAgain: '请重试',
     refresh: '刷新',
     autoRefresh: {
       title: '自动刷新',
@@ -404,6 +411,9 @@ export default {
     redeemCodes: '兑换码',
     ops: '运维监控',
     requestLogs: '请求记录',
+    auditLogs: '操作日志',
+    securityAudit: '安全审计',
+    promptAudit: '提示词审计',
     promoCodes: '优惠码',
     settings: '系统设置',
     my: '我的',
@@ -652,6 +662,14 @@ export default {
     invalidOrExpiredToken: '密码重置链接无效或已过期。请重新请求一个新链接。'
   },
 
+  stepUp: {
+    title: '需要二次验证',
+    hint: '请输入身份验证器应用中的 6 位验证码以继续此敏感操作。',
+    verifyFailed: '验证失败，请重试',
+    notEnabled: '此操作需要开启二次验证，请先在个人资料中启用 TOTP。',
+    adminApiKeyForbidden: '管理 API Key 无法执行此操作，请使用已通过二次验证的管理员会话。'
+  },
+
   // Dashboard
   dashboard: {
     title: '仪表盘',
@@ -720,6 +738,7 @@ export default {
   // API Keys
   keys: {
     title: 'API 密钥',
+    columnSettings: '列设置',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',
     endpoints: {
@@ -781,11 +800,17 @@ export default {
       copy: '复制',
       copied: '已复制',
       note: '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。',
+      claudeSettingsHint: '用户级持久配置。此文件包含 API 密钥，请勿提交到项目仓库。',
       noGroupTitle: '请先分配分组',
       noGroupDescription:
         '此 API 密钥尚未分配分组，请先在密钥列表中点击分组列进行分配，然后才能查看使用配置。',
       openai: {
         description: '将以下配置文件添加到 Codex CLI 配置目录中。',
+        authModeTitle: 'Codex 认证模式',
+        authModeDescription: '兼容模式保留旧版 Codex 配置；API Key Mode 用于授权客户端图片执行器。',
+        authModeLegacy: '兼容模式',
+        authModeApiKey: 'API Key Mode',
+        authModeApiKeyRestartNotice: '保存此配置后，必须完全退出并重启 Codex Desktop 或 CLI，然后新建 task，让客户端重新构建工具注册表。',
         configTomlHint: '请确保以下内容位于 config.toml 文件的开头部分',
         note: '请确保配置目录存在。macOS/Linux 用户可运行 mkdir -p ~/.codex 创建目录。',
         noteWindows:
@@ -796,6 +821,7 @@ export default {
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
+        grokCli: 'Grok CLI',
         opencode: 'OpenCode'
       },
       antigravity: {
@@ -812,6 +838,18 @@ export default {
           '将以下环境变量添加到您的终端配置文件或直接在终端中运行，以配置 Gemini CLI 访问。',
         modelComment: '如果你有 Gemini 3 权限可以填：gemini-3-pro-preview',
         note: '这些环境变量将在当前终端会话中生效。如需永久配置，请将其添加到 ~/.bashrc、~/.zshrc 或相应的配置文件中。'
+      },
+      grok: {
+        description: '配置 Grok Build、Claude Code、Codex 或 OpenCode，让请求通过当前 Sub2API Grok 分组发送。',
+        claudeDescription: '配置 Claude Code，让 Messages API 请求通过当前 Sub2API Grok 分组发送。',
+        codexDescription: '配置 Codex，让 Responses API 请求通过当前 Sub2API Grok 分组发送。',
+        configTomlHint: '如已有 config.toml，请先备份再合并此模型配置。保存后运行 grok inspect 验证生效配置。',
+        codexConfigTomlHint: '如已有 config.toml，请先备份再合并此服务商配置。',
+        note: '保存为 ~/.grok/config.toml，然后运行 grok inspect，并在 /model 中选择 grok。',
+        noteWindows: '保存为 %USERPROFILE%\\.grok\\config.toml，然后运行 grok inspect，并在 /model 中选择 grok。',
+        claudeNote: '二选一即可：终端命令仅在当前会话生效；保存 settings.json 可作为用户级持久配置。',
+        codexNote: '将 config.toml 保存到 ~/.codex，并在启动 Codex 前设置 SUB2API_API_KEY。',
+        codexNoteWindows: '将 config.toml 保存到 %USERPROFILE%\\.codex，并在 PowerShell 中设置 SUB2API_API_KEY 后启动 Codex。'
       },
       opencode: {
         title: 'OpenCode 配置示例',
@@ -1010,6 +1048,9 @@ export default {
     imageOutputTokens: '图片输出 Token',
     imageOutputTokenPrice: '图片输出单价',
     imageOutputCost: '图片输出成本',
+    imageInputTokens: '图片输入 Token',
+    imageInputTokenPrice: '图片输入单价',
+    imageInputCost: '图片输入费用',
     imageSizeSource: '尺寸来源',
     imageSizeBreakdown: '尺寸明细',
     imageSizeSourceOutput: '上游输出',
@@ -1191,6 +1232,7 @@ export default {
       outputPrice: '输出',
       cacheWritePrice: '缓存写入',
       cacheReadPrice: '缓存读取',
+      imageInputPrice: '图片输入',
       imageOutputPrice: '图片输出',
       perRequestPrice: '每次请求',
       intervals: '阶梯定价',
@@ -1519,6 +1561,91 @@ export default {
 
   // Admin
   admin: {
+    audit: {
+      title: '操作日志',
+      description: '记录管理员与用户的管理面操作，请求头凭证仅保留首尾、请求体已脱敏。日志无法单条删除，全量清理需二次验证。',
+      clearAll: '全部清理',
+      empty: '暂无操作日志',
+      loadFailed: '加载操作日志失败',
+      filters: {
+        all: '全部',
+        q: '关键字',
+        qPlaceholder: '路径 / 动作 / 操作者邮箱',
+        actorEmail: '操作者邮箱',
+        action: '动作',
+        clientIp: '客户端 IP',
+        method: '请求方法',
+        authMethod: '认证方式',
+        result: '结果',
+        resultSuccess: '成功',
+        resultFailure: '失败',
+        startTime: '开始时间',
+        endTime: '结束时间'
+      },
+      columns: {
+        time: '时间',
+        actor: '操作者',
+        action: '动作',
+        method: '方法',
+        result: '结果',
+        clientIp: '客户端 IP',
+        detail: '详情'
+      },
+      detail: {
+        title: '操作日志详情',
+        actorRole: '角色',
+        methodPath: '方法 / 路径',
+        latency: '耗时',
+        requestId: '请求 ID',
+        credential: '凭证（掩码）',
+        userAgent: 'User-Agent',
+        requestBody: '请求体（已脱敏）',
+        extra: '附加信息'
+      },
+      clearConfirm: {
+        title: '清理全部操作日志',
+        message: '此操作将永久删除所有操作日志，且不可恢复。清理动作本身会被留痕记录。确定继续吗？',
+        totpTitle: '输入二次验证码',
+        totpHint: '清理操作日志需要现场验证 TOTP 验证码。',
+        success: '已清理 {count} 条操作日志',
+        failed: '清理操作日志失败'
+      }
+    },
+    promptAudit: {
+      title: '提示词审计',
+      description: '通过 OpenAI 兼容 Qwen3Guard 节点异步复核或同步阻止用户输入；事件的完整提示词会入库保存，仅供管理员复核。',
+      configVersion: '配置版本 v{version}',
+      tabs: { config: '配置', events: '事件' },
+      actions: { refresh: '刷新运行态', retry: '重试', Allow: '放行', Warn: '警告', Block: '阻止' },
+      common: { actions: '操作', never: '从未' },
+      mode: { off: '已关闭', async_audit: '异步只审计', blocking: '同步审计并阻止' },
+      status: { disabled: '未启用', running: '运行中', degraded: '降级', error: '错误', healthy: '健康', failed: '失败', stale: '心跳过期' },
+      decisions: { pass: '通过', flag: '标记', critical: '严重' },
+      riskLevels: { low: '低', medium: '中', high: '高', critical: '严重' },
+      scanners: {
+        violent: '暴力', non_violent_illegal_acts: '非暴力违法行为', sexual_content_or_sexual_acts: '色情内容或性行为', pii: '个人身份信息', suicide_and_self_harm: '自杀与自残', unethical_acts: '不道德行为', politically_sensitive_topics: '政治敏感话题', copyright_violation: '版权侵犯', jailbreak: '越狱'
+      },
+      scannerDescriptions: {
+        violent: '暴力或暴力威胁', non_violent_illegal_acts: '非暴力违法活动', sexual_content_or_sexual_acts: '色情内容或性行为', pii: '个人身份信息', suicide_and_self_harm: '自杀或自残', unethical_acts: '不道德行为', politically_sensitive_topics: '政治敏感话题', copyright_violation: '版权侵权', jailbreak: '提示注入或越狱尝试'
+      },
+      runtime: {
+        title: '运行概览', description: '显示服务端当前生效状态；未保存的草稿不会改变这些数值。', process: '进程状态', mode: '生效模式', version: '生效 / 期望版本', workers: '活动 / 总 Worker', queue: '活动任务 / 容量', dependencies: '依赖', guardMetrics: '同步 Guard 指标', latest: '最近处理与错误', queueBreakdown: 'queued {queued} · processing {processing} · retry {retry} · done {done} · failed {failed}', deliveryTotals: '累计入队 {enqueued} · 丢弃 {dropped} · 处理 {processed} · 失败 {failed}'
+      },
+      metrics: { total: '总计', allowed: '放行', flagged: '标记', blocked: '阻止', unavailable: '不可用', timeouts: '超时', failovers: '故障切换' },
+      pool: {
+        title: '审计池', description: '按顺序使用启用的 OpenAI 兼容节点；探测由服务端真实网络环境发起。', add: '新增节点', edit: '编辑节点', empty: '尚未配置审计节点。', node: '节点', model: '模型', limits: '超时 / 单片上限', credential: '凭据与探测', configured: 'API Key 已配置', missing: '未配置 API Key', probe: '连接测试', probing: '探测中...', probeProgress: '配置校验 - 请求已发送 - 等待服务响应...', probeResult: '配置校验 OK - 请求 OK - HTTP {http} - {status} - {latency} ms', name: '节点名称', id: '稳定节点 ID', baseUrl: 'Base URL', apiKey: 'API Key', keepSecret: '留空以保留已保存的 API Key', secretHint: '明文只在本次编辑内存中存在；保存成功后会立即清除。', clearSecret: '显式清除已保存的 API Key', timeout: '总超时（毫秒）', inputLimit: '单片 Unicode 字符上限', toggleNode: '切换节点 {name}', deleteConfirm: '从草稿中删除节点“{name}”？保存配置后生效。'
+      },
+      policy: {
+        title: '审计策略', description: '配置适用分组、九类输入风险、Worker 与队列边界。', scope: '适用范围', allGroups: '全部分组', selectedGroups: '指定分组', searchGroups: '搜索分组', noGroups: '没有匹配分组', missingGroups: '配置中包含已删除的分组 ID', selectedCount: '已选择 {count} 个分组', scanners: 'Qwen3Guard 输入风险分类', workerCount: 'Worker 数量', queueCapacity: '持久队列容量', strategy: '节点策略', strategyHint: '按配置顺序优先尝试，必要时故障切换。'
+      },
+      saveBar: { enabled: '启用提示词审计', blocking: '同步阻止', storePass: '保存安全事件', dirty: '有未保存的更改', synced: '配置已同步' },
+      blockingConfirm: { title: '开启同步阻止？', message: '适用请求会在账号选择、计费和访问上游之前等待 Guard。命中 Block、Guard 不可用或响应非法时，请求都不会访问上游。', confirm: '理解风险并开启' },
+      events: {
+        title: '审计事件', description: '按身份、入口、风险、Hash 和时间复核事件，详情中可查看完整提示词。', decision: '判定', risk: '风险等级', endpoint: '入口', groupId: '分组 ID', userId: '用户 ID', apiKeyId: 'API Key ID', keyword: '关键词', startAt: '开始时间', endAt: '结束时间', deleteSelected: '删除选中项（{count}）', deleteByFilter: '按筛选删除', filterDeleteDialogTitle: '按筛选删除审计事件', filterDeleteDialogDesc: '选择删除的时间范围与风险条件后即可执行删除；删除不可恢复。如需提前查看匹配数量，可先获取删除预览。', filterTimeRange: '删除时间范围', filterTimeRangeHint: '将删除所选截止时间之前产生的事件；预览后新产生的事件不受影响。', timePresets: { '1d': '1 天前', '7d': '7 天前', '30d': '30 天前', '90d': '90 天前', all: '全部时间', custom: '自定义范围' }, customRangeInvalid: '自定义范围需要有效的开始与结束时间，且开始早于结束。', moreConditions: '更多条件（入口 / 关键词 / 分组 / 用户）', filterDeletePreviewAction: '获取删除预览', filterDeletePreviewing: '正在生成预览...', filterDeleteNeedPreview: '可直接确认删除；如需提前查看匹配数量，可先获取删除预览。', filterDeleteConfirmInvalidRange: '请先选择有效的删除时间范围（自定义范围需开始早于结束）。', filterDeleteConfirmNoMatches: '当前筛选匹配 0 条事件，没有可删除的内容。', selectAll: '选择当前页全部事件', selectEvent: '选择事件 {id}', time: '时间', identity: '用户 / 邮箱 / API Key', user: '用户名', email: '用户邮箱', apiKey: 'API Key 名称', group: '分组', route: '入口 / 模型', result: '判定 / 风险', preview: '脱敏预览', empty: '没有符合条件的事件。', passEventsDisabled: '当前未开启“保存安全事件”：安全请求仍会完成审计，但不会出现在事件列表中；Flag 和 Critical 风险事件仍会保存。', openConfiguration: '前往配置', detailTitle: '提示词审计事件详情', tabs: { summary: '审计摘要', risks: '具体风险', technical: '技术信息' }, promptFull: '完整提示词（未脱敏）', promptFullHint: '完整提示词已随事件入库，仅供管理员复核触发内容；请按敏感数据妥善处理，切勿外泄。', guardReturn: '模型审计返回', guardReturnHint: '展示 Guard 归一化后的结构化结果（判定、分类、分数与脱敏证据），不含原始响应体。', riskSummaries: '风险摘要', evidence: '脱敏证据', score: '分数', categories: '分类', model: '模型', stage: '请求阶段', noRisks: '本事件没有派生风险摘要。', requestId: 'Request ID', promptHash: 'Prompt SHA-256', technical: { scanner: '扫描器', policy: '策略', guardEndpoint: 'Guard 节点', config: '配置版本', chunks: '分片数', latency: '耗时', protocol: '协议' }, deleteConfirmTitle: '删除审计事件？', deleteConfirmMessage: '将永久删除 {count} 条事件及符合条件的孤立任务。', filterDeleteCount: '服务端快照匹配 {count} 条事件。', snapshotMax: '快照最大事件 ID', expiresAt: '确认令牌过期时间', filterDeleteWarning: '只删除预览高水位内的事件；预览后产生的新事件会保留。筛选一旦变化，必须重新预览。', confirmFilterDelete: '确认永久删除'
+      },
+      messages: { saved: '提示词审计配置已保存，明文 API Key 状态已清除。', probeSucceeded: '审计节点连接正常。', deleted: '已删除 {count} 条审计事件。' },
+      errors: { loadConfig: '无法加载提示词审计配置。', loadRuntime: '无法加载提示词审计运行态。', loadGroups: '无法加载分组列表。', loadEvents: '无法加载审计事件。', loadDetail: '无法加载事件详情。', saveConfig: '配置保存失败。', probe: '节点探测失败。', delete: '事件删除失败。', previewDelete: '无法生成删除预览，请检查时间范围。', deleteConfirmation: '删除确认无效或已过期，请重新预览。', prompt_audit_config_conflict: '配置已被其他管理员更新。请重新加载服务端配置，再决定如何合并本地草稿。', prompt_guard_requires_audit_enabled: '开启同步阻止前必须先启用提示词审计。', prompt_audit_invalid_endpoint: '审计节点配置无效。', prompt_audit_endpoint_required: '启用审计前至少需要一个启用节点。', prompt_audit_groups_required: '指定分组模式至少需要选择一个分组。', prompt_audit_scanners_required: '至少需要启用一个风险分类。' }
+    },
     // Dashboard
     dashboard: {
       title: '管理控制台',
@@ -1989,6 +2116,7 @@ export default {
       leaveEmptyToKeep: '留空则保持原密码不变',
       generatePassword: '生成随机密码',
       copyPassword: '复制密码',
+      passwordCopied: '密码已复制',
       creating: '创建中...',
       updating: '更新中...',
       columns: {
@@ -2116,6 +2244,20 @@ export default {
       useDefaultRate: '使用默认',
       customRatePlaceholder: '留空使用默认',
       groupConfigUpdated: '分组配置更新成功',
+      batchLimits: {
+        title: '批量设置限制',
+        selected: '已选择 {count} 个用户',
+        concurrency: '并发数',
+        concurrencyPlaceholder: '留空则保持当前值',
+        rpmLimit: '每分钟请求数 (RPM)',
+        rpmLimitPlaceholder: '留空则保持当前值',
+        confirm: '确认将这些限制应用到选中的用户？',
+        save: '应用限制',
+        saved: '已更新 {count} 个用户的限制',
+        failed: '用户限制更新失败',
+        invalid: '每个已填写的限制必须是非负整数。',
+        maxSelected: '最多选择 500 个用户。'
+      },
       replaceGroup: '替换分组',
       clickToReplace: '点击替换分组',
       replaceGroupTitle: '替换专属分组',
@@ -2276,6 +2418,10 @@ export default {
       sortOrderHint: '拖拽分组调整显示顺序，排在前面的分组会优先显示',
       sortOrderUpdated: '排序已更新',
       failedToUpdateSortOrder: '更新排序失败',
+      duplicate: '复制',
+      duplicating: '复制中',
+      duplicateSuccess: '分组已复制为「{name}」，已默认停用，请确认配置后再启用',
+      duplicateFailed: '复制分组失败',
       deleteConfirm: "确定要删除分组 '{name}' 吗？所有关联的 API 密钥将不再属于任何分组。",
       deleteConfirmSubscription:
         "确定要删除订阅分组 '{name}' 吗？此操作会让所有绑定此订阅的用户的 API Key 失效，并删除所有相关的订阅记录。此操作无法撤销。",
@@ -2598,6 +2744,8 @@ export default {
       createError: '创建渠道失败',
       updateError: '更新渠道失败',
       deleteError: '删除渠道失败',
+      noGroupsSelected: '请至少选择一个分组。',
+      emptyModelsInPricing: '请为每条定价规则至少添加一个模型。',
       nameRequired: '请输入渠道名称',
       duplicateModels: '模型「{0}」在多个定价条目中重复',
       modelConflict: "模型模式 '{model1}' 和 '{model2}' 冲突：匹配范围重叠",
@@ -2636,6 +2784,7 @@ export default {
         outputPrice: '输出',
         cacheWritePrice: '缓存写入',
         cacheReadPrice: '缓存读取',
+        imageInputPrice: '图片输入',
         imageTokenPrice: '图片输出',
         imageOutputPrice: '图片输出价格',
         pricePlaceholder: '默认',
@@ -2946,6 +3095,11 @@ export default {
       runNow: '立即检测',
       runSuccess: '检测完成',
       runFailed: '检测失败',
+      duplicate: '复制',
+      duplicating: '复制中',
+      duplicateSuccess: '监控已复制为「{name}」，已默认停用，请确认配置后再启用',
+      duplicateFailed: '复制监控失败',
+      duplicateKeyUnavailable: 'API Key 无法解密，请先编辑并重新填写 Key 后再复制',
       apiKeyDecryptFailed: 'API Key 解密失败，请重新编辑该监控并填入新的 Key',
       createSuccess: '监控创建成功',
       updateSuccess: '监控更新成功',
@@ -3180,6 +3334,10 @@ export default {
     accounts: {
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
+      antigravityProjectIdLabel: 'GCP Project ID（可选）',
+      antigravityProjectIdPlaceholder: 'your-gcp-project-id',
+      antigravityProjectIdHint:
+        'standard-tier 且未自动返回 project_id 的 Antigravity 账号需要填写用户自带 GCP project。',
       createAccount: '添加账号',
       autoRefresh: '自动刷新',
       enableAutoRefresh: '启用自动刷新',
@@ -3291,6 +3449,7 @@ export default {
         notes: '备注',
         priority: '优先级',
         billingRateMultiplier: '账号倍率',
+        upstreamBillingRate: '上游声明倍率',
         weight: '权重',
         schedulerScore: '调度权值',
         status: '状态',
@@ -3308,6 +3467,31 @@ export default {
         stickyShort: '粘性',
         ungrouped: '未分组',
         hint: '显示格式为“分组名 / 基础分 / 粘性加分”。基础分按当前筛选条件限定的候选账号计算，包含优先级、负载、排队、错误率、首包延迟、重置窗口、额度余量等因子；粘性加分只在开启粘性加权时用于 previous_response_id 或 session_hash。分数越大越优先。'
+      },
+      upstreamBilling: {
+        trustWarning: '此倍率由上游站点针对当前 API Key 自行声明，Sub2API 无法验证是否与实际扣费一致，请结合账单、余额变化和实际用量自行核验。',
+        autoProbeSettings: '上游倍率自动探测',
+        intervalMinutes: '探测周期（分钟）',
+        autoProbe: '自动探测',
+        autoProbeHint: '启用后按全局探测周期查询此账号；全局探测关闭时不会执行。',
+        manualProbe: '立即探测上游倍率',
+        stale: '已过期',
+        unsupported: '不支持',
+        failed: '失败',
+        notProbed: '未探测',
+        groupRate: '分组默认：{value}x',
+        userRate: '用户专属倍率：{value}x',
+        peakRate: '高峰：{start}-{end}，{value}x（{timezone}）',
+        noPeakRate: '高峰倍率：未启用',
+        effectiveRate: '当前倍率：{value}x',
+        updatedAt: '更新时间：{value}',
+        settingsSaved: '上游倍率探测设置已保存',
+        settingsFailed: '保存上游倍率探测设置失败',
+        probeFailed: '探测上游倍率失败',
+        noEligibleAccounts: '请选择 OpenAI API Key 账号',
+        batchLimit: '每次最多探测 20 个账号',
+        batchCompleted: '已完成 {count} 个账号的倍率探测',
+        batchPartial: '倍率探测部分完成：成功 {success} 个，失败 {failed} 个'
       },
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
@@ -3594,6 +3778,7 @@ export default {
         disableScheduling: '批量停止调度',
         resetStatus: '批量重置状态',
         refreshToken: '批量刷新令牌',
+        probeUpstreamBilling: '探测上游倍率',
         resetStatusSuccess: '已成功重置 {count} 个账号状态',
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
@@ -3626,6 +3811,9 @@ export default {
       revertProxy: '切回原代理',
       revertProxySuccess: '已成功切回原代理',
       revertProxyFailed: '切回原代理失败',
+      duplicateAccount: '复制账号',
+      duplicateSuccess: '账号已复制为「{name}」，已默认暂停，请确认凭据后再启用',
+      duplicateFailed: '复制账号失败',
       resetStatus: '重置状态',
       statusReset: '账号状态已重置',
       failedToResetStatus: '重置账号状态失败',
@@ -3677,6 +3865,15 @@ export default {
       openai: {
         baseUrlHint: '留空使用官方 OpenAI API',
         apiKeyHint: '您的 OpenAI API Key',
+        endpointCapabilities: '端点能力',
+        endpointCapabilitiesDesc:
+          '用于调度筛选。文本端点会跟随上方 Responses API 支持显示为 Responses、Chat Completions 或自动模式；Embeddings 独立控制 /v1/embeddings。',
+        capabilityResponses: 'Responses',
+        capabilityResponsesAuto: 'Responses（自动探测）',
+        capabilityChatCompletions: 'Chat Completions',
+        capabilityChatCompletionsAuto: 'Chat Completions（自动探测）',
+        capabilityTextAuto: 'Responses / Chat Completions（自动）',
+        capabilityEmbeddings: 'Embeddings',
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
@@ -3686,6 +3883,7 @@ export default {
         wsMode: 'WS mode',
         wsModeDesc: '仅对当前 OpenAI 账号类型生效。',
         wsModeOff: '关闭（off）',
+        wsModeHttpBridge: 'HTTP 桥接（http_bridge）',
         wsModeCtxPool: '上下文池（ctx_pool）',
         wsModePassthrough: '透传（passthrough）',
         wsModeShared: '共享（shared）',
@@ -3702,6 +3900,7 @@ export default {
         responsesMode: 'Responses API 支持',
         responsesModeDesc:
           '仅对 OpenAI API Key 生效。自动跟随探测结果，强制模式会覆盖自动探测。',
+        responsesModeTextDisabledHint: '未启用 Responses / Chat Completions 端点时，此设置不适用。',
         responsesModeAuto: '自动',
         responsesModeForceResponses: '强制 Responses',
         responsesModeForceChatCompletions: '强制 Chat Completions',
@@ -3715,6 +3914,25 @@ export default {
         planTypeClear: '清空（自动识别）',
         codexCLIOnly: '仅允许 Codex 官方客户端',
         codexCLIOnlyDesc: '仅对 OpenAI OAuth 生效。开启后仅允许 Codex 官方客户端家族访问；关闭后完全绕过并保持原逻辑。',
+        codexCLIOnlyAppServer: '允许 Codex app-server 客户端',
+        codexCLIOnlyAppServerDesc:
+          '仅在上方开关开启时生效。开启后本账号额外放行内嵌 Codex 引擎、经 app-server 协议接入的第三方客户端（如 Claude Code 的 codex 插件），仍需通过全局引擎指纹门；与全局 app-server 开关取 OR（任一开即放行）。',
+        codexImageTool: 'Codex 图片工具',
+        codexImageToolDesc:
+          '统一控制 Codex /responses 文本请求的 image_generation 图片工具：是否自动注入，以及客户端自带该工具时是否放行。账号级策略优先于渠道和全局配置，不影响独立图片生成接口。',
+        codexImageToolInherit: '跟随渠道',
+        codexImageToolInheritDesc:
+          '不写入账号覆盖，是否注入由渠道或全局策略决定；客户端自带的图片工具照常放行。',
+        codexImageToolEnabled: '强制注入',
+        codexImageToolEnabledDesc: '始终为 Codex /responses 请求注入图片工具。',
+        codexImageToolDisabled: '关闭注入',
+        codexImageToolDisabledDesc: '不自动注入；客户端自带的图片工具仍会放行。',
+        codexImageToolBlock: '完全阻断',
+        codexImageToolBlockDesc: '不注入，并移除客户端自带的图片工具及指向它的 tool_choice。',
+        codexImageToolBadgeInherit: '渠道策略',
+        codexImageToolBadgeEnabled: '强制注入',
+        codexImageToolBadgeDisabled: '关闭注入',
+        codexImageToolBadgeBlock: '完全阻断',
         codexImageGenerationBridge: 'Codex 图片生成桥接',
         codexImageGenerationBridgeDesc:
           '账号级策略优先于渠道和全局配置。仅控制 Codex 走 /responses 文本端点时是否注入 image_generation 工具；不影响独立图片生成接口。',
@@ -3769,6 +3987,8 @@ export default {
       modelRestriction: '模型限制（可选）',
       modelWhitelist: '模型白名单',
       modelMapping: '模型映射',
+      fromModel: '源模型',
+      toModel: '目标模型',
       selectAllowedModels: '选择允许的模型。留空则支持所有模型。',
       mapRequestModels: '将请求模型映射到实际模型。左边是请求的模型，右边是发送到 API 的实际模型。',
       selectedModels: '已选择 {count} 个模型',
@@ -3801,6 +4021,9 @@ export default {
         '启用后，上游 429/403/401 错误将自动重试而不标记账号限流或错误，适用于上游指向另一个 sub2api 实例的场景。',
       poolModeRetryCount: '同账号重试次数',
       poolModeRetryCountHint: '仅在池模式下生效。0 表示不原地重试；默认 {default}，最大 {max}。',
+      poolModeRetryStatusCodes: '同账号重试状态码',
+      poolModeRetryStatusCodesHint:
+        '仅在池模式下生效。以英文逗号分隔的 HTTP 状态码（100-599），命中时触发同账号重试。留空使用默认值（{default}）。',
       customErrorCodes: '自定义错误码',
       customErrorCodesHint: '仅对选中的错误码停止调度',
       customErrorCodesWarning: '仅选中的错误码会停止调度，其他错误将返回 500。',
@@ -3831,10 +4054,33 @@ export default {
         blockedName: '该请求头不允许覆写，由系统统一管理',
         duplicateName: '存在重复的请求头名称（匹配不区分大小写）',
         invalidValue: '请求头值不合法（不允许控制字符，长度不超过 8192 字节）',
-        tooManyEntries: '请求头覆写条目过多（最多 64 条）'
+        tooManyEntries: '请求头覆写条目过多（最多 64 条）',
+        importJson: 'JSON 导入',
+        importJsonApply: '解析并填入',
+        importJsonCancel: '取消',
+        importJsonHint: '粘贴扁平 JSON 对象（请求头名 -> 值），解析后将整体替换当前列表。',
+        importJsonInvalid: 'JSON 格式不正确：需要请求头名对应字符串、数字或布尔值的扁平对象',
+        copyJson: '复制为 JSON'
+      },
+      grokCustomBaseUrl: {
+        title: '自定义上游地址',
+        hint: '开启后账号流量改发指定地址；OAuth 授权与令牌刷新仍走官方端点。',
+        placeholder: 'https://relay.example.com/v1',
+        required: '开启自定义上游地址后必须填写地址',
+        invalid: '上游地址格式不正确（需为 http(s):// 开头的完整地址）',
+        presets: {
+          cli: 'Grok Build CLI',
+          official: '官方 API'
+        }
       },
       autoPauseOnExpired: '过期自动暂停调度',
       autoPauseOnExpiredDesc: '启用后，账号过期将自动暂停调度',
+      autoPause5hThreshold: '5h 用量阈值(%)',
+      autoPause7dThreshold: '7d 用量阈值(%)',
+      autoPauseThresholdHint: '留空或填 0 表示使用全局默认阈值（在运维设置中配置）；填具体值则覆盖全局默认。达到阈值后仅在调度时跳过账号，不修改 schedulable。',
+      autoPause5hDisabled: '禁用 5h 自动暂停',
+      autoPause7dDisabled: '禁用 7d 自动暂停',
+      autoPauseDisabledHint: '开启后该账号永不进入自动暂停（即使全局默认阈值已配置）。',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: '配额控制',
@@ -3944,6 +4190,9 @@ export default {
       creating: '创建中...',
       updating: '更新中...',
       accountCreated: '账号创建成功',
+      messages: {
+        accountCreated: '账号创建成功'
+      },
       accountUpdated: '账号更新成功',
       failedToCreate: '创建账号失败',
       failedToUpdate: '更新账号失败',
@@ -4054,6 +4303,8 @@ export default {
               '未设置代理，当前服务器无法直连 OpenAI，导致 OpenAI OAuth 请求失败。请先选择可访问 OpenAI 的代理后重试；如果授权码已失效，请重新生成授权链接。'
           },
           // Refresh Token auth
+          accessTokenAuth: 'Access Token 认证',
+          mobileRefreshTokenAuth: '移动端 Refresh Token 认证',
           refreshTokenAuth: '手动输入 RT',
           refreshTokenDesc: '输入您已有的 OpenAI Refresh Token，支持批量输入（每行一个），系统将自动验证并创建账号。',
           refreshTokenPlaceholder: '粘贴您的 OpenAI Refresh Token...\n支持多个，每行一个',
@@ -4067,6 +4318,12 @@ export default {
           codexSessionImportFailed: 'Codex 账号导入失败',
           codexSessionImportSuccess: '导入完成：新增 {created}，更新 {updated}，跳过 {skipped}',
           codexSessionImportPartial: '部分成功：新增 {created}，更新 {updated}，跳过 {skipped}，失败 {failed}',
+          agentIdentityAuth: 'Agent Identity auth.json',
+          agentIdentityDesc: '导入 Codex Agent Identity auth.json，不保存 OAuth access token 或 refresh token。',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: '粘贴一个 Agent Identity auth.json 对象',
+          agentIdentityHint: '文件必须使用 auth_mode=agentIdentity；每次上游请求都会动态签名。',
+          agentIdentityInvalid: '请选择 auth_mode=agentIdentity 的 Codex auth.json。',
           codexPatAuth: 'Codex Personal Access Token',
           codexPatDesc: '输入 Codex at- Personal Access Token，系统会先调用 OpenAI whoami 校验后再创建账号。',
           codexPatInputLabel: 'Codex PAT',
@@ -4244,16 +4501,24 @@ export default {
           builtInTitle: '内置授权（Gemini CLI / Code Assist）',
           builtInDesc: '使用 Google 内置客户端 ID，无需管理员配置。',
           builtInRequirement: '需要 GCP 项目并填写 Project ID。',
+          codeAssistDesc: '企业级，需要 GCP 项目',
+          codeAssistRequirement: '需要激活 GCP 项目并绑定信用卡',
+          googleOneDesc: '个人账号，享受 Google One 订阅配额',
           gcpProjectLink: '创建项目',
           customTitle: '自定义授权（AI Studio OAuth）',
           customDesc: '使用管理员预设的 OAuth 客户端，适合组织管理。',
           customRequirement: '需管理员配置 Client ID 并加入测试用户白名单。',
+          showAdvanced: '显示高级选项（自建 OAuth Client）',
+          hideAdvanced: '隐藏高级选项（自建 OAuth Client）',
           badges: {
             recommended: '推荐',
             highConcurrency: '高并发',
             noAdmin: '无需管理员配置',
             orgManaged: '组织管理',
-            adminRequired: '需要管理员'
+            adminRequired: '需要管理员',
+            enterprise: '企业用户',
+            individuals: '推荐个人用户',
+            noGcp: '无需 GCP'
           }
         },
         setupGuide: {
@@ -4270,6 +4535,7 @@ export default {
           },
           links: {
             countryCheck: '检查归属地',
+            countryChange: '修改归属地',
             geminiWebActivation: '激活 Gemini Web',
             gcpProject: '打开 GCP 控制台'
           }
@@ -4452,6 +4718,7 @@ export default {
     // Proxies Management
     proxies: {
       title: 'IP管理',
+      selectedCount: '已选 {count} 个',
       description: '管理代理服务器配置',
       createProxy: '添加代理',
       editProxy: '编辑代理',
@@ -5696,6 +5963,16 @@ export default {
         saveFailed: '保存运行设置失败',
         alertTitle: '告警评估器',
         groupAvailabilityTitle: '分组可用性监控',
+        metricThresholds: '指标阈值配置',
+        metricThresholdsHint: '配置各项指标的告警阈值，超出阈值时将以红色显示',
+        slaMinPercent: 'SLA最低百分比',
+        slaMinPercentHint: 'SLA低于此值时显示为红色（默认：99.5%）',
+        ttftP99MaxMs: 'TTFT P99最大值（毫秒）',
+        ttftP99MaxMsHint: 'TTFT P99高于此值时显示为红色（默认：500ms）',
+        requestErrorRateMaxPercent: '请求错误率最大值（%）',
+        requestErrorRateMaxPercentHint: '请求错误率高于此值时显示为红色（默认：5%）',
+        upstreamErrorRateMaxPercent: '上游错误率最大值（%）',
+        upstreamErrorRateMaxPercentHint: '上游错误率高于此值时显示为红色（默认：5%）',
         evalIntervalSeconds: '评估间隔（秒）',
         silencing: {
           title: '告警静默（维护模式）',
@@ -5944,6 +6221,15 @@ export default {
         email: '邮件设置',
         backup: '数据备份',
         payment: '支付设置',
+      },
+      security: {
+        stepUp: '敏感操作二次验证（step-up 2FA）',
+        stepUpHint: '开启后，账号导出、备份操作、S3 配置修改、提升管理员等敏感操作需要先完成近期 TOTP 二次验证。',
+        stepUpEnableRequiresTotp: '开启敏感操作二次验证前，请先在个人资料中为当前账号启用 2FA（TOTP）。',
+        sessionBinding: '会话 IP/UA 绑定',
+        sessionBindingHint: '将登录会话与客户端 IP 和 User-Agent 绑定，任一变化都会使会话失效并要求重新登录。',
+        auditRetention: '操作日志保留天数',
+        auditRetentionHint: '超过保留天数的操作日志会自动清理；填写 0 表示仅允许手动清理。'
       },
       features: {
         channelMonitor: {
@@ -7688,6 +7974,9 @@ export default {
       deletePlanConfirm: '确定要删除此套餐吗？',
       originalPrice: '原价',
       price: '价格',
+      currency: '币种',
+      currencyPlaceholder: 'USD、CNY、HKD...',
+      currencyHint: '填写支付服务商返回的三位 ISO 4217 币种代码。',
       validityDays: '有效期（天）',
       validityUnit: '有效期单位',
       sortOrder: '排序',

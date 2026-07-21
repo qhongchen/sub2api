@@ -642,19 +642,7 @@ const lineChartOptions = computed(() => ({
   }
 }))
 
-// Load stats when modal opens
-watch(
-  () => props.show,
-  async (newVal) => {
-    if (newVal && props.account) {
-      await loadStats()
-    } else {
-      stats.value = null
-    }
-  }
-)
-
-const loadStats = async () => {
+async function loadStats() {
   if (!props.account) return
 
   loading.value = true
@@ -667,6 +655,19 @@ const loadStats = async () => {
     loading.value = false
   }
 }
+
+// Load immediately because the modal is mounted with show=true via v-if.
+watch(
+  [() => props.show, () => props.account?.id],
+  async ([show, accountId]) => {
+    if (show && accountId) {
+      await loadStats()
+    } else {
+      stats.value = null
+    }
+  },
+  { immediate: true }
+)
 
 const handleClose = () => {
   emit('close')

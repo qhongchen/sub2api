@@ -92,6 +92,17 @@
                 t('admin.accounts.oauth.openai.codexSessionAuth')
               }}</span>
             </label>
+            <label v-if="showAgentIdentityOption" class="flex cursor-pointer items-center gap-2">
+              <input
+                v-model="inputMethod"
+                type="radio"
+                value="agent_identity"
+                class="text-blue-600 focus:ring-blue-500"
+              />
+              <span class="text-sm text-blue-900 dark:text-blue-200">{{
+                t('admin.accounts.oauth.openai.agentIdentityAuth')
+              }}</span>
+            </label>
             <label v-if="showCodexPatOption" class="flex cursor-pointer items-center gap-2">
               <input
                 v-model="inputMethod"
@@ -191,12 +202,18 @@
         </div>
 
         <!-- Codex OAuth/session JSON batch import -->
-        <div v-if="inputMethod === 'codex_session'" class="space-y-4">
+        <div v-if="inputMethod === 'codex_session' || inputMethod === 'agent_identity'" class="space-y-4">
           <div
             class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
-              {{ t('admin.accounts.oauth.openai.codexSessionDesc') }}
+              {{
+                t(
+                  inputMethod === 'agent_identity'
+                    ? 'admin.accounts.oauth.openai.agentIdentityDesc'
+                    : 'admin.accounts.oauth.openai.codexSessionDesc'
+                )
+              }}
             </p>
 
             <div class="mb-4">
@@ -204,7 +221,13 @@
                 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
               >
                 <Icon name="key" size="sm" class="text-blue-500" />
-                {{ t('admin.accounts.oauth.openai.codexSessionInputLabel') }}
+                {{
+                  t(
+                    inputMethod === 'agent_identity'
+                      ? 'admin.accounts.oauth.openai.agentIdentityInputLabel'
+                      : 'admin.accounts.oauth.openai.codexSessionInputLabel'
+                  )
+                }}
                 <span
                   v-if="parsedCodexSessionCount > 1"
                   class="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white"
@@ -216,11 +239,23 @@
                 v-model="codexSessionInput"
                 rows="8"
                 class="input w-full resize-y font-mono text-sm"
-                :placeholder="t('admin.accounts.oauth.openai.codexSessionPlaceholder')"
+                :placeholder="
+                  t(
+                    inputMethod === 'agent_identity'
+                      ? 'admin.accounts.oauth.openai.agentIdentityPlaceholder'
+                      : 'admin.accounts.oauth.openai.codexSessionPlaceholder'
+                  )
+                "
                 spellcheck="false"
               ></textarea>
               <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                {{ t('admin.accounts.oauth.openai.codexSessionHint') }}
+                {{
+                  t(
+                    inputMethod === 'agent_identity'
+                      ? 'admin.accounts.oauth.openai.agentIdentityHint'
+                      : 'admin.accounts.oauth.openai.codexSessionHint'
+                  )
+                }}
               </p>
             </div>
 
@@ -736,6 +771,7 @@ interface Props {
   showSessionTokenOption?: boolean
   showAccessTokenOption?: boolean
   showCodexSessionImportOption?: boolean
+  showAgentIdentityOption?: boolean
   showCodexPatOption?: boolean
   platform?: AccountPlatform // Platform type for different UI/text
   showProjectId?: boolean // New prop to control project ID visibility
@@ -756,6 +792,7 @@ const props = withDefaults(defineProps<Props>(), {
   showSessionTokenOption: false,
   showAccessTokenOption: false,
   showCodexSessionImportOption: false,
+  showAgentIdentityOption: false,
   showCodexPatOption: false,
   platform: 'anthropic',
   showProjectId: true
@@ -819,7 +856,7 @@ const oauthState = ref('')
 const projectId = ref('')
 
 // Computed: show method selection when either cookie or refresh token option is enabled
-const showMethodSelection = computed(() => props.showCookieOption || props.showRefreshTokenOption || props.showMobileRefreshTokenOption || props.showSessionTokenOption || props.showAccessTokenOption || props.showCodexSessionImportOption || props.showCodexPatOption)
+const showMethodSelection = computed(() => props.showCookieOption || props.showRefreshTokenOption || props.showMobileRefreshTokenOption || props.showSessionTokenOption || props.showAccessTokenOption || props.showCodexSessionImportOption || props.showAgentIdentityOption || props.showCodexPatOption)
 
 // Clipboard
 const { copied, copyToClipboard } = useClipboard()

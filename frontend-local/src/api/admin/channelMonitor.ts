@@ -153,6 +153,71 @@ export async function create(params: CreateParams): Promise<ChannelMonitor> {
   return data
 }
 
+const duplicateOperationKeys = new Map<string, string>()
+
+function getCurrentAdminID(): string | null {
+  try {
+    const rawUser = globalThis.localStorage?.getItem('auth_user')
+    if (!rawUser) return null
+    const user: unknown = JSON.parse(rawUser)
+    if (typeof user !== 'object' || user === null) return null
+    const id = (user as { id?: unknown }).id
+    return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? String(id) : null
+  } catch {
+    return null
+  }
+}
+
+function monitorDuplicateStorageKey(id: number, adminID: string): string {
+  return `sub2api:admin:channel-monitor-duplicate:${adminID}:${id}`
+}
+
+function readSessionOperationKey(key: string): string | null {
+  try {
+    return globalThis.sessionStorage?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
+function writeSessionOperationKey(key: string, value: string | null): void {
+  try {
+    if (value) globalThis.sessionStorage?.setItem(key, value)
+    else globalThis.sessionStorage?.removeItem(key)
+  } catch {
+    // The in-memory key still protects retries while this page remains open.
+  }
+}
+
+export async function duplicate(id: number): Promise<ChannelMonitor> {
+  const adminID = getCurrentAdminID()
+  const storageKey = adminID ? monitorDuplicateStorageKey(id, adminID) : null
+  let idempotencyKey = storageKey
+    ? duplicateOperationKeys.get(storageKey) ?? readSessionOperationKey(storageKey)
+    : null
+
+  if (!idempotencyKey) {
+    const requestID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    idempotencyKey = `channel-monitor-duplicate-${adminID ?? 'unknown-admin'}-${id}-${requestID}`
+  }
+  if (storageKey) {
+    duplicateOperationKeys.set(storageKey, idempotencyKey)
+    writeSessionOperationKey(storageKey, idempotencyKey)
+  }
+
+  const { data } = await apiClient.post<ChannelMonitor>(
+    `/admin/channel-monitors/${id}/duplicate`,
+    undefined,
+    { headers: { 'Idempotency-Key': idempotencyKey } }
+  )
+
+  if (storageKey) {
+    duplicateOperationKeys.delete(storageKey)
+    writeSessionOperationKey(storageKey, null)
+  }
+  return data
+}
+
 /**
  * Update an existing channel monitor.
  * api_key field: empty string means "do not modify".
@@ -196,6 +261,7 @@ export const channelMonitorAPI = {
   list,
   get,
   create,
+  duplicate,
   update,
   del,
   runNow,

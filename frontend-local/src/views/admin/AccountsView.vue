@@ -47,6 +47,46 @@
               <button class="account-tools-menu-item" @click="openTLSFingerprintProfiles">
                 <span class="truncate">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
               </button>
+              <div class="my-1 border-t border-gray-100 dark:border-dark-700" />
+              <div class="space-y-3 px-3 py-2" @click.stop>
+                <div class="flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
+                      {{ t('admin.accounts.upstreamBilling.autoProbeSettings') }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="upstreamBillingProbeSettings.enabled"
+                    :aria-label="t('admin.accounts.upstreamBilling.autoProbeSettings')"
+                  />
+                </div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.accounts.upstreamBilling.intervalMinutes') }}
+                  <input
+                    v-model.number="upstreamBillingProbeSettings.interval_minutes"
+                    type="number"
+                    min="5"
+                    max="1440"
+                    class="input mt-1 h-9"
+                  />
+                </label>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm w-full"
+                  :disabled="upstreamBillingSettingsLoading || upstreamBillingSettingsSaving"
+                  @click="saveUpstreamBillingProbeSettings"
+                >
+                  {{ t('common.save') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm w-full"
+                  :disabled="probingUpstreamBilling.size > 0"
+                  @click="handleBulkProbeUpstreamBilling"
+                >
+                  {{ t('admin.accounts.bulkActions.probeUpstreamBilling') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -73,17 +113,6 @@
               class="transition-transform"
               :class="{ 'rotate-180': filtersOpen }"
             />
-          </button>
-
-          <button
-            type="button"
-            class="inline-flex h-9 items-center rounded-lg border px-3 text-sm font-semibold transition-colors"
-            :class="params.platform === 'grok'
-              ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
-              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-dark-900 dark:text-dark-200 dark:hover:bg-white/[0.04]'"
-            @click="toggleGrokFilter"
-          >
-            Grok
           </button>
 
           <div class="ml-auto flex items-center gap-2">
@@ -209,6 +238,9 @@
                   v-for="column in accountTableColumns"
                   :key="column.key"
                   class="account-table-head-cell"
+                  :title="column.key === 'upstream_billing_rate'
+                    ? t('admin.accounts.upstreamBilling.trustWarning')
+                    : undefined"
                 >
                   {{ column.label }}
                 </th>
@@ -308,6 +340,7 @@
                           mode="platformType"
                           :platform="account.platform"
                           :type="account.type"
+                          :auth-mode="getOpenAIAuthMode(account)"
                         />
                         <span
                           v-if="isCardFieldVisible('platform_type') && getAntigravityTierLabel(account)"
@@ -429,6 +462,15 @@
                     <span class="account-table-metric-value">{{ formatMultiplier(account.rate_multiplier) }}</span>
                   </td>
 
+                  <td v-if="isCardFieldVisible('upstream_billing_rate')" class="account-table-cell">
+                    <UpstreamBillingRateCell
+                      :account="account"
+                      :now="upstreamBillingNow"
+                      :probing="probingUpstreamBilling.has(account.id)"
+                      @probe="handleProbeUpstreamBilling(account)"
+                    />
+                  </td>
+
                   <td v-if="isCardFieldVisible('today_stats')" class="account-table-cell">
                     <div class="account-table-today-stat" tabindex="0">
                       <div class="account-table-metric-value">{{ formatTodayCost(account) }}</div>
@@ -500,7 +542,7 @@
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal v-if="showStats" :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @duplicate="handleDuplicateAccount" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
     <Teleport to="body">
       <div
         v-if="accountStatusTooltip.show"
@@ -536,6 +578,7 @@
     </ConfirmDialog>
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
+    <TotpStepUpDialog :controller="accountExportStepUp" />
   </AppLayout>
 </template>
 
@@ -547,9 +590,12 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useTableLoader } from '@/composables/useTableLoader'
+import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import TablePanel from '@/components/common/TablePanel.vue'
+import Toggle from '@/components/common/Toggle.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
@@ -559,6 +605,7 @@ import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
@@ -566,7 +613,17 @@ import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfil
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
-import type { Account, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import type {
+  Account,
+  AccountSchedulerGroupScore,
+  Proxy as AccountProxy,
+  AdminGroup,
+  WindowStats,
+  ClaudeModel,
+  UpstreamBillingProbeSettings,
+  UpstreamBillingProbeSnapshot
+} from '@/types'
 
 const CreateAccountModal = defineAsyncComponent(() => import('@/components/account/CreateAccountModal.vue'))
 const EditAccountModal = defineAsyncComponent(() => import('@/components/account/EditAccountModal.vue'))
@@ -617,6 +674,16 @@ const accountStatusTooltip = reactive({
 })
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
+const accountExportStepUp = useStepUp()
+const upstreamBillingProbeSettings = reactive<UpstreamBillingProbeSettings>({
+  enabled: true,
+  interval_minutes: 30
+})
+const upstreamBillingSettingsLoading = ref(false)
+const upstreamBillingSettingsSaving = ref(false)
+const probingUpstreamBilling = reactive(new Set<number>())
+const upstreamBillingNow = ref(Date.now())
+useIntervalFn(() => { upstreamBillingNow.value = Date.now() }, 60_000)
 
 // Account tools dropdown
 const showAccountToolsDropdown = ref(false)
@@ -660,6 +727,7 @@ const CARD_VISIBLE_FIELD_KEYS = [
   'scheduler_score',
   'capacity',
   'billing_rate',
+  'upstream_billing_rate',
   'today_stats',
   'usage_windows'
 ] as const
@@ -668,6 +736,7 @@ const DEFAULT_VISIBLE_CARD_FIELDS: AccountCardFieldKey[] = [
   'priority',
   'capacity',
   'billing_rate',
+  'upstream_billing_rate',
   'today_stats',
   'usage_windows'
 ]
@@ -681,6 +750,7 @@ const cardVisibilityOptions = computed<Array<{ key: AccountCardFieldKey; label: 
   { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore') },
   { key: 'capacity', label: t('admin.accounts.columns.capacity') },
   { key: 'billing_rate', label: t('admin.accounts.columns.billingRateMultiplier') },
+  { key: 'upstream_billing_rate', label: t('admin.accounts.columns.upstreamBillingRate') },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats') },
   { key: 'usage_windows', label: t('admin.accounts.columns.usageWindows') }
 ])
@@ -692,6 +762,7 @@ type AccountTableColumnKey =
   | 'scheduler_score'
   | 'capacity'
   | 'billing_rate'
+  | 'upstream_billing_rate'
   | 'today_stats'
   | 'schedulable'
   | 'actions'
@@ -717,6 +788,9 @@ const accountTableColumns = computed<AccountTableColumn[]>(() => [
     : []),
   ...(isCardFieldVisible('billing_rate')
     ? [{ key: 'billing_rate' as const, label: t('admin.accounts.columns.billingRateMultiplier') }]
+    : []),
+  ...(isCardFieldVisible('upstream_billing_rate')
+    ? [{ key: 'upstream_billing_rate' as const, label: t('admin.accounts.columns.upstreamBillingRate') }]
     : []),
   ...(isCardFieldVisible('today_stats')
     ? [{ key: 'today_stats' as const, label: t('admin.accounts.columns.todayStats') }]
@@ -975,11 +1049,6 @@ const activeFilterCount = computed(() => {
   return count
 })
 
-const toggleGrokFilter = () => {
-  params.platform = params.platform === 'grok' ? '' : 'grok'
-  debouncedReload()
-}
-
 const accountListRefreshing = computed(() => loading.value || autoRefreshFetching.value)
 const autoRefreshTitle = computed(() =>
   autoRefreshEnabled.value
@@ -1043,7 +1112,9 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
       JSON.stringify(current.scheduler_scores ?? current.scheduler_score ?? null) !==
         JSON.stringify(next.scheduler_scores ?? next.scheduler_score ?? null)
     ) ||
-    buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next)
+    buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next) ||
+    JSON.stringify(current.extra?.upstream_billing_probe ?? null) !==
+      JSON.stringify(next.extra?.upstream_billing_probe ?? null)
   )
 }
 
@@ -1172,6 +1243,37 @@ const openTLSFingerprintProfiles = () => {
   showTLSFingerprintProfiles.value = true
 }
 
+const loadUpstreamBillingProbeSettings = async () => {
+  upstreamBillingSettingsLoading.value = true
+  try {
+    Object.assign(upstreamBillingProbeSettings, await adminAPI.accounts.getUpstreamBillingProbeSettings())
+  } catch (error) {
+    console.error('Failed to load upstream billing probe settings:', error)
+  } finally {
+    upstreamBillingSettingsLoading.value = false
+  }
+}
+
+const saveUpstreamBillingProbeSettings = async () => {
+  upstreamBillingSettingsSaving.value = true
+  try {
+    const saved = await adminAPI.accounts.updateUpstreamBillingProbeSettings({
+      enabled: upstreamBillingProbeSettings.enabled,
+      interval_minutes: Math.min(
+        1440,
+        Math.max(5, Number(upstreamBillingProbeSettings.interval_minutes) || 30)
+      )
+    })
+    Object.assign(upstreamBillingProbeSettings, saved)
+    appStore.showSuccess(t('admin.accounts.upstreamBilling.settingsSaved'))
+  } catch (error) {
+    console.error('Failed to save upstream billing probe settings:', error)
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.settingsFailed')))
+  } finally {
+    upstreamBillingSettingsSaving.value = false
+  }
+}
+
 const syncPendingListChanges = async () => {
   hasPendingListSync.value = false
   await load()
@@ -1293,6 +1395,12 @@ const getRecordString = (record: Record<string, unknown> | undefined, key: strin
 
 const getCredentialString = (account: Account, key: string) => {
   return getRecordString(account.credentials, key)
+}
+
+const getOpenAIAuthMode = (account: Account): string | undefined => {
+  if (account.platform !== 'openai' || account.type !== 'oauth') return undefined
+  const value = account.credentials?.auth_mode
+  return typeof value === 'string' && value.trim() ? value : undefined
 }
 
 const getExtraString = (account: Account, key: string) => {
@@ -1718,6 +1826,67 @@ const patchAccountInList = (updatedAccount: Account) => {
   accounts.value = nextAccounts
   syncAccountRefs(mergedAccount)
 }
+
+const patchUpstreamBillingSnapshot = (accountID: number, snapshot: UpstreamBillingProbeSnapshot) => {
+  const account = accounts.value.find(item => item.id === accountID)
+  if (!account) return
+  patchAccountInList({
+    ...account,
+    extra: { ...account.extra, upstream_billing_probe: snapshot }
+  })
+}
+
+const handleProbeUpstreamBilling = async (account: Account) => {
+  if (probingUpstreamBilling.has(account.id)) return
+  probingUpstreamBilling.add(account.id)
+  try {
+    const result = await adminAPI.accounts.probeUpstreamBilling(account.id)
+    if (result.snapshot) patchUpstreamBillingSnapshot(account.id, result.snapshot)
+  } catch (error) {
+    console.error('Failed to probe upstream billing:', error)
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    probingUpstreamBilling.delete(account.id)
+  }
+}
+
+const handleBulkProbeUpstreamBilling = async () => {
+  const accountIDs = accounts.value
+    .filter(account => account.platform === 'openai' && account.type === 'apikey')
+    .map(account => account.id)
+
+  if (accountIDs.length === 0) {
+    appStore.showError(t('admin.accounts.upstreamBilling.noEligibleAccounts'))
+    return
+  }
+  if (accountIDs.length > 20) {
+    appStore.showError(t('admin.accounts.upstreamBilling.batchLimit'))
+    return
+  }
+
+  accountIDs.forEach(id => probingUpstreamBilling.add(id))
+  try {
+    const results = await adminAPI.accounts.probeUpstreamBillingBatch(accountIDs)
+    results.forEach(result => {
+      if (result.snapshot) patchUpstreamBillingSnapshot(result.account_id, result.snapshot)
+    })
+    const failed = results.filter(result => result.error).length
+    if (failed > 0) {
+      appStore.showError(t('admin.accounts.upstreamBilling.batchPartial', {
+        success: results.length - failed,
+        failed
+      }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.upstreamBilling.batchCompleted', { count: results.length }))
+    }
+  } catch (error) {
+    console.error('Failed to probe upstream billing in batch:', error)
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    accountIDs.forEach(id => probingUpstreamBilling.delete(id))
+  }
+}
+
 const handleAccountUpdated = (updatedAccount: Account) => {
   patchAccountInList(updatedAccount)
   enterAutoRefreshSilentWindow()
@@ -1735,10 +1904,10 @@ const handleExportData = async () => {
   if (exportingData.value) return
   exportingData.value = true
   try {
-    const dataPayload = await adminAPI.accounts.exportData({
+    const dataPayload = await accountExportStepUp.run(() => adminAPI.accounts.exportData({
       includeProxies: includeProxyOnExport.value,
       filters: buildAccountQueryFilters()
-    })
+    }))
     const timestamp = formatExportTimestamp()
     const filename = `sub2api-account-${timestamp}.json`
     const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
@@ -1754,6 +1923,17 @@ const handleExportData = async () => {
       appStore.showSuccess(t('admin.accounts.dataExported'))
     }
   } catch (error: any) {
+    if (isStepUpCancelled(error)) {
+      return
+    }
+    if (isStepUpBlocked(error)) {
+      appStore.showError(
+        stepUpBlockReason(error) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN'
+          ? t('stepUp.adminApiKeyForbidden')
+          : t('stepUp.notEnabled')
+      )
+      return
+    }
     appStore.showError(error?.message || t('admin.accounts.dataExportFailed'))
   } finally {
     exportingData.value = false
@@ -1778,6 +1958,21 @@ const handleSchedule = async (a: Account) => {
 }
 const closeSchedulePanel = () => { showSchedulePanel.value = false; scheduleAcc.value = null; scheduleModelOptions.value = [] }
 const handleReAuth = (a: Account) => { reAuthAcc.value = a; showReAuth.value = true }
+const duplicatingAccountIDs = new Set<number>()
+const handleDuplicateAccount = async (account: Account) => {
+  if (duplicatingAccountIDs.has(account.id)) return
+  duplicatingAccountIDs.add(account.id)
+  try {
+    const duplicateAccount = await adminAPI.accounts.duplicate(account.id)
+    appStore.showSuccess(t('admin.accounts.duplicateSuccess', { name: duplicateAccount.name }))
+    await reload()
+  } catch (error: any) {
+    console.error('Failed to duplicate account:', error)
+    appStore.showError(error?.message || t('admin.accounts.duplicateFailed'))
+  } finally {
+    duplicatingAccountIDs.delete(account.id)
+  }
+}
 const handleRefresh = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.refreshCredentials(a.id)
@@ -1912,6 +2107,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(async () => {
   load()
+  loadUpstreamBillingProbeSettings()
   try {
     const [p, g] = await Promise.all([adminAPI.proxies.getAll(), adminAPI.groups.getAll()])
     proxies.value = p

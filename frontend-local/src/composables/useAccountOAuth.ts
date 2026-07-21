@@ -3,7 +3,16 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 
 export type AddMethod = 'oauth' | 'setup-token'
-export type AuthInputMethod = 'manual' | 'cookie' | 'refresh_token' | 'mobile_refresh_token' | 'session_token' | 'access_token' | 'codex_session' | 'codex_pat'
+export type AuthInputMethod =
+  | 'manual'
+  | 'cookie'
+  | 'refresh_token'
+  | 'mobile_refresh_token'
+  | 'session_token'
+  | 'access_token'
+  | 'codex_session'
+  | 'agent_identity'
+  | 'codex_pat'
 
 export interface OAuthState {
   authUrl: string
