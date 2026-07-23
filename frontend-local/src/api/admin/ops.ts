@@ -939,10 +939,6 @@ export interface OpsErrorDetail extends OpsErrorLog {
 
   is_business_limited: boolean
 
-  attempted_key_prefix?: string | null
-  deleted_key_owner_user_id?: number | null
-  deleted_key_owner_email?: string | null
-  deleted_key_name?: string | null
   api_key_prefix?: string | null
 }
 

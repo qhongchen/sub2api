@@ -1,5 +1,5 @@
 <template>
-  <div class="cch-data-table-wrapper overflow-hidden">
+  <div class="table-wrapper cch-data-table-wrapper overflow-hidden">
     <table class="cch-data-table w-full table-fixed border-collapse text-sm">
       <thead>
         <tr class="border-b border-gray-100 bg-gray-50/50 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-gray-400">

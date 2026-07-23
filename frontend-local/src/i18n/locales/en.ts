@@ -215,6 +215,8 @@ export default {
       description: 'Connect to your Redis server',
       host: 'Host',
       port: 'Port',
+      username: 'Username (optional)',
+      usernamePlaceholder: 'Leave empty for default user',
       password: 'Password (optional)',
       database: 'Database',
       passwordPlaceholder: 'Password',
@@ -1796,6 +1798,19 @@ export default {
         testSuccess: 'S3 connection test successful',
         testFailed: 'S3 connection test failed',
         saved: 'S3 configuration saved'
+      },
+      imageStorage: {
+        title: 'Async Image Object Storage',
+        description: 'When enabled, async image APIs store generated results in object storage and keep only short-lived links in Redis. It shares the same S3 client as backups and takes effect immediately after save.',
+        enabled: 'Enable async image tasks',
+        reuseBackupS3: 'Reuse the backup S3 config above (different bucket/prefix only)',
+        bucket: 'Bucket',
+        bucketInherited: 'Leave empty to inherit the backup bucket',
+        prefix: 'Key prefix',
+        publicBaseUrl: 'Public base URL',
+        publicBaseUrlPlaceholder: 'Leave empty to return presigned temporary URLs',
+        presignExpiryHours: 'Presign expiry (hours)',
+        saved: 'Async image object storage settings saved'
       },
       schedule: {
         title: 'Scheduled Backup',
@@ -3952,6 +3967,10 @@ export default {
         importJsonInvalid: 'Invalid JSON: expected a flat object of header name -> string, number, or boolean value',
         copyJson: 'Copy as JSON'
       },
+      grokClientToolCache: {
+        title: 'Client tool cache (may change automatic tool selection)',
+        hint: 'Applies only to Grok OAuth accounts identified as Free. By default, client function-tool requests for Codex, Trae, and similar clients enable upstream prompt caching; turn this off to opt out of automatic tool-selection behavior.'
+      },
       grokCustomBaseUrl: {
         title: 'Custom Upstream URL',
         hint: 'When enabled, account traffic is forwarded to the specified address. OAuth authorization and token refresh remain on the official endpoints.',
@@ -4586,6 +4605,7 @@ export default {
         grokRequests: 'Requests',
         grokTokens: 'Tokens',
         grokUnknown: 'Grok quota appears after an upstream response includes xAI rate-limit headers.',
+        grokFreeQuota24hHint: 'Estimated from local token usage over the rolling 24-hour window ({limit} limit)',
         grokRetryAfter: 'Retry in {time}',
         grokProbe: 'Probe',
         grokProbeTooltip: 'Send a minimal xAI Responses request and read quota headers',
@@ -6264,7 +6284,14 @@ export default {
         description: 'Choose which client IP is used by API Key allowlists and denylists',
         trustForwardedIp: 'Trust forwarded client IP',
         trustForwardedIpHint:
-          'Disabled by default. Enable only when the origin is reachable only through Cloudflare or Nginx reverse proxy. When enabled, API Key IP allowlists and denylists use CF-Connecting-IP, X-Real-IP, or X-Forwarded-For, matching the request IP shown in usage records.'
+          'Disabled by default. Enable only when the origin is reachable only through Cloudflare or Nginx reverse proxy. When enabled, API Key IP allowlists and denylists use CF-Connecting-IP, X-Real-IP, or X-Forwarded-For, matching the request IP shown in usage records.',
+        forwardedClientIpHeaders: 'Custom client IP headers',
+        forwardedClientIpHeadersHint: 'Add CDN or reverse-proxy header names. They are checked before built-in headers.',
+        forwardedClientIpHeadersPlaceholder: 'X-Client-IP',
+        forwardedClientIpHeadersRiskHint: 'If the origin is directly reachable, raw headers can be spoofed; restrict origin access before trusting them.',
+        forwardedClientIpHeaderInvalid: 'Enter a valid HTTP header name.',
+        forwardedClientIpHeadersLimit: 'At most {max} custom client IP headers are allowed.',
+        removeForwardedClientIpHeader: 'Remove {header}'
       },
       linuxdo: {
         title: 'LinuxDo Connect Login',
@@ -7779,6 +7806,7 @@ export default {
       models: 'Models',
     },
     days: 'days',
+    weeks: 'weeks',
     months: 'months',
     years: 'years',
     oneMonth: '1 Month',

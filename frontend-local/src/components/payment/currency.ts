@@ -5,6 +5,34 @@ export function normalizePaymentCurrency(currency?: string | null): string {
   return /^[A-Z]{3}$/.test(normalized) ? normalized : DEFAULT_PAYMENT_CURRENCY
 }
 
+
+const PAYMENT_CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  CNY: '¥',
+  RMB: '¥',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  HKD: 'HK$',
+  TWD: 'NT$',
+  KRW: '₩',
+  AUD: 'A$',
+  CAD: 'C$',
+  SGD: 'S$',
+  NZD: 'NZ$',
+  MOP: 'MOP$',
+  MYR: 'RM',
+  THB: '฿',
+  PHP: '₱',
+  INR: '₹',
+}
+
+export function currencySymbol(currency?: string | null): string {
+  const normalized = normalizePaymentCurrency(currency)
+  return PAYMENT_CURRENCY_SYMBOLS[normalized] || normalized
+}
+
+
 function paymentCurrencyFractionDigits(currency: string): number {
   try {
     return new Intl.NumberFormat(undefined, {

@@ -215,6 +215,8 @@ export default {
       description: '连接到您的 Redis 服务器',
       host: '主机',
       port: '端口',
+      username: '用户名（可选）',
+      usernamePlaceholder: '默认用户留空',
       password: '密码（可选）',
       database: '数据库',
       passwordPlaceholder: '密码',
@@ -1760,6 +1762,19 @@ export default {
         testSuccess: 'S3 连接测试成功',
         testFailed: 'S3 连接测试失败',
         saved: 'S3 配置已保存'
+      },
+      imageStorage: {
+        title: '异步生图对象存储',
+        description: '开启后，异步生图接口可用，生成结果转存到对象存储，只把短链接写入 Redis。与备份共用同一套 S3 客户端，保存后立即生效，无需重启。',
+        enabled: '启用异步生图',
+        reuseBackupS3: '复用上方备份的 S3 配置（只用不同的存储桶/前缀）',
+        bucket: '存储桶',
+        bucketInherited: '留空则沿用备份存储桶',
+        prefix: 'Key 前缀',
+        publicBaseUrl: '公开访问域名',
+        publicBaseUrlPlaceholder: '留空则返回预签名临时链接',
+        presignExpiryHours: '预签名链接有效期（小时）',
+        saved: '异步生图对象存储配置已保存'
       },
       schedule: {
         title: '定时备份',
@@ -3681,6 +3696,7 @@ export default {
         grokRequests: '请求',
         grokTokens: 'Token',
         grokUnknown: 'Grok 配额需等待首次上游响应返回 xAI rate-limit 头后显示。',
+        grokFreeQuota24hHint: '按 sub2api 近 24 小时本地 Token 用量估算（上限 {limit}）',
         grokRetryAfter: '{time} 后重试',
         grokProbe: '探测',
         grokProbeTooltip: '发送最小 xAI Responses 探测请求并读取配额响应头',
@@ -4061,6 +4077,10 @@ export default {
         importJsonHint: '粘贴扁平 JSON 对象（请求头名 -> 值），解析后将整体替换当前列表。',
         importJsonInvalid: 'JSON 格式不正确：需要请求头名对应字符串、数字或布尔值的扁平对象',
         copyJson: '复制为 JSON'
+      },
+      grokClientToolCache: {
+        title: '客户端工具缓存（可能改变自动工具选择）',
+        hint: '仅对已识别为 Free 的 Grok OAuth 账号生效，默认会为 Codex、Trae 等客户端函数工具请求启用上游提示缓存；如不接受自动工具选择行为，可关闭此开关退出。'
       },
       grokCustomBaseUrl: {
         title: '自定义上游地址',
@@ -6356,7 +6376,14 @@ export default {
         description: '控制 API Key 白名单和黑名单使用哪个客户端 IP 判断',
         trustForwardedIp: '信任反代传递的客户端 IP',
         trustForwardedIpHint:
-          '默认关闭。仅在源站只允许 Cloudflare 或 Nginx 反代访问时开启；开启后 API Key IP 白/黑名单会使用 CF-Connecting-IP、X-Real-IP 或 X-Forwarded-For，与使用记录中的请求 IP 保持一致。'
+          '默认关闭。仅在源站只允许 Cloudflare 或 Nginx 反代访问时开启；开启后 API Key IP 白/黑名单会使用 CF-Connecting-IP、X-Real-IP 或 X-Forwarded-For，与使用记录中的请求 IP 保持一致。',
+        forwardedClientIpHeaders: '自定义客户端 IP 请求头',
+        forwardedClientIpHeadersHint: '添加 CDN 或反代请求头名称，解析时优先于内置请求头。',
+        forwardedClientIpHeadersPlaceholder: 'X-Client-IP',
+        forwardedClientIpHeadersRiskHint: '源站可被直接访问时，这些原始请求头可被伪造；请先限制源站访问再信任它们。',
+        forwardedClientIpHeaderInvalid: '请输入有效的 HTTP 请求头名称。',
+        forwardedClientIpHeadersLimit: '自定义客户端 IP 请求头最多允许 {max} 个。',
+        removeForwardedClientIpHeader: '移除 {header}'
       },
       linuxdo: {
         title: 'LinuxDo Connect 登录',
@@ -7890,6 +7917,7 @@ export default {
       models: '模型',
     },
     days: '天',
+    weeks: '周',
     months: '个月',
     years: '年',
     oneMonth: '1 个月',
