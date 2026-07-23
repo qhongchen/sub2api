@@ -2487,7 +2487,23 @@ export default {
         exclusive: 'Exclusive Group',
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
-        rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).'
+        rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).',
+        maxReasoningEffort: 'Max reasoning effort',
+        maxReasoningEffortUnlimited: 'Unlimited (follow request)',
+        maxReasoningEffortHint: 'Limits explicit OpenAI reasoning effort requests only. Higher values are capped; omitted effort stays omitted. The ceiling takes precedence over reasoning effort mappings.',
+        reasoningEffortMappings: 'Reasoning effort mappings',
+        addReasoningEffortMapping: 'Add mapping',
+        removeReasoningEffortMapping: 'Remove mapping',
+        reasoningEffortFrom: 'Request value',
+        reasoningEffortTo: 'Forwarded value',
+        reasoningEffortFromPlaceholder: 'Select A',
+        reasoningEffortToPlaceholder: 'Select B',
+        reasoningEffortMappingLimit: 'Up to {count} mappings are allowed.',
+        fromRequired: 'Select request value A',
+        toRequired: 'Select forwarded value B',
+        unsupportedFrom: 'Request value is not supported by this platform',
+        unsupportedTo: 'Forwarded value is not supported by this platform',
+        duplicateFrom: 'Request value A must be unique'
       },
       webSearchPricing: {
         title: 'Codex Web Search Billing',
@@ -2555,6 +2571,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         grok: 'Grok',
+        composite: 'Composite',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -2591,6 +2608,55 @@ export default {
         peakEnd: 'Peak end',
         peakMultiplier: 'Peak multiplier',
         multiplierHint: 'Applies to token billing multiplier; image tokens in token billing are also affected. 0 means peak token requests are billed at 0x.'
+      },
+      compositeRoutes: {
+        action: 'Routes',
+        title: 'Composite Routes',
+        titleWithGroup: 'Composite Routes: {name}',
+        routes: 'Saved Routes',
+        empty: 'No composite routes configured',
+        publicModel: 'Public Model',
+        target: 'Target',
+        scope: 'Scope',
+        priority: 'Priority',
+        addRoute: 'Add Route',
+        editRoute: 'Edit Route',
+        matchType: 'Match',
+        endpoint: 'Endpoint',
+        targetPlatform: 'Target Platform',
+        upstreamModel: 'Upstream Model',
+        notes: 'Notes',
+        enabled: 'Enabled',
+        preview: 'Preview',
+        matched: 'Matched',
+        notMatched: 'No Match',
+        publicModelRequired: 'Public model is required',
+        routeCreated: 'Composite route created',
+        routeUpdated: 'Composite route updated',
+        routeDeleted: 'Composite route deleted',
+        failedToLoad: 'Failed to load composite routes',
+        failedToSave: 'Failed to save composite route',
+        failedToDelete: 'Failed to delete composite route',
+        failedToPreview: 'Failed to preview composite route',
+        deleteConfirm: 'Delete this composite route?',
+        endpoints: {
+          any: 'Any',
+          messages: 'Messages',
+          countTokens: 'Count Tokens',
+          responses: 'Responses',
+          chatCompletions: 'Chat Completions',
+          embeddings: 'Embeddings',
+          images: 'Images',
+          gemini: 'Gemini Native'
+        },
+        match: {
+          exact: 'Exact',
+          prefix: 'Prefix'
+        },
+        sources: {
+          route: 'Route',
+          detector: 'Detector'
+        }
       },
       claudeCode: {
         title: 'Claude Code Client Restriction',
@@ -2630,8 +2696,8 @@ export default {
       },
       copyAccounts: {
         title: 'Copy Accounts from Groups',
-        tooltip: 'Select one or more groups of the same platform. After creation, all accounts from these groups will be automatically bound to the new group (deduplicated).',
-        tooltipEdit: 'Select one or more groups of the same platform. After saving, current group accounts will be replaced with accounts from these groups (deduplicated).',
+        tooltip: 'Select one or more eligible groups. Standard groups can copy from the same platform; Composite groups can copy from any supported platform. After creation, accounts are bound to the new group and deduplicated.',
+        tooltipEdit: 'Select one or more eligible groups. Standard groups can copy from the same platform; Composite groups can copy from any supported platform. After saving, current bindings are replaced and deduplicated.',
         selectPlaceholder: 'Select groups to copy accounts from...',
         hint: 'Multiple groups can be selected, accounts will be deduplicated',
         hintEdit: '⚠️ Warning: This will replace all existing account bindings'
