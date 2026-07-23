@@ -14,6 +14,7 @@ import (
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
@@ -65,6 +66,7 @@ func startRequestRecord(
 	if c == nil || c.Request == nil || recorder == nil || input == nil {
 		return nil
 	}
+	normalizeRequestRecordRouting(c, input)
 	if strings.TrimSpace(input.RequestID) == "" {
 		input.RequestID = getRequestID(c)
 	}
@@ -89,6 +91,41 @@ func startRequestRecord(
 	c.Set(requestRecordHandleContextKey, handle)
 	c.Set(requestRecordCompletedContextKey, false)
 	return handle
+}
+
+func normalizeRequestRecordRouting(c *gin.Context, input *requestrecord.StartInput) {
+	if c == nil || c.Request == nil || input == nil {
+		return
+	}
+	ctx := c.Request.Context()
+	if platform, ok := service.ResolvedTargetPlatformFromContext(ctx); ok {
+		input.Platform = platform
+	}
+	if requestedModel, ok := service.RequestedPublicModelFromContext(ctx); ok {
+		input.Model = requestedModel
+		input.RequestedModel = requestedModel
+	}
+	// 调用方传入的渠道映射更接近最终上游，Composite context 只负责补空值。
+	if strings.TrimSpace(input.UpstreamModel) == "" {
+		if upstreamModel, ok := service.ResolvedUpstreamModelFromContext(ctx); ok {
+			input.UpstreamModel = upstreamModel
+		}
+	}
+}
+
+func requestRecordClientBody(c *gin.Context, body []byte) []byte {
+	if c == nil || c.Request == nil || len(body) == 0 {
+		return body
+	}
+	requestedModel, ok := service.RequestedPublicModelFromContext(c.Request.Context())
+	if !ok {
+		return body
+	}
+	updated, err := sjson.SetBytes(body, "model", requestedModel)
+	if err != nil {
+		return body
+	}
+	return updated
 }
 
 func startOpenAIRequestRecord(
