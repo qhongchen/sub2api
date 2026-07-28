@@ -377,6 +377,7 @@ func TestAPIContracts(t *testing.T) {
 						"video_rate_multiplier": 0,
 						"claude_code_only": false,
 						"allow_messages_dispatch": false,
+						"allow_live": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
 						"require_oauth_only": false,
@@ -943,6 +944,7 @@ func TestAPIContracts(t *testing.T) {
 					"payment_cancel_rate_limit_unit": "",
 					"payment_cancel_rate_limit_window_mode": "",
 					"payment_alipay_force_qrcode": false,
+					"payment_alipay_mobile_precreate_deep_link": false,
 					"balance_low_notify_enabled": false,
 					"account_quota_notify_enabled": false,
 					"subscription_expiry_notify_enabled": true,
@@ -1222,6 +1224,7 @@ func TestAPIContracts(t *testing.T) {
 					"payment_cancel_rate_limit_unit": "",
 					"payment_cancel_rate_limit_window_mode": "",
 					"payment_alipay_force_qrcode": false,
+					"payment_alipay_mobile_precreate_deep_link": false,
 					"balance_low_notify_enabled": false,
 					"account_quota_notify_enabled": false,
 					"subscription_expiry_notify_enabled": true,
@@ -1492,6 +1495,10 @@ func (r *stubUserRepo) Create(ctx context.Context, user *service.User) error {
 	return errors.New("not implemented")
 }
 
+func (r *stubUserRepo) CreateWithEmailAliasGuard(ctx context.Context, user *service.User) error {
+	return errors.New("not implemented")
+}
+
 func (r *stubUserRepo) GetByID(ctx context.Context, id int64) (*service.User, error) {
 	user, ok := r.users[id]
 	if !ok {
@@ -1568,6 +1575,10 @@ func (r *stubUserRepo) BatchUpdateLimits(context.Context, []int64, *int, *int) (
 }
 
 func (r *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	return false, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
 	return false, errors.New("not implemented")
 }
 
