@@ -16,6 +16,11 @@ import type {
   PaginatedResponse
 } from '@/types'
 
+export interface LiveCapability {
+  supported: boolean
+  reason?: string
+}
+
 /**
  * List all groups with pagination
  * @param page - Page number (default: 1)
@@ -77,6 +82,11 @@ export async function getByPlatform(platform: GroupPlatform): Promise<AdminGroup
   return getAll(platform)
 }
 
+export async function getLiveCapability(): Promise<LiveCapability> {
+  const { data } = await apiClient.get<LiveCapability>('/admin/groups/live-capability')
+  return data
+}
+
 /**
  * Get group by ID
  * @param id - Group ID
@@ -85,6 +95,23 @@ export async function getByPlatform(platform: GroupPlatform): Promise<AdminGroup
 export async function getById(id: number): Promise<AdminGroup> {
   const { data } = await apiClient.get<AdminGroup>(`/admin/groups/${id}`)
   return data
+}
+
+/**
+ * Get candidate models for custom /v1/models list.
+ * id=0 returns platform default models for create flow.
+ */
+export async function getModelsListCandidates(
+  id: number,
+  platform?: GroupPlatform
+): Promise<string[]> {
+  const { data } = await apiClient.get<{ models: string[] }>(
+    `/admin/groups/${id}/models-list-candidates`,
+    {
+      params: platform ? { platform } : undefined
+    }
+  )
+  return data.models || []
 }
 
 /**
@@ -429,7 +456,9 @@ export const groupsAPI = {
   getAll,
   getAllIncludingInactive,
   getByPlatform,
+  getLiveCapability,
   getById,
+  getModelsListCandidates,
   create,
   duplicate,
   update,

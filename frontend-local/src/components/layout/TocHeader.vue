@@ -325,6 +325,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+import { sanitizeUrl } from '@/utils/url'
 
 type TocIconName =
   | 'grid'
@@ -387,9 +388,12 @@ const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const user = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.isAdmin)
 const siteName = computed(() => appStore.siteName)
-const siteLogo = computed(() => appStore.siteLogo)
+const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', {
+  allowRelative: true,
+  allowDataUrl: true,
+}))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
-const docUrl = computed(() => appStore.docUrl)
+const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
 

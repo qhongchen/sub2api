@@ -1030,6 +1030,8 @@ export default {
     ws: 'WS',
     stream: 'Stream',
     sync: 'Sync',
+    cyber: 'Cyber',
+    live: 'Live',
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
@@ -1077,7 +1079,7 @@ export default {
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
     userAgent: 'User-Agent',
-    tabs: { usage: 'Usage', errors: 'Error Requests' },
+    tabs: { usage: 'Usage', ranking: 'User Ranking', errors: 'Error Requests' },
     errors: {
       time: 'Time',
       model: 'Model',
@@ -1654,9 +1656,9 @@ export default {
       pool: {
         title: 'Audit pool', description: 'Enabled OpenAI-compatible nodes are tried in order. Probes run from the server network.',
         add: 'Add node', edit: 'Edit node', empty: 'No audit nodes configured.', node: 'Node', model: 'Model', limits: 'Timeout / chunk limit', credential: 'Credential and probe',
-        configured: 'API Key configured', missing: 'API Key missing', probe: 'Test connection', probing: 'Probing...',
+        configured: 'API Key configured', missing: 'API Key missing', invalid: 'API Key cannot be decrypted; re-enter it', probe: 'Test connection', probing: 'Probing...',
         probeProgress: 'Config validated - request sent - awaiting service response...', probeResult: 'Config OK - request OK - HTTP {http} - {status} - {latency} ms',
-        name: 'Node name', id: 'Stable node ID', baseUrl: 'Base URL', apiKey: 'API Key', keepSecret: 'Leave blank to keep the saved API Key',
+        name: 'Node name', id: 'Stable node ID', baseUrl: 'Base URL', apiKey: 'API Key', keepSecret: 'Leave blank to keep the saved API Key', reenterSecret: 'The saved API Key cannot be decrypted (encryption key changed); enter a new one',
         secretHint: 'Plaintext exists only in this editor and is cleared immediately after a successful save.', clearSecret: 'Explicitly clear the saved API Key', timeout: 'Total timeout (ms)', inputLimit: 'Unicode characters per chunk',
         toggleNode: 'Toggle node {name}', deleteConfirm: 'Remove "{name}" from the draft? It takes effect after saving.'
       },
@@ -1694,7 +1696,7 @@ export default {
       messages: { saved: 'Prompt Audit configuration saved; plaintext API Key state was cleared.', probeSucceeded: 'The audit node is reachable.', deleted: 'Deleted {count} audit events.' },
       errors: {
         loadConfig: 'Unable to load Prompt Audit configuration.', loadRuntime: 'Unable to load Prompt Audit runtime.', loadGroups: 'Unable to load groups.', loadEvents: 'Unable to load audit events.', loadDetail: 'Unable to load event details.', saveConfig: 'Unable to save the configuration.', probe: 'Node probe failed.', delete: 'Unable to delete events.', previewDelete: 'Unable to create a deletion preview. Check the time range.', deleteConfirmation: 'The deletion confirmation is invalid or expired. Preview again.',
-        prompt_audit_config_conflict: 'Another administrator updated this configuration. Reload the server version before deciding how to merge your draft.', prompt_guard_requires_audit_enabled: 'Enable Prompt Audit before synchronous blocking.', prompt_audit_invalid_endpoint: 'The audit node configuration is invalid.', prompt_audit_endpoint_required: 'Enable at least one audit node before enabling Prompt Audit.', prompt_audit_groups_required: 'Select at least one group in selected-group mode.', prompt_audit_scanners_required: 'Enable at least one risk category.'
+        prompt_audit_config_conflict: 'Another administrator updated this configuration. Reload the server version before deciding how to merge your draft.', prompt_audit_encryption_key_required: 'No fixed encryption key is configured, so audit node API Keys would be lost on restart. Set the TOTP_ENCRYPTION_KEY environment variable and restart the service first.', prompt_guard_requires_audit_enabled: 'Enable Prompt Audit before synchronous blocking.', prompt_audit_invalid_endpoint: 'The audit node configuration is invalid.', prompt_audit_endpoint_required: 'Enable at least one audit node before enabling Prompt Audit.', prompt_audit_groups_required: 'Select at least one group in selected-group mode.', prompt_audit_scanners_required: 'Enable at least one risk category.'
       }
     },
     // Dashboard
@@ -2596,10 +2598,25 @@ export default {
         title: 'Image Generation Pricing',
         description: 'Configure image generation access and base image prices. Leave empty to use default prices.',
         allowImageGeneration: 'Allow image generation for this group',
+        allowBatchImageGeneration: 'Allow batch image generation for this group',
         independentMultiplier: 'Use independent image multiplier',
         imageMultiplier: 'Image multiplier',
+        batchDiscountMultiplier: 'Batch image discount',
+        batchHoldMultiplier: 'Batch hold price ratio',
+        batchSectionHint: 'Batch image settings only apply to batch jobs: settlement applies the batch discount, and the upfront hold is normal image price × batch hold price ratio. Reference images also create upstream input-token usage, so a batch image discount above 0.5 is recommended.',
+        batchDisabledHint: 'Enable image generation for this group before enabling batch image generation.',
+        batchGeminiOnlyHint: 'Batch image generation is currently available only for Gemini groups.',
         modeHint: 'By default, image billing uses image price × current effective group multiplier. Independent mode uses image price × image multiplier.',
         finalPricePreview: 'Final per-image price preview',
+        notConfigured: 'Not configured'
+      },
+      videoPricing: {
+        title: 'Video Generation Pricing',
+        description: 'Configure Grok video generation prices in USD per second of output video. Leave empty to use the default per-second rates (grok-imagine-video: $0.05/s 480p, $0.07/s 720p; video-1.5: $0.08/s 480p, $0.14/s 720p, $0.25/s 1080p).',
+        independentMultiplier: 'Use independent video multiplier',
+        videoMultiplier: 'Video multiplier',
+        modeHint: 'Videos are billed per second: per-second price × duration (1-15s, default 8s). By default the current effective group multiplier applies; independent mode uses the video multiplier instead.',
+        finalPricePreview: 'Final per-second price preview',
         notConfigured: 'Not configured'
       },
       peakRate: {
@@ -2608,6 +2625,15 @@ export default {
         peakEnd: 'Peak end',
         peakMultiplier: 'Peak multiplier',
         multiplierHint: 'Applies to token billing multiplier; image tokens in token billing are also affected. 0 means peak token requests are billed at 0x.'
+      },
+      modelsList: {
+        title: 'Custom /v1/models Model List',
+        hint: 'Only changes the /v1/models response. Whitelist model calls and account routing are unchanged.',
+        loading: 'Loading model list...',
+        empty: 'No displayable models',
+        selectedSummary: 'Selected {selected} / {total}',
+        selectAll: 'Select all',
+        invertSelection: 'Invert'
       },
       compositeRoutes: {
         action: 'Routes',
@@ -2625,6 +2651,7 @@ export default {
         endpoint: 'Endpoint',
         targetPlatform: 'Target Platform',
         upstreamModel: 'Upstream Model',
+        upstreamModelHint: 'Leave empty to pass the original requested model through: under prefix match each matched model forwards verbatim (e.g. deepseek-v4-flash and deepseek-v4-pro each forwarded as-is); set a value to forward every matched request to that fixed model.',
         notes: 'Notes',
         enabled: 'Enabled',
         preview: 'Preview',
@@ -2666,6 +2693,14 @@ export default {
         fallbackGroup: 'Fallback Group',
         fallbackHint: 'Non-Claude Code requests will use this group. Leave empty to reject directly.',
         noFallback: 'No Fallback (Reject)'
+      },
+      openaiLive: {
+        title: 'OpenAI Live',
+        allow: 'Allow Live access',
+        hint: 'When enabled, API keys in this OpenAI group can create and control Live voice sessions. The server must run on Apple Silicon macOS with the official ChatGPT app installed.',
+        unsupportedTitle: 'Current server does not support Live',
+        unsupportedMessage: 'This Sub2API server cannot generate the required Live attestation. Live will not work even if enabled. Continue anyway?',
+        enableAnyway: 'Enable anyway'
       },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',
@@ -3405,13 +3440,6 @@ export default {
       antigravityProjectIdHint:
         'Antigravity standard-tier accounts that do not receive an automatic project_id need a user-owned GCP project.',
       createAccount: 'Create Account',
-      autoRefresh: 'Auto Refresh',
-      enableAutoRefresh: 'Enable auto refresh',
-      refreshInterval5s: '5 seconds',
-      refreshInterval10s: '10 seconds',
-      refreshInterval15s: '15 seconds',
-      refreshInterval30s: '30 seconds',
-      autoRefreshCountdown: 'Auto refresh: {seconds}s',
       listPendingSyncHint: 'List changes are pending sync. Click sync to load latest rows.',
       listPendingSyncAction: 'Sync now',
       syncFromCrs: 'Sync from CRS',
@@ -3549,9 +3577,10 @@ export default {
       columns: {
         name: 'Name',
         platformType: 'Platform/Type',
-        accountPlan: 'Plan/Privacy',
         platform: 'Platform',
         type: 'Type',
+        plan: 'Plan',
+        privacy: 'Privacy',
         capacity: 'Capacity',
         notes: 'Notes',
         priority: 'Priority',
@@ -3574,6 +3603,55 @@ export default {
         stickyShort: 'Sticky',
         ungrouped: 'Ungrouped',
         hint: 'Displayed as "group / base score / sticky bonus". The base score is computed within the current filtered candidate set and includes priority, load, queue depth, error rate, first-token latency, reset window, quota headroom, and related factors. The sticky bonus applies only when sticky weighting is enabled for previous_response_id or session_hash. Higher scores are preferred.'
+      },
+      ollamaCloud: {
+        title: 'Ollama Cloud usage',
+        sessionSecurityHint: 'The browser session is encrypted at rest and sent only to the fixed official settings URL.',
+        configured: 'Configured',
+        notConfigured: 'Not configured',
+        notRefreshed: 'Not refreshed',
+        encryptionKeyRequired: 'Set a persistent TOTP_ENCRYPTION_KEY before storing a browser session.',
+        sessionLabel: 'Ollama browser Cookie',
+        sessionPlaceholder: 'wos-session=...; __Secure-authjs.session-token.0=...',
+        writeOnlyHint: 'Write-only. The saved value cannot be viewed and an empty value never replaces it.',
+        deleteSession: 'Delete session',
+        deleteConfirm: 'Delete the stored Ollama browser session and its usage snapshot?',
+        refreshNow: 'Refresh usage',
+        autoRefresh: 'Automatic usage refresh',
+        autoRefreshHint: 'Runs only when the account switch and the global switch are both enabled.',
+        plan: 'Plan',
+        fiveHour: '5 hour',
+        fiveHourShort: '5h',
+        sevenDay: '7 day',
+        sevenDayShort: '7d',
+        balance: 'Balance',
+        models: 'Models',
+        status: 'Status',
+        updatedAt: 'Updated',
+        ok: 'Current',
+        unauthorized: 'Session expired',
+        failed: 'Refresh failed',
+        windowWithReset: '{percent} used, resets {reset}',
+        loadFailed: 'Failed to load Ollama Cloud usage settings',
+        sessionSaved: 'Ollama browser session saved',
+        sessionSaveFailed: 'Failed to save Ollama browser session',
+        sessionDeleted: 'Ollama browser session deleted',
+        sessionDeleteFailed: 'Failed to delete Ollama browser session',
+        autoRefreshFailed: 'Failed to update automatic usage refresh',
+        refreshSuccess: 'Ollama Cloud usage refreshed',
+        refreshFailed: 'Failed to refresh Ollama Cloud usage',
+        errors: {
+          request_failed: 'Request failed',
+          empty_response: 'Empty response',
+          response_host_mismatch: 'Unexpected response host',
+          redirect_blocked: 'Official settings redirected the request',
+          unauthorized: 'Browser session expired',
+          http_error: 'Official settings returned an error',
+          response_read_failed: 'Failed to read the response',
+          response_too_large: 'Settings page exceeded the response limit',
+          invalid_html: 'Settings page format was not recognized',
+          OLLAMA_CLOUD_USAGE_REFRESH_RATE_LIMITED: 'Refresh is limited. Try again in {retry_after_seconds} seconds.'
+        }
       },
       upstreamBilling: {
         trustWarning: 'This rate is declared by the upstream site for the current API key. Sub2API cannot verify that it matches actual charges. Verify it against bills, balance changes, and actual usage.',
@@ -3839,6 +3917,9 @@ export default {
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
           'When enabled, this OpenAI account uses automatic passthrough: the gateway forwards request/response as-is and only swaps auth, while keeping billing/concurrency/audit and necessary safety filtering.',
+        longContextBilling: 'API long-context pricing',
+        longContextBillingDesc:
+          'Disabled by default. Enable only when this account\'s upstream charges OpenAI API long-context rates above the model threshold.',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           'Disabled by default. Enable to allow responses_websockets_v2 capability (still gated by global and account-type switches).',
@@ -4344,6 +4425,13 @@ export default {
           authCodePlaceholder: 'Paste the full callback URL, ?code=... query string, or code value',
           authCodeHint: 'Full callback URLs, query strings, and bare codes are accepted.',
           refreshTokenAuth: 'Manual RT Input',
+          ssoCookieAuth: 'SSO Cookie Import',
+          ssoCookieDesc: 'Paste one Grok Web SSO key per line. The server will complete the xAI Device Flow and convert them into Grok Build OAuth credentials.',
+          ssoCookieLabel: 'Grok Web SSO Key',
+          ssoCookiePlaceholder: 'One SSO key per line\nSupports multiple, one per line',
+          ssoCookieHint: 'One SSO key per line. Multiple keys are imported with 3-way concurrency; expect about 90 seconds per batch. Use a matching-region proxy if needed.',
+          convertingSSO: 'Converting...',
+          convertSSOAndCreate: 'Convert & Create Account',
           refreshTokenDesc: 'Enter existing xAI refresh token(s), one per line.',
           refreshTokenPlaceholder: 'Paste your xAI refresh token...\nSupports multiple, one per line',
           validating: 'Validating...',
@@ -4353,6 +4441,7 @@ export default {
           missingExchangeParams: 'Missing authorization code, state, or OAuth session',
           failedToExchangeCode: 'Failed to exchange Grok authorization code',
           failedToValidateRT: 'Failed to validate Grok refresh token',
+          failedToConvertSSO: 'Failed to convert Grok SSO cookie',
           errors: {
             GROK_OAUTH_SESSION_NOT_FOUND: 'Grok OAuth session was not found or has expired. Generate a new auth URL.',
             GROK_OAUTH_INVALID_STATE: 'Grok OAuth state does not match this session.',
@@ -5095,6 +5184,7 @@ export default {
       timeImmediate: 'Immediate',
       timeNever: 'Never',
       readStatus: 'Read Status',
+      preview: 'Preview',
       eligible: 'Eligible',
       readAt: 'Read at',
       unread: 'Unread',
@@ -5210,6 +5300,20 @@ export default {
       ipAddress: 'IP',
       clickToViewBalance: 'Click to view balance history',
       failedToLoadUser: 'Failed to load user info',
+      tokenRanking: {
+        subtitle: 'Per-user token usage for the current filters and time range',
+        rowHint: "Click to view this user's usage details",
+        userCount: '{count} users',
+        columns: {
+          user: 'User',
+          requests: 'Requests',
+          inputTokens: 'Input Tokens',
+          outputTokens: 'Output Tokens',
+          cacheTokens: 'Cache Tokens',
+          totalTokens: 'Total Tokens',
+          cost: 'Cost'
+        }
+      },
       cleanup: {
         button: 'Cleanup',
         title: 'Cleanup Usage Records',
@@ -6333,6 +6437,23 @@ export default {
         totpKeyNotConfigured:
           'Please configure TOTP_ENCRYPTION_KEY in environment variables first. Generate a key with: openssl rand -hex 32'
       },
+      panelRateLimit: {
+        title: 'Panel API Rate Limiting',
+        description: 'Throttle panel API requests to keep high-frequency polling from overwhelming the database',
+        proxySafeNote: 'Authenticated endpoints are counted per user account, independent of source IP. Public endpoints are counted per real client IP, while loopback and private proxy hops are skipped.',
+        enabled: 'Enable panel rate limiting',
+        enabledHint: 'Requests over the threshold receive HTTP 429 and recover when the window resets.',
+        userRpm: 'Requests per account',
+        userRpmHint: 'Total panel API requests allowed per account per minute. 0 = unlimited.',
+        heavyRpm: 'Heavy queries per account',
+        heavyRpmHint: 'Usage and dashboard aggregation queries allowed per account per minute. 0 = unlimited.',
+        publicIpRpm: 'Public endpoints per IP',
+        publicIpRpmHint: 'Unauthenticated requests allowed per real client IP per minute. 0 = unlimited.',
+        exemptAdmin: 'Exempt administrators',
+        exemptAdminHint: 'Admin accounts bypass panel rate limits when enabled.',
+        saved: 'Panel rate limit settings saved',
+        saveFailed: 'Failed to save panel rate limit settings'
+      },
       turnstile: {
         title: 'Cloudflare Turnstile',
         description: 'Bot protection for login and registration',
@@ -6539,6 +6660,17 @@ export default {
         openaiCodexUserAgent: 'OpenAI Codex UA',
         openaiCodexUserAgentPlaceholder: 'codex-tui/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.125.0)',
         openaiCodexUserAgentHint: 'Used to bypass Cloudflare browser-UA challenges on the OpenAI upstream. Only applies when the client User-Agent is detected as a browser (Mozilla/...). Leave empty to use the built-in default.',
+        codexFingerprintSignals: 'Codex engine fingerprint signals',
+        codexFingerprintSignalsDesc:
+          "Define engine-fingerprint signals: every Required signal must match (AND); within a row, '/'-separated variants are OR'd. None checked = not enforced. Default checks only the x-codex- prefix. Types: header exact / header prefix / body path.",
+        codexFpTypeHeaderExact: 'Header exact',
+        codexFpTypeHeaderPrefix: 'Header prefix',
+        codexFpTypeBodyPath: 'Body path',
+        codexFpMatchPlaceholder: "match; '/'-separate variants (e.g. session-id / session_id or x-codex-)",
+        codexFpRequired: 'Required',
+        codexFingerprintNoRequiredWarn: 'No signal is marked Required - the engine-fingerprint gate is inactive, allowing every candidate that passes identity/version. Check at least one signal to enable it.',
+        codexAddRow: 'Add entry',
+        codexRemoveRow: 'Remove',
       },
       webSearchEmulation: {
         title: 'Web Search Emulation',
@@ -6686,6 +6818,9 @@ export default {
         balanceRechargeMultiplier: 'Balance Recharge Multiplier',
         balanceRechargeMultiplierHint: 'How many USD balance the user receives for each 1 CNY paid',
         balanceRechargePreview: 'Preview: 1 CNY = {usd} USD',
+        subscriptionUsdToCnyRate: 'Subscription USD to CNY Rate',
+        subscriptionUsdToCnyRateHint: 'CNY charged per 1 USD of plan price on CNY channels (e.g. 7.15). 0 or empty = disabled, plan price is charged as-is. When enabled, all plan prices must be set in USD',
+        subscriptionUsdToCnyRateDisabled: 'Disabled (price charged as-is)',
         rechargeFeeRate: 'Recharge Fee Rate',
         rechargeFeeRateHint: 'Percentage of service fee charged on top of recharge amount, 0 means no fee',
         rechargeFeePreview: 'Preview: Recharge 100, fee {fee}',
@@ -6708,6 +6843,8 @@ export default {
         cancelRateLimitWindowModeFixed: 'Fixed',
         alipayForceQRCode: 'Force Alipay QR Code',
         alipayForceQRCodeHint: 'When enabled, mobile Alipay users always see a QR code instead of being redirected to the mobile payment page',
+        alipayMobilePrecreateDeepLink: 'Mobile Alipay Precreate Handoff',
+        alipayMobilePrecreateDeepLinkHint: 'Use official Alipay precreate on mobile, open the Alipay app, and show the dynamic QR only if handoff fails. This takes priority over Force Alipay QR Code',
         helpText: 'Help Text',
         helpImageUrl: 'Help Image URL',
         manageProviders: 'Manage Providers',
@@ -7064,6 +7201,18 @@ export default {
         cooldownSecondsHint: 'Default cooldown duration (1-7200 seconds); explicit upstream reset times still take precedence',
         saved: '429 default cooldown settings saved',
         saveFailed: 'Failed to save 429 default cooldown settings'
+      },
+      ollamaCloudUsage: {
+        title: 'Ollama Cloud Usage Refresh',
+        description: 'Refresh official Ollama usage after model activity for individually opted-in accounts. Disabled by default.',
+        enabled: 'Enable global automatic refresh',
+        enabledHint: 'Only accounts with a stored browser session and their own automatic refresh switch enabled are refreshed.',
+        intervalMinutes: 'Max wait while requests continue (minutes)',
+        intervalHint: 'Range: 15-1440 minutes. Continuous requests force a refresh after this wait.',
+        debounceMinutes: 'Quiet period after last request (minutes)',
+        debounceHint: 'Range: 1-60 minutes. Refresh after model requests have been quiet for this long.',
+        saved: 'Ollama Cloud usage refresh settings saved',
+        saveFailed: 'Failed to save Ollama Cloud usage refresh settings'
       },
       streamTimeout: {
         title: 'Stream Timeout Handling',
@@ -7747,6 +7896,14 @@ export default {
       cancelledDesc: 'You have cancelled this payment.',
       waitingPayment: 'Waiting for payment...',
       cancelOrder: 'Cancel Order',
+      alipayOpening: 'Opening Alipay',
+      alipayContinueInApp: 'Complete payment in Alipay',
+      alipayWaitingHint: 'The server will confirm the payment and update this page automatically',
+      alipayFallbackTitle: 'Alipay did not open',
+      alipayFallbackHint: 'Try opening Alipay again, or save the QR code and scan it from your Alipay photo album',
+      reopenAlipay: 'Open Alipay Again',
+      saveQRCode: 'Save QR Code',
+      alipaySaveAndScanHint: 'Save the QR code, open Alipay Scan, then select it from your photo album',
     },
     orders: {
       title: 'My Orders',
@@ -8000,6 +8157,8 @@ export default {
       selectGroup: 'Select a group',
       groupRequired: 'Please select a subscription group',
       priceRequired: 'Price must be greater than 0',
+      subscriptionCnyPayPreview: 'CNY channel charge preview: {amount}',
+      subscriptionCnyPayPreviewWithFee: '({feeRate}% fee included: {total})',
       validityDaysRequired: 'Validity days must be greater than 0',
       groupMissing: 'Missing',
       groupInfo: 'Group Info',

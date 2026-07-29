@@ -1,5 +1,5 @@
 <template>
-  <section :class="['monitor-hero', { 'cch-toolbar-card': !flat }]">
+  <div :class="['monitor-hero', { 'cch-toolbar-card': !flat }]">
     <div
       role="tablist"
       class="cch-segmented text-xs"
@@ -21,7 +21,7 @@
     </div>
 
     <span
-      class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold tracking-wider uppercase"
+      class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
       :class="overallChipClass"
     >
       <span
@@ -33,7 +33,7 @@
 
     <button
       type="button"
-      class="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-700 transition-colors disabled:opacity-50"
+      class="consumer-icon-btn"
       :disabled="loading"
       :title="t('common.refresh')"
       @click="emit('refresh')"
@@ -41,39 +41,48 @@
       <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
     </button>
 
-    <AutoRefreshButton
+    <button
       v-if="autoRefresh"
-      :enabled="autoRefresh.enabled.value"
-      :interval-seconds="autoRefresh.intervalSeconds.value"
-      :countdown="autoRefresh.countdown.value"
-      :intervals="autoRefresh.intervals"
-      @update:enabled="autoRefresh.setEnabled"
-      @update:interval="autoRefresh.setInterval"
-    />
-  </section>
+      type="button"
+      class="inline-flex h-9 items-center gap-2 rounded-full px-2 text-sm text-gray-500 transition-colors hover:text-gray-950 dark:text-dark-300 dark:hover:text-white"
+      :title="autoRefreshTitle"
+      :aria-label="autoRefreshTitle"
+      :aria-pressed="autoRefresh.enabled.value"
+      @click="autoRefresh.setEnabled(!autoRefresh.enabled.value)"
+    >
+      <span
+        class="h-1.5 w-1.5 rounded-full"
+        :class="autoRefresh.enabled.value ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-600'"
+      />
+      <span
+        class="relative inline-flex h-6 w-10 items-center rounded-full transition-colors"
+        :class="autoRefresh.enabled.value ? 'bg-orange-500' : 'bg-gray-200 dark:bg-dark-700'"
+      >
+        <span
+          class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
+          :class="autoRefresh.enabled.value ? 'translate-x-4' : 'translate-x-0.5'"
+        />
+      </span>
+    </button>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
-import AutoRefreshButton from '@/components/common/AutoRefreshButton.vue'
 export type MonitorWindow = '7d' | '15d' | '30d'
 export type OverallStatus = 'operational' | 'degraded'
 
 const props = defineProps<{
   overallStatus: OverallStatus
-  intervalSeconds: number
   window: MonitorWindow
   loading: boolean
   flat?: boolean
   autoRefresh?: {
     enabled: { value: boolean }
-    intervalSeconds: { value: number }
     countdown: { value: number }
-    intervals: readonly number[]
     setEnabled: (v: boolean) => void
-    setInterval: (v: number) => void
   }
 }>()
 
@@ -91,6 +100,10 @@ const windowOptions = computed<{ value: MonitorWindow; label: string }[]>(() => 
 ])
 
 const overallLabel = computed(() => t(`channelStatus.overall.${props.overallStatus}`))
+const autoRefreshTitle = computed(() => {
+  if (!props.autoRefresh?.enabled.value) return t('common.autoRefresh.title')
+  return t('common.autoRefresh.countdown', { seconds: props.autoRefresh.countdown.value })
+})
 
 const overallChipClass = computed(() => {
   switch (props.overallStatus) {
@@ -116,6 +129,6 @@ const overallDotClass = computed(() => {
 
 <style scoped>
 .monitor-hero {
-  @apply flex flex-wrap items-center justify-end gap-3;
+  @apply flex flex-wrap items-center justify-start gap-2 sm:gap-3 lg:justify-end;
 }
 </style>

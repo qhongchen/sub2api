@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-5">
-      <section class="flex flex-wrap items-start justify-between gap-4">
+      <section class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
         <div class="min-w-0 space-y-2">
           <div class="flex flex-wrap items-center gap-2">
             <h1 class="text-2xl font-semibold text-gray-950 dark:text-white">
@@ -15,18 +15,18 @@
             {{ t('channelStatus.description') }}
           </p>
         </div>
-      </section>
 
-      <MonitorHero
-        flat
-        :overall-status="overallStatus"
-        :interval-seconds="DEFAULT_INTERVAL_SECONDS"
-        :window="currentWindow"
-        :loading="loading"
-        :auto-refresh="autoRefresh"
-        @update:window="handleWindowChange"
-        @refresh="manualReload"
-      />
+        <MonitorHero
+          flat
+          class="w-full lg:w-auto"
+          :overall-status="overallStatus"
+          :window="currentWindow"
+          :loading="loading"
+          :auto-refresh="autoRefresh"
+          @update:window="handleWindowChange"
+          @refresh="manualReload"
+        />
+      </section>
 
       <MonitorCardGrid
         :items="items"
@@ -81,14 +81,23 @@ const detailTarget = ref<UserMonitorView | null>(null)
 
 let abortController: AbortController | null = null
 
+const AUTO_REFRESH_STORAGE_KEY = 'channel-status-auto-refresh'
 const autoRefresh = useAutoRefresh({
-  storageKey: 'channel-status-auto-refresh',
+  storageKey: AUTO_REFRESH_STORAGE_KEY,
   intervals: [30, 60, 120] as const,
   defaultInterval: DEFAULT_INTERVAL_SECONDS,
   onRefresh: () => reload(true),
   shouldPause: () => document.hidden || loading.value,
 })
 const countdown = autoRefresh.countdown
+
+const hasSavedAutoRefreshPreference = () => {
+  try {
+    return localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) !== null
+  } catch {
+    return false
+  }
+}
 
 // ── Computed ──
 const overallStatus = computed<OverallStatus>(() => {
@@ -121,7 +130,7 @@ async function reload(silent = false) {
   } finally {
     if (abortController === ctrl) {
       if (!silent) loading.value = false
-      countdown.value = DEFAULT_INTERVAL_SECONDS
+      autoRefresh.resetCountdown()
       abortController = null
     }
   }
@@ -175,13 +184,18 @@ watch(
   (enabled) => {
     if (enabled === false) autoRefresh.stop()
     else if (autoRefresh.enabled.value) autoRefresh.start()
+    else if (!hasSavedAutoRefreshPreference()) autoRefresh.setEnabled(true)
   },
 )
 
 onMounted(() => {
   void reload(false)
   if (appStore.cachedPublicSettings?.channel_monitor_enabled !== false) {
-    autoRefresh.setEnabled(true)
+    if (hasSavedAutoRefreshPreference()) {
+      if (autoRefresh.enabled.value) autoRefresh.start()
+    } else {
+      autoRefresh.setEnabled(true)
+    }
   }
 })
 

@@ -48,6 +48,17 @@
                 t(getOAuthKey('refreshTokenAuth'))
               }}</span>
             </label>
+            <label v-if="showSsoOption" class="flex cursor-pointer items-center gap-2">
+              <input
+                v-model="inputMethod"
+                type="radio"
+                value="sso_cookie"
+                class="text-blue-600 focus:ring-blue-500"
+              />
+              <span class="text-sm text-blue-900 dark:text-blue-200">{{
+                t(getOAuthKey('ssoCookieAuth'))
+              }}</span>
+            </label>
             <label v-if="showMobileRefreshTokenOption" class="flex cursor-pointer items-center gap-2">
               <input
                 v-model="inputMethod"
@@ -197,6 +208,81 @@
                   ? t(getOAuthKey('validating'))
                   : t(getOAuthKey('validateAndCreate'))
               }}
+            </button>
+          </div>
+        </div>
+
+        <!-- SSO Cookie Input (Grok Web -> Grok Build) -->
+        <div v-if="inputMethod === 'sso_cookie'" class="space-y-4">
+          <div
+            class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+          >
+            <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
+              {{ t(getOAuthKey('ssoCookieDesc')) }}
+            </p>
+
+            <div class="mb-4">
+              <label
+                class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
+              >
+                <Icon name="key" size="sm" class="text-blue-500" />
+                {{ t(getOAuthKey('ssoCookieLabel')) }}
+                <span
+                  v-if="parsedSSOCount > 1"
+                  class="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white"
+                >
+                  {{ t('admin.accounts.oauth.keysCount', { count: parsedSSOCount }) }}
+                </span>
+              </label>
+              <textarea
+                v-model="ssoCookieInput"
+                rows="5"
+                class="input w-full resize-y font-mono text-sm"
+                :placeholder="t(getOAuthKey('ssoCookiePlaceholder'))"
+                spellcheck="false"
+              ></textarea>
+              <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                {{ t(getOAuthKey('ssoCookieHint')) }}
+              </p>
+            </div>
+
+            <div
+              v-if="error"
+              class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+            >
+              <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
+                {{ error }}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary w-full"
+              :disabled="loading || !ssoCookieInput.trim()"
+              @click="handleImportSSO"
+            >
+              <svg
+                v-if="loading"
+                class="-ml-1 mr-2 h-4 w-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <Icon v-else name="sparkles" size="sm" class="mr-2" />
+              {{ loading ? t(getOAuthKey('convertingSSO')) : t(getOAuthKey('convertSSOAndCreate')) }}
             </button>
           </div>
         </div>
@@ -773,6 +859,7 @@ interface Props {
   showCodexSessionImportOption?: boolean
   showAgentIdentityOption?: boolean
   showCodexPatOption?: boolean
+  showSsoOption?: boolean
   platform?: AccountPlatform // Platform type for different UI/text
   showProjectId?: boolean // New prop to control project ID visibility
 }
@@ -794,6 +881,7 @@ const props = withDefaults(defineProps<Props>(), {
   showCodexSessionImportOption: false,
   showAgentIdentityOption: false,
   showCodexPatOption: false,
+  showSsoOption: false,
   platform: 'anthropic',
   showProjectId: true
 })
@@ -808,6 +896,7 @@ const emit = defineEmits<{
   'import-access-token': [accessToken: string]
   'import-codex-session': [content: string]
   'import-codex-pat': [accessToken: string]
+  'import-sso': [content: string]
   'update:inputMethod': [method: AuthInputMethod]
 }>()
 
@@ -851,12 +940,13 @@ const refreshTokenInput = ref('')
 const sessionTokenInput = ref('')
 const codexSessionInput = ref('')
 const codexPATInput = ref('')
+const ssoCookieInput = ref('')
 const showHelpDialog = ref(false)
 const oauthState = ref('')
 const projectId = ref('')
 
 // Computed: show method selection when either cookie or refresh token option is enabled
-const showMethodSelection = computed(() => props.showCookieOption || props.showRefreshTokenOption || props.showMobileRefreshTokenOption || props.showSessionTokenOption || props.showAccessTokenOption || props.showCodexSessionImportOption || props.showAgentIdentityOption || props.showCodexPatOption)
+const showMethodSelection = computed(() => props.showCookieOption || props.showRefreshTokenOption || props.showMobileRefreshTokenOption || props.showSessionTokenOption || props.showAccessTokenOption || props.showCodexSessionImportOption || props.showAgentIdentityOption || props.showCodexPatOption || props.showSsoOption)
 
 // Clipboard
 const { copied, copyToClipboard } = useClipboard()
@@ -882,6 +972,13 @@ const parsedCodexSessionCount = computed(() => {
   if (!trimmed) return 0
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 1
   return trimmed
+    .split('\n')
+    .map((item) => item.trim())
+    .filter((item) => item).length
+})
+
+const parsedSSOCount = computed(() => {
+  return ssoCookieInput.value
     .split('\n')
     .map((item) => item.trim())
     .filter((item) => item).length
@@ -970,6 +1067,12 @@ const handleImportCodexPAT = () => {
   }
 }
 
+const handleImportSSO = () => {
+  if (ssoCookieInput.value.trim()) {
+    emit('import-sso', ssoCookieInput.value.trim())
+  }
+}
+
 // Expose methods and state
 defineExpose({
   authCode: authCodeInput,
@@ -980,6 +1083,7 @@ defineExpose({
   sessionToken: sessionTokenInput,
   codexSession: codexSessionInput,
   codexPAT: codexPATInput,
+  ssoCookie: ssoCookieInput,
   inputMethod,
   reset: () => {
     authCodeInput.value = ''
@@ -990,6 +1094,7 @@ defineExpose({
     sessionTokenInput.value = ''
     codexSessionInput.value = ''
     codexPATInput.value = ''
+    ssoCookieInput.value = ''
     inputMethod.value = 'manual'
     showHelpDialog.value = false
   }

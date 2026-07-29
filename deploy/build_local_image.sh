@@ -16,6 +16,7 @@ NODE_IMAGE="${NODE_IMAGE:-docker.m.daocloud.io/library/node:24-alpine}"
 GOLANG_IMAGE="${GOLANG_IMAGE:-docker.m.daocloud.io/library/golang:1.26.5-alpine}"
 ALPINE_IMAGE="${ALPINE_IMAGE:-docker.m.daocloud.io/library/alpine:3.21}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.m.daocloud.io/library/postgres:18-alpine}"
+ALPINE_MIRROR="${ALPINE_MIRROR:-https://mirrors.aliyun.com/alpine}"
 
 cd "${REPO_ROOT}"
 
@@ -27,6 +28,7 @@ BUILD_ARGS=(
     --build-arg "GOLANG_IMAGE=${GOLANG_IMAGE}"
     --build-arg "ALPINE_IMAGE=${ALPINE_IMAGE}"
     --build-arg "POSTGRES_IMAGE=${POSTGRES_IMAGE}"
+    --build-arg "ALPINE_MIRROR=${ALPINE_MIRROR}"
     -f "${REPO_ROOT}/Dockerfile.frontend-local"
 )
 

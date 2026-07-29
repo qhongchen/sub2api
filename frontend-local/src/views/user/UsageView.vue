@@ -117,15 +117,26 @@
               </div>
             </template>
 
-            <div v-else class="min-w-[180px]">
-              <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select
-                v-model="filters.api_key_id"
-                :options="apiKeyOptions"
-                :placeholder="t('usage.allApiKeys')"
-                @change="applyFilters"
-              />
-            </div>
+            <template v-else>
+              <div class="min-w-[180px]">
+                <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
+                <Select
+                  v-model="filters.api_key_id"
+                  :options="apiKeyOptions"
+                  :placeholder="t('usage.allApiKeys')"
+                  @change="applyFilters"
+                />
+              </div>
+              <div class="min-w-[180px]">
+                <label class="input-label">{{ t('usage.type') }}</label>
+                <Select
+                  v-model="requestTypeFilter"
+                  :options="requestTypeOptions"
+                  :placeholder="t('usage.allTypes')"
+                  @change="applyFilters"
+                />
+              </div>
+            </template>
 
             <!-- Date Range Filter -->
             <div>
@@ -625,14 +636,14 @@ import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
-import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse, UserErrorRequest, UserErrorListParams } from '@/types'
+import type { UsageLog, ApiKey, UsageQueryParams, UsageRequestType, UsageStatsResponse, UserErrorRequest, UserErrorListParams } from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
-import { resolveUsageRequestType } from '@/utils/usageRequestType'
+import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import {
   BILLING_MODE_TOKEN,
   getBillingModeBadgeClass,
@@ -774,6 +785,24 @@ const apiKeyOptions = computed(() => {
   ]
 })
 
+const requestTypeOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.allTypes') },
+  { value: 'ws_v2', label: t('usage.ws') },
+  { value: 'live', label: t('usage.live') },
+  { value: 'stream', label: t('usage.stream') },
+  { value: 'sync', label: t('usage.sync') },
+  { value: 'cyber', label: t('usage.cyber') },
+])
+
+const requestTypeFilter = computed({
+  get: () => filters.value.request_type ?? null,
+  set: (value: string | number | boolean | null) => {
+    filters.value.request_type = typeof value === 'string' && value
+      ? value as UsageRequestType
+      : undefined
+  },
+})
+
 const errorKeyOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('usage.errors.allKeys') },
   ...apiKeys.value.map((key) => ({ value: key.id, label: key.name }))
@@ -809,6 +838,7 @@ const endDate = ref(formatLocalDate(now))
 
 const filters = ref<UsageQueryParams>({
   api_key_id: undefined,
+  request_type: undefined,
   start_date: undefined,
   end_date: undefined
 })
@@ -852,6 +882,8 @@ const formatUserAgent = (ua: string): string => {
 
 const getRequestTypeLabel = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
+  if (requestType === 'cyber') return t('usage.cyber')
+  if (requestType === 'live') return t('usage.live')
   if (requestType === 'ws_v2') return t('usage.ws')
   if (requestType === 'stream') return t('usage.stream')
   if (requestType === 'sync') return t('usage.sync')
@@ -860,6 +892,8 @@ const getRequestTypeLabel = (log: UsageLog): string => {
 
 const getRequestTypeBadgeClass = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
+  if (requestType === 'cyber') return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+  if (requestType === 'live') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
   if (requestType === 'ws_v2') return 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200'
   if (requestType === 'stream') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
   if (requestType === 'sync') return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
@@ -869,6 +903,8 @@ const getRequestTypeBadgeClass = (log: UsageLog): string => {
 
 const getRequestTypeExportText = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
+  if (requestType === 'cyber') return 'Cyber'
+  if (requestType === 'live') return 'Live'
   if (requestType === 'ws_v2') return 'WS'
   if (requestType === 'stream') return 'Stream'
   if (requestType === 'sync') return 'Sync'
@@ -896,10 +932,21 @@ type UsageTableQueryParams = UsageQueryParams & {
   sort_order?: 'asc' | 'desc'
 }
 
+const normalizedFilters = computed<UsageQueryParams>(() => {
+  const requestType = filters.value.request_type
+  const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
+  return {
+    ...filters.value,
+    start_date: filters.value.start_date || startDate.value,
+    end_date: filters.value.end_date || endDate.value,
+    stream: legacyStream === null ? undefined : legacyStream,
+  }
+})
+
 const buildUsageQueryParams = (page: number, pageSize: number): UsageTableQueryParams => ({
   page,
   page_size: pageSize,
-  ...filters.value,
+  ...normalizedFilters.value,
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
@@ -950,12 +997,7 @@ const loadApiKeys = async () => {
 
 const loadUsageStats = async () => {
   try {
-    const apiKeyId = filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
-    const stats = await usageAPI.getStatsByDateRange(
-      filters.value.start_date || startDate.value,
-      filters.value.end_date || endDate.value,
-      apiKeyId
-    )
+    const stats = await usageAPI.getStats(normalizedFilters.value)
     usageStats.value = stats
   } catch (error) {
     console.error('Failed to load usage stats:', error)
@@ -1041,6 +1083,8 @@ const applyFilters = () => {
 const resetFilters = () => {
   filters.value = {
     api_key_id: undefined,
+    request_type: undefined,
+    stream: undefined,
     start_date: undefined,
     end_date: undefined
   }

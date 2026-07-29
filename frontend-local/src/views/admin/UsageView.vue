@@ -374,33 +374,73 @@
       </section>
 
       <section class="cch-panel-card overflow-hidden">
-        <div class="flex items-center justify-between gap-3 border-b border-gray-200/70 px-4 py-3 dark:border-white/[0.06]">
-          <span class="text-sm text-gray-500 dark:text-dark-400">
-            {{ t('usage.loadedRecords', { count: usageLogs.length }) }}
-          </span>
-          <span class="text-xs text-gray-400 dark:text-dark-500">
-            {{ usageStatsSummary }}
-          </span>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200/70 px-4 py-3 dark:border-white/[0.06]">
+          <div class="inline-flex h-9 items-center rounded-lg bg-gray-100 p-1 dark:bg-white/[0.06]">
+            <button
+              type="button"
+              class="h-7 rounded-md px-3 text-sm font-medium transition-colors"
+              :class="activeUsageView === 'records'
+                ? 'bg-white text-gray-950 shadow-sm dark:bg-dark-800 dark:text-white'
+                : 'text-gray-500 hover:text-gray-950 dark:text-dark-300 dark:hover:text-white'"
+              :aria-pressed="activeUsageView === 'records'"
+              @click="switchUsageView('records')"
+            >
+              {{ t('usage.tabs.usage') }}
+            </button>
+            <button
+              type="button"
+              class="h-7 rounded-md px-3 text-sm font-medium transition-colors"
+              :class="activeUsageView === 'ranking'
+                ? 'bg-white text-gray-950 shadow-sm dark:bg-dark-800 dark:text-white'
+                : 'text-gray-500 hover:text-gray-950 dark:text-dark-300 dark:hover:text-white'"
+              :aria-pressed="activeUsageView === 'ranking'"
+              @click="switchUsageView('ranking')"
+            >
+              {{ t('usage.tabs.ranking') }}
+            </button>
+          </div>
+
+          <div v-if="activeUsageView === 'records'" class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            <span class="text-sm text-gray-500 dark:text-dark-400">
+              {{ t('usage.loadedRecords', { count: usageLogs.length }) }}
+            </span>
+            <span class="text-xs text-gray-400 dark:text-dark-500">
+              {{ usageStatsSummary }}
+            </span>
+          </div>
         </div>
 
-        <UsageTable
-          :data="usageLogs"
-          :loading="loading"
-          :columns="visibleColumns"
-          shell-class="overflow-hidden"
-          :server-side-sort="false"
-          :default-sort-key="'created_at'"
-          :default-sort-order="'desc'"
-        />
-        <div v-if="pagination.total > 0" class="border-t border-gray-200/70 p-4 dark:border-white/[0.06]">
-          <Pagination
-            :page="pagination.page"
-            :total="pagination.total"
-            :page-size="pagination.page_size"
-            @update:page="handlePageChange"
-            @update:pageSize="handlePageSizeChange"
+        <div v-show="activeUsageView === 'records'">
+          <UsageTable
+            :data="usageLogs"
+            :loading="loading"
+            :columns="visibleColumns"
+            shell-class="overflow-hidden"
+            :server-side-sort="false"
+            :default-sort-key="'created_at'"
+            :default-sort-order="'desc'"
           />
+          <div v-if="pagination.total > 0" class="border-t border-gray-200/70 p-4 dark:border-white/[0.06]">
+            <Pagination
+              :page="pagination.page"
+              :total="pagination.total"
+              :page-size="pagination.page_size"
+              @update:page="handlePageChange"
+              @update:pageSize="handlePageSizeChange"
+            />
+          </div>
         </div>
+
+        <UserTokenRanking
+          v-if="rankingMounted"
+          v-show="activeUsageView === 'ranking'"
+          :active="activeUsageView === 'ranking'"
+          :start-date="appliedRankingStartDate"
+          :end-date="appliedRankingEndDate"
+          :filters="appliedRankingFilters"
+          :model="appliedRankingModel"
+          @select-user="handleRankingSelectUser"
+        />
       </section>
     </div>
   </AppLayout>
@@ -437,6 +477,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
+import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
@@ -455,6 +496,7 @@ type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
 type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 type DatePresetKey = 'today' | 'this_week' | 'last_7_days' | 'last_30_days'
+type UsageDetailView = 'records' | 'ranking'
 
 interface SimpleAccount {
   id: number
@@ -491,6 +533,12 @@ const requestFiltersOpen = ref(false)
 const showColumnDropdown = ref(false)
 const autoRefreshEnabled = ref(false)
 const activePreset = ref<DatePresetKey | null>(null)
+const activeUsageView = ref<UsageDetailView>('records')
+const rankingMounted = ref(false)
+const appliedRankingFilters = ref<Record<string, unknown>>({})
+const appliedRankingStartDate = ref('')
+const appliedRankingEndDate = ref('')
+const appliedRankingModel = ref<string | undefined>()
 
 const userSearchRef = ref<HTMLElement | null>(null)
 const apiKeySearchRef = ref<HTMLElement | null>(null)
@@ -509,6 +557,7 @@ const showAccountDropdown = ref(false)
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
 let apiKeySearchTimeout: ReturnType<typeof setTimeout> | null = null
 let accountSearchTimeout: ReturnType<typeof setTimeout> | null = null
+let userSearchRevision = 0
 let abortController: AbortController | null = null
 let exportAbortController: AbortController | null = null
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
@@ -554,6 +603,30 @@ const filters = ref<AdminUsageQueryParams>({
   end_date: undefined,
 })
 
+const syncAppliedRankingFilters = () => {
+  const nextFilters: Record<string, unknown> = {}
+  const requestType = filters.value.request_type
+  const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
+
+  if (filters.value.user_id != null) nextFilters.user_id = filters.value.user_id
+  if (filters.value.api_key_id != null) nextFilters.api_key_id = filters.value.api_key_id
+  if (filters.value.account_id != null) nextFilters.account_id = filters.value.account_id
+  if (filters.value.group_id != null) nextFilters.group_id = filters.value.group_id
+  if (requestType != null) nextFilters.request_type = requestType
+  if (legacyStream != null) nextFilters.stream = legacyStream
+  if (filters.value.billing_type != null) nextFilters.billing_type = filters.value.billing_type
+
+  appliedRankingFilters.value = nextFilters
+  appliedRankingStartDate.value = filters.value.start_date || startDate.value || ''
+  appliedRankingEndDate.value = filters.value.end_date || endDate.value || ''
+  appliedRankingModel.value = filters.value.model || undefined
+}
+
+const switchUsageView = (view: UsageDetailView) => {
+  activeUsageView.value = view
+  if (view === 'ranking') rankingMounted.value = true
+}
+
 const pagination = reactive({
   page: 1,
   page_size: getPersistedPageSize(),
@@ -577,9 +650,11 @@ const quickDatePresets = computed<Array<{ key: DatePresetKey; label: string; ico
 
 const requestTypeOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allTypes') },
-  { value: 'sync', label: t('usage.sync') },
-  { value: 'stream', label: t('usage.stream') },
   { value: 'ws_v2', label: t('usage.ws') },
+  { value: 'live', label: t('usage.live') },
+  { value: 'stream', label: t('usage.stream') },
+  { value: 'sync', label: t('usage.sync') },
+  { value: 'cyber', label: t('usage.cyber') },
 ])
 
 const billingTypeOptions = computed<SelectOption[]>(() => [
@@ -716,6 +791,26 @@ const applyRouteQueryFilters = () => {
     end_date: endDate.value || undefined,
   }
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
+}
+
+const loadRouteUserFilterLabel = async () => {
+  const requestedUserId = filters.value.user_id
+  if (!requestedUserId) return
+  const requestedRevision = userSearchRevision
+
+  const routeUserFilterIsCurrent = () => (
+    filters.value.user_id === requestedUserId &&
+    userSearchRevision === requestedRevision
+  )
+
+  try {
+    const user = await adminAPI.users.getById(requestedUserId, true)
+    if (!routeUserFilterIsCurrent()) return
+    userKeyword.value = user.email || String(requestedUserId)
+  } catch {
+    if (!routeUserFilterIsCurrent()) return
+    userKeyword.value = String(requestedUserId)
+  }
 }
 
 const buildUsageListParams = (
@@ -871,6 +966,7 @@ const loadChartData = async () => {
 }
 
 const applyFilters = () => {
+  syncAppliedRankingFilters()
   pagination.page = 1
   resetModelStatsCache()
   loadLogs()
@@ -945,6 +1041,8 @@ const cancelExport = () => exportAbortController?.abort()
 
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(log)
+  if (requestType === 'cyber') return t('usage.cyber')
+  if (requestType === 'live') return t('usage.live')
   if (requestType === 'ws_v2') return t('usage.ws')
   if (requestType === 'stream') return t('usage.stream')
   if (requestType === 'sync') return t('usage.sync')
@@ -1050,6 +1148,7 @@ const loadSavedColumns = () => {
 }
 
 const debounceUserSearch = () => {
+  userSearchRevision += 1
   if (userSearchTimeout) clearTimeout(userSearchTimeout)
   userSearchTimeout = setTimeout(async () => {
     if (!userKeyword.value) {
@@ -1099,6 +1198,7 @@ const getSimpleUserDisplayName = (user: SimpleUser): string => {
 }
 
 const selectUser = async (user: SimpleUser) => {
+  userSearchRevision += 1
   userKeyword.value = getSimpleUserDisplayName(user)
   showUserDropdown.value = false
   filters.value.user_id = user.id
@@ -1110,7 +1210,21 @@ const selectUser = async (user: SimpleUser) => {
   }
 }
 
+const handleRankingSelectUser = (userId: number, email: string) => {
+  userSearchRevision += 1
+  userKeyword.value = email || `#${userId}`
+  userResults.value = []
+  showUserDropdown.value = false
+  filters.value.user_id = userId
+  clearApiKey()
+  activeUsageView.value = 'records'
+  identityFiltersOpen.value = true
+  filtersOpen.value = true
+  applyFilters()
+}
+
 const clearUser = () => {
+  userSearchRevision += 1
   userKeyword.value = ''
   userResults.value = []
   showUserDropdown.value = false
@@ -1171,6 +1285,8 @@ const formatTokens = (value: number): string => {
 
 onMounted(async () => {
   applyRouteQueryFilters()
+  void loadRouteUserFilterLabel()
+  syncAppliedRankingFilters()
   loadSavedColumns()
   document.addEventListener('click', onDocumentClick)
   loadLogs()

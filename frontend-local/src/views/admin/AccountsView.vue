@@ -168,27 +168,6 @@
             >
               <Icon name="refresh" size="sm" :class="{ 'animate-spin': accountListRefreshing }" />
             </button>
-
-            <button
-              type="button"
-              class="inline-flex h-9 items-center gap-2 rounded-full px-2 text-sm text-gray-500 transition-colors hover:text-gray-950 dark:text-dark-300 dark:hover:text-white"
-              :title="autoRefreshTitle"
-              @click="toggleAutoRefresh"
-            >
-              <span
-                class="h-1.5 w-1.5 rounded-full"
-                :class="autoRefreshEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-600'"
-              />
-              <span
-                class="relative inline-flex h-6 w-10 items-center rounded-full transition-colors"
-                :class="autoRefreshEnabled ? 'bg-orange-500' : 'bg-gray-200 dark:bg-dark-700'"
-              >
-                <span
-                  class="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
-                  :class="autoRefreshEnabled ? 'translate-x-4' : 'translate-x-0.5'"
-                />
-              </span>
-            </button>
           </div>
         </div>
 
@@ -336,20 +315,20 @@
                           {{ getAccountStatusText(account) }}
                         </span>
                         <PlatformTypeBadge
-                          v-if="isCardFieldVisible('platform_type')"
-                          mode="platformType"
+                          v-if="isCardFieldVisible('platform')"
+                          mode="platform"
+                          :platform="account.platform"
+                          :type="account.type"
+                        />
+                        <PlatformTypeBadge
+                          v-if="isCardFieldVisible('type')"
+                          mode="type"
                           :platform="account.platform"
                           :type="account.type"
                           :auth-mode="getOpenAIAuthMode(account)"
                         />
-                        <span
-                          v-if="isCardFieldVisible('platform_type') && getAntigravityTierLabel(account)"
-                          :class="['account-tiny-badge', getAntigravityTierClass(account)]"
-                        >
-                          {{ getAntigravityTierLabel(account) }}
-                        </span>
                         <div
-                          v-if="isCardFieldVisible('platform_type') && getOpenAICompactMeta(account)"
+                          v-if="isCardFieldVisible('type') && getOpenAICompactMeta(account)"
                           :class="[
                             'account-compact-badge',
                             getOpenAICompactMeta(account)?.className
@@ -359,19 +338,31 @@
                           <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(account)?.dotClass]" />
                           <span>{{ getOpenAICompactMeta(account)?.label }}</span>
                         </div>
+                        <PlatformTypeBadge
+                          v-if="isCardFieldVisible('plan') && getAccountPlanType(account)"
+                          mode="plan"
+                          :platform="account.platform"
+                          :type="account.type"
+                          :plan-type="getAccountPlanType(account)"
+                          :subscription-expires-at="getAccountSubscriptionExpiresAt(account)"
+                        />
+                        <span
+                          v-if="isCardFieldVisible('plan') && getAntigravityTierLabel(account)"
+                          :class="['account-tiny-badge', getAntigravityTierClass(account)]"
+                        >
+                          {{ getAntigravityTierLabel(account) }}
+                        </span>
+                        <PlatformTypeBadge
+                          v-if="isCardFieldVisible('privacy') && isAccountPrivacyModeDisplayable(account)"
+                          mode="privacy"
+                          :platform="account.platform"
+                          :type="account.type"
+                          :privacy-mode="getAccountPrivacyMode(account)"
+                        />
                         <AccountGroupsCell
                           v-if="!authStore.isSimpleMode && isCardFieldVisible('groups')"
                           :groups="account.groups"
                           :max-display="3"
-                        />
-                        <PlatformTypeBadge
-                          v-if="isCardFieldVisible('account_plan') && hasAccountPlanDisplay(account)"
-                          mode="planPrivacy"
-                          :platform="account.platform"
-                          :type="account.type"
-                          :plan-type="getCredentialString(account, 'plan_type') || getAccountParentString(account, 'parent_plan_type')"
-                          :privacy-mode="getExtraString(account, 'privacy_mode') || getAccountParentString(account, 'parent_privacy_mode')"
-                          :subscription-expires-at="getCredentialString(account, 'subscription_expires_at') || getAccountParentString(account, 'parent_subscription_expires_at')"
                         />
                         <span v-if="isExpired(account.expires_at)" class="account-state-badge account-state-badge-warning">
                           {{ t('admin.accounts.expired') }}
@@ -699,16 +690,8 @@ type AccountSortState = {
 }
 const sortState = reactive<AccountSortState>({ sort_by: 'priority', sort_order: 'asc' })
 
-// Auto refresh settings
-const AUTO_REFRESH_STORAGE_KEY = 'account-auto-refresh'
-const autoRefreshIntervals = [5, 10, 15, 30] as const
-const autoRefreshEnabled = ref(false)
-const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(30)
-const autoRefreshCountdown = ref(0)
-const autoRefreshETag = ref<string | null>(null)
-const autoRefreshFetching = ref(false)
-const AUTO_REFRESH_SILENT_WINDOW_MS = 15000
-const autoRefreshSilentUntil = ref(0)
+const accountListETag = ref<string | null>(null)
+const accountListSyncing = ref(false)
 const hasPendingListSync = ref(false)
 const todayStatsByAccountId = ref<Record<string, WindowStats>>({})
 const todayStatsLoading = ref(false)
@@ -720,8 +703,10 @@ let usageRefreshedSyncTimer: ReturnType<typeof setTimeout> | null = null
 
 const ACCOUNT_CARD_VISIBILITY_KEY = 'account-card-visible-fields'
 const CARD_VISIBLE_FIELD_KEYS = [
-  'platform_type',
-  'account_plan',
+  'platform',
+  'type',
+  'plan',
+  'privacy',
   'groups',
   'priority',
   'scheduler_score',
@@ -743,8 +728,10 @@ const DEFAULT_VISIBLE_CARD_FIELDS: AccountCardFieldKey[] = [
 const cardVisibleFields = ref<Set<AccountCardFieldKey>>(new Set(DEFAULT_VISIBLE_CARD_FIELDS))
 
 const cardVisibilityOptions = computed<Array<{ key: AccountCardFieldKey; label: string }>>(() => [
-  { key: 'platform_type', label: t('admin.accounts.columns.platformType') },
-  { key: 'account_plan', label: t('admin.accounts.columns.accountPlan') },
+  { key: 'platform', label: t('admin.accounts.columns.platform') },
+  { key: 'type', label: t('admin.accounts.columns.type') },
+  { key: 'plan', label: t('admin.accounts.columns.plan') },
+  { key: 'privacy', label: t('admin.accounts.columns.privacy') },
   { key: 'groups', label: t('admin.accounts.columns.groups') },
   { key: 'priority', label: t('admin.accounts.columns.priority') },
   { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore') },
@@ -824,11 +811,14 @@ const loadSavedCardVisibility = () => {
     if (!saved) return
     const parsed = JSON.parse(saved)
     if (!Array.isArray(parsed)) return
-    const fields = parsed.filter(isAccountCardFieldKey)
-    if (fields.includes('platform_type') && !fields.includes('account_plan')) {
-      fields.push('account_plan')
-    }
+    const rawFields = parsed.filter((value): value is string => typeof value === 'string')
+    const fields = rawFields.filter(isAccountCardFieldKey)
+    if (rawFields.includes('platform_type')) fields.push('platform', 'type')
+    if (rawFields.includes('account_plan')) fields.push('plan', 'privacy')
     cardVisibleFields.value = new Set(fields)
+    if (rawFields.includes('platform_type') || rawFields.includes('account_plan')) {
+      saveCardVisibility()
+    }
   } catch (e) {
     console.error('Failed to load saved card visibility:', e)
   }
@@ -913,50 +903,8 @@ const refreshTodayStatsBatch = async () => {
   }
 }
 
-const loadSavedAutoRefresh = () => {
-  try {
-    const saved = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY)
-    if (!saved) return
-    const parsed = JSON.parse(saved) as { enabled?: boolean; interval_seconds?: number }
-    autoRefreshEnabled.value = parsed.enabled === true
-    const interval = Number(parsed.interval_seconds)
-    if (autoRefreshIntervals.includes(interval as any)) {
-      autoRefreshIntervalSeconds.value = interval as any
-    }
-  } catch (e) {
-    console.error('Failed to load saved auto refresh settings:', e)
-  }
-}
-
-const saveAutoRefreshToStorage = () => {
-  try {
-    localStorage.setItem(
-      AUTO_REFRESH_STORAGE_KEY,
-      JSON.stringify({
-        enabled: autoRefreshEnabled.value,
-        interval_seconds: autoRefreshIntervalSeconds.value
-      })
-    )
-  } catch (e) {
-    console.error('Failed to save auto refresh settings:', e)
-  }
-}
-
 if (typeof window !== 'undefined') {
   loadSavedCardVisibility()
-  loadSavedAutoRefresh()
-}
-
-const setAutoRefreshEnabled = (enabled: boolean) => {
-  autoRefreshEnabled.value = enabled
-  saveAutoRefreshToStorage()
-  if (enabled) {
-    autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
-    resumeAutoRefresh()
-  } else {
-    pauseAutoRefresh()
-    autoRefreshCountdown.value = 0
-  }
 }
 
 const {
@@ -983,8 +931,8 @@ const {
   }
 })
 
-const resetAutoRefreshCache = () => {
-  autoRefreshETag.value = null
+const resetAccountListCache = () => {
+  accountListETag.value = null
 }
 
 const isFirstLoad = ref(true)
@@ -998,7 +946,7 @@ const load = async () => {
   const requestParams = params as any
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  resetAccountListCache()
   pendingTodayStatsRefresh.value = false
   if (isFirstLoad.value) {
     requestParams.lite = '1'
@@ -1014,7 +962,7 @@ const load = async () => {
 const reload = async () => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  resetAccountListCache()
   pendingTodayStatsRefresh.value = false
   await baseReload()
   await refreshTodayStatsBatch()
@@ -1023,7 +971,7 @@ const reload = async () => {
 const debouncedReload = () => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  resetAccountListCache()
   pendingTodayStatsRefresh.value = true
   baseDebouncedReload()
 }
@@ -1049,16 +997,7 @@ const activeFilterCount = computed(() => {
   return count
 })
 
-const accountListRefreshing = computed(() => loading.value || autoRefreshFetching.value)
-const autoRefreshTitle = computed(() =>
-  autoRefreshEnabled.value
-    ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown.value })
-    : t('admin.accounts.autoRefresh')
-)
-
-const toggleAutoRefresh = () => {
-  setAutoRefreshEnabled(!autoRefreshEnabled.value)
-}
+const accountListRefreshing = computed(() => loading.value || accountListSyncing.value)
 
 watch(loading, (isLoading, wasLoading) => {
   if (wasLoading && !isLoading && pendingTodayStatsRefresh.value) {
@@ -1069,34 +1008,7 @@ watch(loading, (isLoading, wasLoading) => {
   }
 })
 
-const isAnyModalOpen = computed(() => {
-  return (
-    showCreate.value ||
-    showEdit.value ||
-    showSync.value ||
-    showImportData.value ||
-    showExportDataDialog.value ||
-    showTempUnsched.value ||
-    showDeleteDialog.value ||
-    showReAuth.value ||
-    showTest.value ||
-    showStats.value ||
-    showSchedulePanel.value ||
-    showErrorPassthrough.value ||
-    showTLSFingerprintProfiles.value
-  )
-})
-
-const enterAutoRefreshSilentWindow = () => {
-  autoRefreshSilentUntil.value = Date.now() + AUTO_REFRESH_SILENT_WINDOW_MS
-  autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
-}
-
-const inAutoRefreshSilentWindow = () => {
-  return Date.now() < autoRefreshSilentUntil.value
-}
-
-const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
+const shouldReplaceAccountRow = (current: Account, next: Account) => {
   return (
     current.updated_at !== next.updated_at ||
     current.current_concurrency !== next.current_concurrency ||
@@ -1136,7 +1048,7 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
       changed = true
       return nextRow
     }
-    if (shouldReplaceAutoRefreshRow(currentRow, nextRow)) {
+    if (shouldReplaceAccountRow(currentRow, nextRow)) {
       changed = true
       syncAccountRefs(nextRow)
       return nextRow
@@ -1156,9 +1068,9 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
   }
 }
 
-const refreshAccountsIncrementally = async () => {
-  if (autoRefreshFetching.value) return
-  autoRefreshFetching.value = true
+const syncAccountsIncrementally = async () => {
+  if (accountListSyncing.value) return
+  accountListSyncing.value = true
   try {
     syncAccountListDerivedParams()
     const result = await adminAPI.accounts.listWithEtag(
@@ -1176,11 +1088,11 @@ const refreshAccountsIncrementally = async () => {
         sort_order?: AccountSortOrder
 
       },
-      { etag: autoRefreshETag.value }
+      { etag: accountListETag.value }
     )
 
     if (result.etag) {
-      autoRefreshETag.value = result.etag
+      accountListETag.value = result.etag
     }
     if (!result.notModified && result.data) {
       pagination.total = result.data.total || 0
@@ -1191,9 +1103,9 @@ const refreshAccountsIncrementally = async () => {
 
     await refreshTodayStatsBatch()
   } catch (error) {
-    console.error('Auto refresh failed:', error)
+    console.error('Account list sync failed:', error)
   } finally {
-    autoRefreshFetching.value = false
+    accountListSyncing.value = false
   }
 }
 
@@ -1208,7 +1120,7 @@ const handleUsageRefreshed = () => {
   }
   usageRefreshedSyncTimer = setTimeout(() => {
     usageRefreshedSyncTimer = null
-    refreshAccountsIncrementally().catch((error) => {
+    syncAccountsIncrementally().catch((error) => {
       console.error('Failed to sync accounts after usage refresh:', error)
     })
   }, 150)
@@ -1279,33 +1191,6 @@ const syncPendingListChanges = async () => {
   await load()
   usageManualRefreshToken.value += 1
 }
-
-const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
-  async () => {
-    if (!autoRefreshEnabled.value) return
-    if (document.hidden) return
-    if (loading.value || autoRefreshFetching.value) return
-    if (isAnyModalOpen.value) return
-    if (menu.show || showAccountToolsDropdown.value) return
-    if (inAutoRefreshSilentWindow()) {
-      autoRefreshCountdown.value = Math.max(
-        0,
-        Math.ceil((autoRefreshSilentUntil.value - Date.now()) / 1000)
-      )
-      return
-    }
-
-    if (autoRefreshCountdown.value <= 0) {
-      autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
-      await refreshAccountsIncrementally()
-      return
-    }
-
-    autoRefreshCountdown.value -= 1
-  },
-  1000,
-  { immediate: false }
-)
 
 // Antigravity 订阅等级辅助函数
 function getAntigravityTierFromRow(row: any): string | null {
@@ -1412,6 +1297,14 @@ const getAccountParentString = (account: Account, key: string) => {
   return typeof value === 'string' ? value : ''
 }
 
+const getAccountPrivacyMode = (account: Account) => {
+  return getExtraString(account, 'privacy_mode') || getAccountParentString(account, 'parent_privacy_mode')
+}
+
+const getAccountSubscriptionExpiresAt = (account: Account) => {
+  return getCredentialString(account, 'subscription_expires_at') || getAccountParentString(account, 'parent_subscription_expires_at')
+}
+
 const isAccountPrivacyModeDisplayable = (account: Account) => {
   if (account.type !== 'oauth') return false
   if (account.platform !== 'openai' && account.platform !== 'antigravity') return false
@@ -1421,18 +1314,24 @@ const isAccountPrivacyModeDisplayable = (account: Account) => {
     'training_set_failed',
     'privacy_set',
     'privacy_set_failed'
-  ].includes(getExtraString(account, 'privacy_mode'))
+  ].includes(getAccountPrivacyMode(account))
 }
 
-const hasAccountPlanDisplay = (account: Account) => {
-  return Boolean(
-    getCredentialString(account, 'plan_type') ||
-    getAccountParentString(account, 'parent_plan_type') ||
-    isAccountPrivacyModeDisplayable(account) ||
-    getAccountParentString(account, 'parent_privacy_mode') ||
-    getCredentialString(account, 'subscription_expires_at') ||
-    getAccountParentString(account, 'parent_subscription_expires_at')
-  )
+const getAccountPlanType = (account: Account) => {
+  if (account.platform === 'grok') {
+    const extra = account.extra as Record<string, unknown> | undefined
+    const billing = extra?.grok_billing_snapshot as Record<string, unknown> | undefined
+    const quota = extra?.grok_quota_snapshot as Record<string, unknown> | undefined
+    return (
+      getRecordString(billing, 'plan') ||
+      getRecordString(quota, 'subscription_tier') ||
+      getCredentialString(account, 'subscription_tier') ||
+      getExtraString(account, 'subscription_tier') ||
+      getCredentialString(account, 'plan_type') ||
+      getAccountParentString(account, 'parent_plan_type')
+    )
+  }
+  return getCredentialString(account, 'plan_type') || getAccountParentString(account, 'parent_plan_type')
 }
 
 const getAccountEmail = (account: Account) => {
@@ -1496,6 +1395,7 @@ const formatTodayCost = (account: Account) => {
 }
 
 const hasUsageWindowDisplay = (account: Account) => {
+  if (account.ollama_cloud_usage?.eligible) return true
   if (account.platform === 'gemini') return true
   if (account.type === 'oauth' || account.type === 'setup-token') return true
   if (account.type === 'apikey' || account.type === 'bedrock') {
@@ -1889,7 +1789,6 @@ const handleBulkProbeUpstreamBilling = async () => {
 
 const handleAccountUpdated = (updatedAccount: Account) => {
   patchAccountInList(updatedAccount)
-  enterAutoRefreshSilentWindow()
 }
 const formatExportTimestamp = () => {
   const now = new Date()
@@ -1977,7 +1876,6 @@ const handleRefresh = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.refreshCredentials(a.id)
     patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
   } catch (error) {
     console.error('Failed to refresh credentials:', error)
   }
@@ -1986,7 +1884,6 @@ const handleRecoverState = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.recoverState(a.id)
     patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
     appStore.showSuccess(t('admin.accounts.recoverStateSuccess'))
   } catch (error: any) {
     console.error('Failed to recover account state:', error)
@@ -1997,7 +1894,6 @@ const handleResetQuota = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.resetAccountQuota(a.id)
     patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
     appStore.showSuccess(t('common.success'))
   } catch (error) {
     console.error('Failed to reset quota:', error)
@@ -2007,7 +1903,6 @@ const handleSetPrivacy = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.setPrivacy(a.id)
     patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
     appStore.showSuccess(t('common.success'))
   } catch (error: any) {
     console.error('Failed to set privacy:', error)
@@ -2050,7 +1945,6 @@ const handleToggleSchedulable = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.setSchedulable(a.id, nextSchedulable)
     updateSchedulableInList([a.id], updated?.schedulable ?? nextSchedulable)
-    enterAutoRefreshSilentWindow()
   } catch (error) {
     console.error('Failed to toggle schedulable:', error)
     appStore.showError(t('admin.accounts.failedToToggleSchedulable'))
@@ -2063,7 +1957,6 @@ const handleTempUnschedReset = async (updated: Account) => {
   showTempUnsched.value = false
   tempUnschedAcc.value = null
   patchAccountInList(updated)
-  enterAutoRefreshSilentWindow()
 }
 const formatExpiresAt = (value: number | null) => {
   if (!value) return '-'
@@ -2117,13 +2010,6 @@ onMounted(async () => {
   }
   window.addEventListener('scroll', handleScroll, true)
   document.addEventListener('click', handleClickOutside)
-
-  if (autoRefreshEnabled.value) {
-    autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
-    resumeAutoRefresh()
-  } else {
-    pauseAutoRefresh()
-  }
 })
 
 onUnmounted(() => {

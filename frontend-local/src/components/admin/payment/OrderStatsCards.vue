@@ -8,7 +8,13 @@
         </div>
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-500 group-hover:text-gray-800 dark:text-dark-300 dark:group-hover:text-gray-100">{{ t('payment.admin.todayRevenue') }}</p>
-          <p class="mt-3 truncate text-2xl font-bold tracking-tight text-gray-950 dark:text-white">${{ formatMoney(stats.today_amount) }}</p>
+          <p
+            v-for="[currency, amount] in sortedAmounts(stats.today_amount)"
+            :key="currency"
+            class="mt-3 truncate text-2xl font-bold tracking-tight text-gray-950 dark:text-white"
+          >
+            {{ formatMoney(currency, amount) }}
+          </p>
           <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
             {{ stats.today_count }} {{ t('payment.admin.orders') }}
           </p>
@@ -24,7 +30,13 @@
         </div>
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-500 group-hover:text-gray-800 dark:text-dark-300 dark:group-hover:text-gray-100">{{ t('payment.admin.totalRevenue') }}</p>
-          <p class="mt-3 truncate text-2xl font-bold tracking-tight text-gray-950 dark:text-white">${{ formatMoney(stats.total_amount) }}</p>
+          <p
+            v-for="[currency, amount] in sortedAmounts(stats.total_amount)"
+            :key="currency"
+            class="mt-3 truncate text-2xl font-bold tracking-tight text-gray-950 dark:text-white"
+          >
+            {{ formatMoney(currency, amount) }}
+          </p>
           <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
             {{ stats.total_count }} {{ t('payment.admin.orders') }}
           </p>
@@ -53,7 +65,13 @@
         </div>
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-500 group-hover:text-gray-800 dark:text-dark-300 dark:group-hover:text-gray-100">{{ t('payment.admin.avgAmount') }}</p>
-          <p class="mt-3 truncate text-2xl font-bold tracking-tight text-gray-950 dark:text-white">${{ formatMoney(stats.avg_amount) }}</p>
+          <p
+            v-for="[currency, amount] in sortedAmounts(stats.avg_amount)"
+            :key="currency"
+            class="mt-3 truncate text-2xl font-bold tracking-tight text-gray-950 dark:text-white"
+          >
+            {{ formatMoney(currency, amount) }}
+          </p>
         </div>
       </div>
     </div>
@@ -63,7 +81,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
-import type { DashboardStats } from '@/types/payment'
+import type { CurrencyAmounts, DashboardStats } from '@/types/payment'
 
 const { t } = useI18n()
 
@@ -71,7 +89,11 @@ defineProps<{
   stats: DashboardStats
 }>()
 
-function formatMoney(value?: number | null): string {
-  return (value ?? 0).toFixed(2)
+function sortedAmounts(amounts: CurrencyAmounts): [string, number][] {
+  return Object.entries(amounts).sort(([left], [right]) => left.localeCompare(right))
+}
+
+function formatMoney(currency: string, amount: number): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
 }
 </script>

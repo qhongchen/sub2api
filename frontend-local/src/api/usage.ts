@@ -141,10 +141,12 @@ export async function query(
  * @returns Usage statistics
  */
 export async function getStats(
-  period: string = 'today',
+  paramsOrPeriod: (UsageQueryParams & { period?: string; timezone?: string }) | string = 'today',
   apiKeyId?: number
 ): Promise<UsageStatsResponse> {
-  const params: Record<string, unknown> = { period }
+  const params: Record<string, unknown> = typeof paramsOrPeriod === 'string'
+    ? { period: paramsOrPeriod }
+    : { ...paramsOrPeriod }
 
   if (apiKeyId !== undefined) {
     params.api_key_id = apiKeyId

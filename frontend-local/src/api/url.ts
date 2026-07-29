@@ -11,6 +11,17 @@ export function getAPIBaseURL(): string {
   return normalizePath(withoutTrailingSlash)
 }
 
+export function buildApiUrl(path: string): string {
+  const base = getAPIBaseURL().replace(/\/+$/, '')
+  let suffix = normalizePath(path)
+  if (suffix === DEFAULT_API_BASE_URL) {
+    suffix = ''
+  } else if (suffix.startsWith(`${DEFAULT_API_BASE_URL}/`)) {
+    suffix = suffix.slice(DEFAULT_API_BASE_URL.length)
+  }
+  return `${base}${suffix}`
+}
+
 export function buildGatewayUrl(path: string): string {
   const suffix = normalizePath(path)
   try {

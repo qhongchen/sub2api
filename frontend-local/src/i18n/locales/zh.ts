@@ -1034,6 +1034,8 @@ export default {
     ws: 'WS',
     stream: '流式',
     sync: '同步',
+    cyber: '安全策略',
+    live: 'Live',
     unknown: '未知',
     in: '输入',
     out: '输出',
@@ -1081,7 +1083,7 @@ export default {
     exportExcelFailed: '使用数据导出失败',
     imageUnit: '张',
     userAgent: 'User-Agent',
-    tabs: { usage: '用量明细', errors: '错误请求' },
+    tabs: { usage: '用量明细', ranking: '用户排行', errors: '错误请求' },
     errors: {
       time: '时间',
       model: '模型',
@@ -1171,9 +1173,9 @@ export default {
       '30d': '30 天'
     },
     overall: {
-      operational: 'OPERATIONAL',
-      degraded: 'DEGRADED',
-      unavailable: 'UNAVAILABLE'
+      operational: '运行正常',
+      degraded: '服务降级',
+      unavailable: '服务不可用'
     },
     columns: {
       name: '名称',
@@ -1635,7 +1637,7 @@ export default {
       },
       metrics: { total: '总计', allowed: '放行', flagged: '标记', blocked: '阻止', unavailable: '不可用', timeouts: '超时', failovers: '故障切换' },
       pool: {
-        title: '审计池', description: '按顺序使用启用的 OpenAI 兼容节点；探测由服务端真实网络环境发起。', add: '新增节点', edit: '编辑节点', empty: '尚未配置审计节点。', node: '节点', model: '模型', limits: '超时 / 单片上限', credential: '凭据与探测', configured: 'API Key 已配置', missing: '未配置 API Key', probe: '连接测试', probing: '探测中...', probeProgress: '配置校验 - 请求已发送 - 等待服务响应...', probeResult: '配置校验 OK - 请求 OK - HTTP {http} - {status} - {latency} ms', name: '节点名称', id: '稳定节点 ID', baseUrl: 'Base URL', apiKey: 'API Key', keepSecret: '留空以保留已保存的 API Key', secretHint: '明文只在本次编辑内存中存在；保存成功后会立即清除。', clearSecret: '显式清除已保存的 API Key', timeout: '总超时（毫秒）', inputLimit: '单片 Unicode 字符上限', toggleNode: '切换节点 {name}', deleteConfirm: '从草稿中删除节点“{name}”？保存配置后生效。'
+        title: '审计池', description: '按顺序使用启用的 OpenAI 兼容节点；探测由服务端真实网络环境发起。', add: '新增节点', edit: '编辑节点', empty: '尚未配置审计节点。', node: '节点', model: '模型', limits: '超时 / 单片上限', credential: '凭据与探测', configured: 'API Key 已配置', missing: '未配置 API Key', invalid: 'API Key 无法解密，请重新输入', probe: '连接测试', probing: '探测中...', probeProgress: '配置校验 - 请求已发送 - 等待服务响应...', probeResult: '配置校验 OK - 请求 OK - HTTP {http} - {status} - {latency} ms', name: '节点名称', id: '稳定节点 ID', baseUrl: 'Base URL', apiKey: 'API Key', keepSecret: '留空以保留已保存的 API Key', reenterSecret: '已保存的 API Key 无法解密（加密密钥已变更），请重新输入', secretHint: '明文只在本次编辑内存中存在；保存成功后会立即清除。', clearSecret: '显式清除已保存的 API Key', timeout: '总超时（毫秒）', inputLimit: '单片 Unicode 字符上限', toggleNode: '切换节点 {name}', deleteConfirm: '从草稿中删除节点“{name}”？保存配置后生效。'
       },
       policy: {
         title: '审计策略', description: '配置适用分组、九类输入风险、Worker 与队列边界。', scope: '适用范围', allGroups: '全部分组', selectedGroups: '指定分组', searchGroups: '搜索分组', noGroups: '没有匹配分组', missingGroups: '配置中包含已删除的分组 ID', selectedCount: '已选择 {count} 个分组', scanners: 'Qwen3Guard 输入风险分类', workerCount: 'Worker 数量', queueCapacity: '持久队列容量', strategy: '节点策略', strategyHint: '按配置顺序优先尝试，必要时故障切换。'
@@ -1646,7 +1648,7 @@ export default {
         title: '审计事件', description: '按身份、入口、风险、Hash 和时间复核事件，详情中可查看完整提示词。', decision: '判定', risk: '风险等级', endpoint: '入口', groupId: '分组 ID', userId: '用户 ID', apiKeyId: 'API Key ID', keyword: '关键词', startAt: '开始时间', endAt: '结束时间', deleteSelected: '删除选中项（{count}）', deleteByFilter: '按筛选删除', filterDeleteDialogTitle: '按筛选删除审计事件', filterDeleteDialogDesc: '选择删除的时间范围与风险条件后即可执行删除；删除不可恢复。如需提前查看匹配数量，可先获取删除预览。', filterTimeRange: '删除时间范围', filterTimeRangeHint: '将删除所选截止时间之前产生的事件；预览后新产生的事件不受影响。', timePresets: { '1d': '1 天前', '7d': '7 天前', '30d': '30 天前', '90d': '90 天前', all: '全部时间', custom: '自定义范围' }, customRangeInvalid: '自定义范围需要有效的开始与结束时间，且开始早于结束。', moreConditions: '更多条件（入口 / 关键词 / 分组 / 用户）', filterDeletePreviewAction: '获取删除预览', filterDeletePreviewing: '正在生成预览...', filterDeleteNeedPreview: '可直接确认删除；如需提前查看匹配数量，可先获取删除预览。', filterDeleteConfirmInvalidRange: '请先选择有效的删除时间范围（自定义范围需开始早于结束）。', filterDeleteConfirmNoMatches: '当前筛选匹配 0 条事件，没有可删除的内容。', selectAll: '选择当前页全部事件', selectEvent: '选择事件 {id}', time: '时间', identity: '用户 / 邮箱 / API Key', user: '用户名', email: '用户邮箱', apiKey: 'API Key 名称', group: '分组', route: '入口 / 模型', result: '判定 / 风险', preview: '脱敏预览', empty: '没有符合条件的事件。', passEventsDisabled: '当前未开启“保存安全事件”：安全请求仍会完成审计，但不会出现在事件列表中；Flag 和 Critical 风险事件仍会保存。', openConfiguration: '前往配置', detailTitle: '提示词审计事件详情', tabs: { summary: '审计摘要', risks: '具体风险', technical: '技术信息' }, promptFull: '完整提示词（未脱敏）', promptFullHint: '完整提示词已随事件入库，仅供管理员复核触发内容；请按敏感数据妥善处理，切勿外泄。', guardReturn: '模型审计返回', guardReturnHint: '展示 Guard 归一化后的结构化结果（判定、分类、分数与脱敏证据），不含原始响应体。', riskSummaries: '风险摘要', evidence: '脱敏证据', score: '分数', categories: '分类', model: '模型', stage: '请求阶段', noRisks: '本事件没有派生风险摘要。', requestId: 'Request ID', promptHash: 'Prompt SHA-256', technical: { scanner: '扫描器', policy: '策略', guardEndpoint: 'Guard 节点', config: '配置版本', chunks: '分片数', latency: '耗时', protocol: '协议' }, deleteConfirmTitle: '删除审计事件？', deleteConfirmMessage: '将永久删除 {count} 条事件及符合条件的孤立任务。', filterDeleteCount: '服务端快照匹配 {count} 条事件。', snapshotMax: '快照最大事件 ID', expiresAt: '确认令牌过期时间', filterDeleteWarning: '只删除预览高水位内的事件；预览后产生的新事件会保留。筛选一旦变化，必须重新预览。', confirmFilterDelete: '确认永久删除'
       },
       messages: { saved: '提示词审计配置已保存，明文 API Key 状态已清除。', probeSucceeded: '审计节点连接正常。', deleted: '已删除 {count} 条审计事件。' },
-      errors: { loadConfig: '无法加载提示词审计配置。', loadRuntime: '无法加载提示词审计运行态。', loadGroups: '无法加载分组列表。', loadEvents: '无法加载审计事件。', loadDetail: '无法加载事件详情。', saveConfig: '配置保存失败。', probe: '节点探测失败。', delete: '事件删除失败。', previewDelete: '无法生成删除预览，请检查时间范围。', deleteConfirmation: '删除确认无效或已过期，请重新预览。', prompt_audit_config_conflict: '配置已被其他管理员更新。请重新加载服务端配置，再决定如何合并本地草稿。', prompt_guard_requires_audit_enabled: '开启同步阻止前必须先启用提示词审计。', prompt_audit_invalid_endpoint: '审计节点配置无效。', prompt_audit_endpoint_required: '启用审计前至少需要一个启用节点。', prompt_audit_groups_required: '指定分组模式至少需要选择一个分组。', prompt_audit_scanners_required: '至少需要启用一个风险分类。' }
+      errors: { loadConfig: '无法加载提示词审计配置。', loadRuntime: '无法加载提示词审计运行态。', loadGroups: '无法加载分组列表。', loadEvents: '无法加载审计事件。', loadDetail: '无法加载事件详情。', saveConfig: '配置保存失败。', probe: '节点探测失败。', delete: '事件删除失败。', previewDelete: '无法生成删除预览，请检查时间范围。', deleteConfirmation: '删除确认无效或已过期，请重新预览。', prompt_audit_config_conflict: '配置已被其他管理员更新。请重新加载服务端配置，再决定如何合并本地草稿。', prompt_audit_encryption_key_required: '未配置固定加密密钥，审计节点 API Key 将在服务重启后失效。请先设置 TOTP_ENCRYPTION_KEY 环境变量并重启服务。', prompt_guard_requires_audit_enabled: '开启同步阻止前必须先启用提示词审计。', prompt_audit_invalid_endpoint: '审计节点配置无效。', prompt_audit_endpoint_required: '启用审计前至少需要一个启用节点。', prompt_audit_groups_required: '指定分组模式至少需要选择一个分组。', prompt_audit_scanners_required: '至少需要启用一个风险分类。' }
     },
     // Dashboard
     dashboard: {
@@ -2620,10 +2622,25 @@ export default {
         title: '图片生成计费',
         description: '配置图片生成能力和图片基础单价，留空则使用默认价格',
         allowImageGeneration: '允许当前分组生图',
+        allowBatchImageGeneration: '允许当前分组批量生图',
         independentMultiplier: '生图倍率独立',
         imageMultiplier: '生图独立倍率',
+        batchDiscountMultiplier: '批量生图折扣倍率',
+        batchHoldMultiplier: '批量冻结价格比例',
+        batchSectionHint: '批量生图仅影响批量任务：结算价格会叠加批量折扣倍率，提交时冻结金额按普通生图原价 × 批量冻结价格比例计算。参考图也会产生上游输入 token 消耗，建议批量生图折扣倍率设置大于 0.5。',
+        batchDisabledHint: '请先开启当前分组生图，才能开启批量生图。',
+        batchGeminiOnlyHint: '批量生图当前仅支持 Gemini 分组。',
         modeHint: '默认关闭独立倍率时，图片费用 = 图片价格 × 当前分组有效倍率；开启独立倍率后，图片费用 = 图片价格 × 生图独立倍率。',
         finalPricePreview: '最终单张价格预览',
+        notConfigured: '未配置'
+      },
+      videoPricing: {
+        title: '视频生成计费',
+        description: '配置 Grok 视频生成的每秒单价（USD/秒），留空则使用默认每秒价（grok-imagine-video：480p $0.05/s、720p $0.07/s；video-1.5：480p $0.08/s、720p $0.14/s、1080p $0.25/s）',
+        independentMultiplier: '视频倍率独立',
+        videoMultiplier: '视频独立倍率',
+        modeHint: '视频按秒计费：费用 = 每秒价格 × 时长（1-15 秒，未指定默认 8 秒）。默认叠加当前分组有效倍率；开启独立倍率后改用视频独立倍率。',
+        finalPricePreview: '最终每秒价格预览',
         notConfigured: '未配置'
       },
       peakRate: {
@@ -2632,6 +2649,15 @@ export default {
         peakEnd: '高峰结束',
         peakMultiplier: '高峰倍率',
         multiplierHint: '作用于 token 计费倍率；token 计费的图片 token 同样适用，0 表示高峰 token 请求按 0 倍计费'
+      },
+      modelsList: {
+        title: '自定义 /v1/models 模型列表',
+        hint: '仅影响 /v1/models 展示结果，不影响白名单模型调用和账号调度。',
+        loading: '正在加载模型列表...',
+        empty: '暂无可展示模型',
+        selectedSummary: '已选 {selected} / {total}',
+        selectAll: '全选',
+        invertSelection: '反选'
       },
       compositeRoutes: {
         action: '路由',
@@ -2649,6 +2675,7 @@ export default {
         endpoint: '端点',
         targetPlatform: '目标平台',
         upstreamModel: '上游模型',
+        upstreamModelHint: '留空表示透传原始请求模型：前缀匹配下每个命中模型各自原样转发（如 deepseek-v4-flash、deepseek-v4-pro 分别转发）；填写则所有命中请求都固定转发该模型。',
         notes: '备注',
         enabled: '启用',
         preview: '预览',
@@ -2691,6 +2718,14 @@ export default {
         fallbackGroup: '降级分组',
         fallbackHint: '非 Claude Code 请求将使用此分组，留空则直接拒绝',
         noFallback: '不降级（直接拒绝）'
+      },
+      openaiLive: {
+        title: 'OpenAI Live',
+        allow: '允许访问 Live',
+        hint: '启用后，此 OpenAI 分组的 API Key 可以创建并控制 Live 语音会话。服务端必须运行在 Apple Silicon Mac，并安装官方 ChatGPT App。',
+        unsupportedTitle: '当前服务端不支持 Live',
+        unsupportedMessage: '当前 Sub2API 服务端无法生成 Live 所需的设备证明，即使开启也不能使用。是否仍然开启？',
+        enableAnyway: '仍然开启'
       },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',
@@ -3421,13 +3456,6 @@ export default {
       antigravityProjectIdHint:
         'standard-tier 且未自动返回 project_id 的 Antigravity 账号需要填写用户自带 GCP project。',
       createAccount: '添加账号',
-      autoRefresh: '自动刷新',
-      enableAutoRefresh: '启用自动刷新',
-      refreshInterval5s: '5 秒',
-      refreshInterval10s: '10 秒',
-      refreshInterval15s: '15 秒',
-      refreshInterval30s: '30 秒',
-      autoRefreshCountdown: '自动刷新：{seconds}s',
       listPendingSyncHint: '列表存在待同步变更，点击同步可补齐最新数据。',
       listPendingSyncAction: '立即同步',
       syncFromCrs: '从 CRS 同步',
@@ -3524,9 +3552,10 @@ export default {
       columns: {
         name: '名称',
         platformType: '平台/类型',
-        accountPlan: '套餐/隐私',
         platform: '平台',
         type: '类型',
+        plan: '套餐',
+        privacy: '隐私',
         capacity: '容量',
         notes: '备注',
         priority: '优先级',
@@ -3549,6 +3578,55 @@ export default {
         stickyShort: '粘性',
         ungrouped: '未分组',
         hint: '显示格式为“分组名 / 基础分 / 粘性加分”。基础分按当前筛选条件限定的候选账号计算，包含优先级、负载、排队、错误率、首包延迟、重置窗口、额度余量等因子；粘性加分只在开启粘性加权时用于 previous_response_id 或 session_hash。分数越大越优先。'
+      },
+      ollamaCloud: {
+        title: 'Ollama Cloud 用量',
+        sessionSecurityHint: '浏览器会话会加密落库，且只发送到固定的 Ollama 官方设置页。',
+        configured: '已配置',
+        notConfigured: '未配置',
+        notRefreshed: '尚未刷新',
+        encryptionKeyRequired: '请先配置持久 TOTP_ENCRYPTION_KEY，再保存浏览器会话。',
+        sessionLabel: 'Ollama 浏览器 Cookie',
+        sessionPlaceholder: 'wos-session=...; __Secure-authjs.session-token.0=...',
+        writeOnlyHint: '仅写入。已保存内容不可查看，留空不会覆盖。',
+        deleteSession: '删除会话',
+        deleteConfirm: '确定删除已保存的 Ollama 浏览器会话及其用量快照？',
+        refreshNow: '刷新用量',
+        autoRefresh: '自动刷新用量',
+        autoRefreshHint: '只有账号开关和全局开关同时启用时才会定时刷新。',
+        plan: '套餐',
+        fiveHour: '5 小时',
+        fiveHourShort: '5h',
+        sevenDay: '7 天',
+        sevenDayShort: '7d',
+        balance: '余额',
+        models: '模型',
+        status: '状态',
+        updatedAt: '更新时间',
+        ok: '正常',
+        unauthorized: '会话已过期',
+        failed: '刷新失败',
+        windowWithReset: '已用 {percent}，{reset} 重置',
+        loadFailed: '加载 Ollama Cloud 用量设置失败',
+        sessionSaved: 'Ollama 浏览器会话已保存',
+        sessionSaveFailed: '保存 Ollama 浏览器会话失败',
+        sessionDeleted: 'Ollama 浏览器会话已删除',
+        sessionDeleteFailed: '删除 Ollama 浏览器会话失败',
+        autoRefreshFailed: '更新自动刷新设置失败',
+        refreshSuccess: 'Ollama Cloud 用量已刷新',
+        refreshFailed: '刷新 Ollama Cloud 用量失败',
+        errors: {
+          request_failed: '请求失败',
+          empty_response: '响应为空',
+          response_host_mismatch: '响应主机不符合安全边界',
+          redirect_blocked: '官方设置页发生重定向',
+          unauthorized: '浏览器会话已过期',
+          http_error: '官方设置页返回错误',
+          response_read_failed: '读取响应失败',
+          response_too_large: '设置页超过响应大小限制',
+          invalid_html: '无法识别设置页格式',
+          OLLAMA_CLOUD_USAGE_REFRESH_RATE_LIMITED: '刷新过于频繁，请在 {retry_after_seconds} 秒后重试。'
+        }
       },
       upstreamBilling: {
         trustWarning: '此倍率由上游站点针对当前 API Key 自行声明，Sub2API 无法验证是否与实际扣费一致，请结合账单、余额变化和实际用量自行核验。',
@@ -3960,6 +4038,8 @@ export default {
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
+        longContextBilling: 'API 长上下文计费',
+        longContextBillingDesc: '默认关闭。仅当该账号的上游会按模型阈值收取 OpenAI API 长上下文费率时开启。',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           '默认关闭。开启后可启用 responses_websockets_v2 协议能力（受网关全局开关与账号类型开关约束）。',
@@ -4450,6 +4530,13 @@ export default {
           authCodePlaceholder: '粘贴完整 callback URL、?code=... 查询字符串或 code 值',
           authCodeHint: '支持完整 callback URL、查询字符串或裸 code。',
           refreshTokenAuth: '手动输入 RT',
+          ssoCookieAuth: 'SSO Cookie 导入',
+          ssoCookieDesc: '每行粘贴一个 Grok Web SSO key，系统会自动走 xAI Device Flow 并转换为 Grok Build OAuth 凭据。',
+          ssoCookieLabel: 'Grok Web SSO Key',
+          ssoCookiePlaceholder: '每行一个 SSO key\n支持多个，每行一个',
+          ssoCookieHint: '每行一个 SSO key；多个 key 会 3 路并发导入，耗时约 90 秒 × 批次数，建议使用对应地区代理。',
+          convertingSSO: '转换中...',
+          convertSSOAndCreate: '转换并创建账号',
           refreshTokenDesc: '输入已有的 xAI refresh token，支持批量输入（每行一个）。',
           refreshTokenPlaceholder: '粘贴您的 xAI refresh token...\n支持多个，每行一个',
           validating: '验证中...',
@@ -4459,6 +4546,7 @@ export default {
           missingExchangeParams: '缺少授权码、state 或 OAuth 会话',
           failedToExchangeCode: 'Grok 授权码兑换失败',
           failedToValidateRT: '验证 Grok refresh token 失败',
+          failedToConvertSSO: 'Grok SSO 转换失败',
           errors: {
             GROK_OAUTH_SESSION_NOT_FOUND: 'Grok OAuth 会话不存在或已过期，请重新生成授权链接。',
             GROK_OAUTH_INVALID_STATE: 'Grok OAuth state 与当前会话不匹配。',
@@ -5190,6 +5278,7 @@ export default {
       timeImmediate: '立即',
       timeNever: '永久',
       readStatus: '已读情况',
+      preview: '预览',
       eligible: '符合条件',
       readAt: '已读时间',
       unread: '未读',
@@ -5305,6 +5394,20 @@ export default {
       ipAddress: 'IP',
       clickToViewBalance: '点击查看充值记录',
       failedToLoadUser: '加载用户信息失败',
+      tokenRanking: {
+        subtitle: '按当前筛选与时间范围统计每个用户的 Token 用量',
+        rowHint: '点击查看该用户的用量明细',
+        userCount: '共 {count} 位用户',
+        columns: {
+          user: '用户',
+          requests: '请求数',
+          inputTokens: '输入 Token',
+          outputTokens: '输出 Token',
+          cacheTokens: '缓存 Token',
+          totalTokens: '总 Token',
+          cost: '费用'
+        }
+      },
       cleanup: {
         button: '清理',
         title: '清理使用记录',
@@ -6426,6 +6529,23 @@ export default {
         totpKeyNotConfigured:
           '请先在环境变量中配置 TOTP_ENCRYPTION_KEY。使用命令 openssl rand -hex 32 生成密钥。'
       },
+      panelRateLimit: {
+        title: '面板接口限流',
+        description: '限制面板 API 请求频率，防止高频用量和仪表盘查询压垮数据库',
+        proxySafeNote: '登录接口按用户账号计数，不受来源 IP 影响；公开接口按真实客户端 IP 计数，并自动跳过回环及内网代理地址。',
+        enabled: '启用面板接口限流',
+        enabledHint: '超出阈值时返回 HTTP 429，窗口重置后自动恢复。',
+        userRpm: '每账号请求上限',
+        userRpmHint: '单个账号每分钟允许的面板 API 请求总数；0 表示不限制。',
+        heavyRpm: '重查询请求上限',
+        heavyRpmHint: '单个账号每分钟允许的用量和仪表盘聚合查询次数；0 表示不限制。',
+        publicIpRpm: '公开接口每 IP 上限',
+        publicIpRpmHint: '无需登录的接口每个真实客户端 IP 每分钟请求上限；0 表示不限制。',
+        exemptAdmin: '管理员豁免',
+        exemptAdminHint: '开启后管理员账号不受面板限流约束。',
+        saved: '面板接口限流配置已保存',
+        saveFailed: '保存面板接口限流配置失败'
+      },
       turnstile: {
         title: 'Cloudflare Turnstile',
         description: '登录和注册的机器人防护',
@@ -6626,6 +6746,16 @@ export default {
         openaiCodexUserAgent: 'OpenAI Codex UA',
         openaiCodexUserAgentPlaceholder: 'codex-tui/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.125.0)',
         openaiCodexUserAgentHint: '用于规避 OpenAI 上游 Cloudflare 对浏览器 UA 的访问质询。仅在检测到客户端 User-Agent 为浏览器（Mozilla/...）时生效，其他客户端原样透传。留空使用内置默认值。',
+        codexFingerprintSignals: 'Codex 引擎指纹信号',
+        codexFingerprintSignalsDesc: '定义引擎指纹信号：勾「必须」的信号需全部命中（AND），每条 / 分隔的变体取或（OR）；一条都不勾即不校验。默认只勾 x-codex- 前缀。类型：头精确 / 头前缀 / body 路径。',
+        codexFpTypeHeaderExact: '头精确',
+        codexFpTypeHeaderPrefix: '头前缀',
+        codexFpTypeBodyPath: 'body 路径',
+        codexFpMatchPlaceholder: '匹配，变体用 / 分隔（如 session-id / session_id 或 x-codex-）',
+        codexFpRequired: '必须',
+        codexFingerprintNoRequiredWarn: '未勾选任何「必须」信号，引擎指纹门当前不生效，等于放行所有通过身份/版本的候选。如需启用校验，请至少勾选一条信号。',
+        codexAddRow: '添加一条',
+        codexRemoveRow: '删除',
       },
       webSearchEmulation: {
         title: 'Web Search 模拟',
@@ -6775,6 +6905,9 @@ export default {
         balanceRechargeMultiplier: '余额充值倍率',
         balanceRechargeMultiplierHint: '用户每支付 1 CNY 可获得多少 USD 余额',
         balanceRechargePreview: '预览：1 CNY = {usd} USD',
+        subscriptionUsdToCnyRate: '订阅 CNY 换算汇率',
+        subscriptionUsdToCnyRateHint: 'CNY 支付通道下，套餐每 1 USD 价格收取多少 CNY（如 7.15）。0 或留空 = 不换算，订阅按 price 数值直接收款。启用后所有套餐 price 必须按 USD 定价',
+        subscriptionUsdToCnyRateDisabled: '未启用（按 price 直付）',
         rechargeFeeRate: '充值手续费率',
         rechargeFeeRateHint: '用户充值时额外收取的手续费百分比，0 表示不收取手续费',
         rechargeFeePreview: '预览：充值 100 元，手续费 {fee} 元',
@@ -6797,6 +6930,8 @@ export default {
         cancelRateLimitWindowModeFixed: '固定',
         alipayForceQRCode: '支付宝强制二维码支付',
         alipayForceQRCodeHint: '启用后，移动端支付宝用户将统一使用二维码扫码支付，不再跳转至手机网站支付',
+        alipayMobilePrecreateDeepLink: '支付宝移动端当面付唤起',
+        alipayMobilePrecreateDeepLinkHint: '启用后，移动端官方支付宝订单调用当面付并尝试打开支付宝；失败时显示动态二维码。该设置优先于强制二维码支付',
         helpText: '帮助文本',
         helpImageUrl: '帮助图片链接',
         manageProviders: '管理服务商',
@@ -7152,6 +7287,18 @@ export default {
         cooldownSecondsHint: '默认回避持续时间（1-7200 秒）；上游返回明确 reset 时仍优先使用上游时间',
         saved: '429 默认回避设置保存成功',
         saveFailed: '保存 429 默认回避设置失败'
+      },
+      ollamaCloudUsage: {
+        title: 'Ollama Cloud 用量刷新',
+        description: '在模型请求后刷新单独启用账号的 Ollama 官方用量；默认关闭。',
+        enabled: '启用全局自动刷新',
+        enabledHint: '仅刷新已保存浏览器会话且账号自身也开启自动刷新的账号。',
+        intervalMinutes: '持续请求最长等待（分钟）',
+        intervalHint: '范围 15-1440 分钟；请求持续不断时最晚在此时间强制刷新。',
+        debounceMinutes: '请求安静等待（分钟）',
+        debounceHint: '范围 1-60 分钟；最后一次模型请求安静满此时长后刷新。',
+        saved: 'Ollama Cloud 用量刷新设置已保存',
+        saveFailed: '保存 Ollama Cloud 用量刷新设置失败'
       },
       streamTimeout: {
         title: '流超时处理',
@@ -7859,6 +8006,14 @@ export default {
       cancelledDesc: '您已取消本次支付',
       waitingPayment: '等待支付...',
       cancelOrder: '取消订单',
+      alipayOpening: '正在打开支付宝',
+      alipayContinueInApp: '请在支付宝中完成支付',
+      alipayWaitingHint: '支付结果将由服务端确认，本页面会自动更新',
+      alipayFallbackTitle: '打开支付宝未成功',
+      alipayFallbackHint: '可重新打开支付宝，或保存下方二维码后从支付宝相册识别',
+      reopenAlipay: '重新打开支付宝',
+      saveQRCode: '保存二维码',
+      alipaySaveAndScanHint: '保存二维码后，打开支付宝扫一扫，从相册选择二维码',
     },
     orders: {
       title: '我的订单',
@@ -8111,6 +8266,8 @@ export default {
       selectGroup: '请选择分组',
       groupRequired: '请选择订阅分组',
       priceRequired: '价格必须大于 0',
+      subscriptionCnyPayPreview: 'CNY 通道实扣预览：{amount}',
+      subscriptionCnyPayPreviewWithFee: '（含 {feeRate}% 手续费：{total}）',
       validityDaysRequired: '有效期天数必须大于 0',
       groupMissing: '缺失',
       groupInfo: '分组信息',

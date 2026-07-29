@@ -463,6 +463,103 @@
             </div>
           </div>
 
+          <!-- Ollama Cloud Usage Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.ollamaCloudUsage.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.ollamaCloudUsage.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="ollamaCloudUsageLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.ollamaCloudUsage.enabled") }}
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.ollamaCloudUsage.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="ollamaCloudUsageForm.enabled" />
+                </div>
+                <div
+                  v-if="ollamaCloudUsageForm.enabled"
+                  class="grid grid-cols-1 gap-5 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-dark-700"
+                >
+                  <div>
+                    <label
+                      for="ollama-cloud-usage-debounce"
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.ollamaCloudUsage.debounceMinutes") }}
+                    </label>
+                    <input
+                      id="ollama-cloud-usage-debounce"
+                      v-model.number="ollamaCloudUsageForm.debounce_minutes"
+                      type="number"
+                      min="1"
+                      max="60"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.ollamaCloudUsage.debounceHint") }}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      for="ollama-cloud-usage-interval"
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.ollamaCloudUsage.intervalMinutes") }}
+                    </label>
+                    <input
+                      id="ollama-cloud-usage-interval"
+                      v-model.number="ollamaCloudUsageForm.interval_minutes"
+                      type="number"
+                      min="15"
+                      max="1440"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.ollamaCloudUsage.intervalHint") }}
+                    </p>
+                  </div>
+                </div>
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    :disabled="ollamaCloudUsageSaving"
+                    @click="saveOllamaCloudUsageSettings"
+                  >
+                    {{
+                      ollamaCloudUsageSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -1765,6 +1862,133 @@
                   {{ t("admin.settings.apiKeyAcl.forwardedClientIpHeadersRiskHint") }}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <!-- Panel API Rate Limit Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div class="flex items-center gap-2">
+                <Icon name="shield" size="md" class="text-primary-500" />
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ t("admin.settings.panelRateLimit.title") }}
+                </h2>
+              </div>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.panelRateLimit.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="panelRateLimitLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div
+                  class="rounded border border-sky-200 bg-sky-50 p-4 text-sm text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300"
+                >
+                  {{ t("admin.settings.panelRateLimit.proxySafeNote") }}
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.panelRateLimit.enabled") }}
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.panelRateLimit.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="panelRateLimitForm.enabled" />
+                </div>
+                <div
+                  v-if="panelRateLimitForm.enabled"
+                  class="space-y-5 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                    <div>
+                      <label class="input-label">
+                        {{ t("admin.settings.panelRateLimit.userRpm") }}
+                      </label>
+                      <input
+                        v-model.number="panelRateLimitForm.user_rpm"
+                        type="number"
+                        min="0"
+                        max="100000"
+                        class="input"
+                      />
+                      <p class="input-hint">
+                        {{ t("admin.settings.panelRateLimit.userRpmHint") }}
+                      </p>
+                    </div>
+                    <div>
+                      <label class="input-label">
+                        {{ t("admin.settings.panelRateLimit.heavyRpm") }}
+                      </label>
+                      <input
+                        v-model.number="panelRateLimitForm.heavy_rpm"
+                        type="number"
+                        min="0"
+                        max="100000"
+                        class="input"
+                      />
+                      <p class="input-hint">
+                        {{ t("admin.settings.panelRateLimit.heavyRpmHint") }}
+                      </p>
+                    </div>
+                    <div>
+                      <label class="input-label">
+                        {{ t("admin.settings.panelRateLimit.publicIpRpm") }}
+                      </label>
+                      <input
+                        v-model.number="panelRateLimitForm.public_ip_rpm"
+                        type="number"
+                        min="0"
+                        max="100000"
+                        class="input"
+                      />
+                      <p class="input-hint">
+                        {{ t("admin.settings.panelRateLimit.publicIpRpmHint") }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="flex items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+                  >
+                    <div>
+                      <label class="font-medium text-gray-900 dark:text-white">
+                        {{ t("admin.settings.panelRateLimit.exemptAdmin") }}
+                      </label>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.panelRateLimit.exemptAdminHint") }}
+                      </p>
+                    </div>
+                    <Toggle v-model="panelRateLimitForm.exempt_admin" />
+                  </div>
+                </div>
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    :disabled="panelRateLimitSaving"
+                    @click="savePanelRateLimitSettings"
+                  >
+                    {{
+                      panelRateLimitSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -3927,6 +4151,105 @@
                   {{ t("admin.settings.claudeCode.maxVersionHint") }}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{
+                  t(
+                    "admin.settings.gatewayForwarding.codexFingerprintSignals",
+                  )
+                }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{
+                  t(
+                    "admin.settings.gatewayForwarding.codexFingerprintSignalsDesc",
+                  )
+                }}
+              </p>
+            </div>
+            <div class="space-y-3 p-6">
+              <div
+                v-for="(row, index) in codexFingerprintRows"
+                :key="`codex-fingerprint-${index}`"
+                class="flex flex-col gap-2 sm:flex-row sm:items-center"
+              >
+                <select
+                  v-model="row.type"
+                  class="input w-full text-sm sm:w-40 sm:shrink-0"
+                >
+                  <option value="header_exact">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.codexFpTypeHeaderExact",
+                      )
+                    }}
+                  </option>
+                  <option value="header_prefix">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.codexFpTypeHeaderPrefix",
+                      )
+                    }}
+                  </option>
+                  <option value="body_path">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.codexFpTypeBodyPath",
+                      )
+                    }}
+                  </option>
+                </select>
+                <input
+                  v-model="row.match"
+                  type="text"
+                  class="input min-w-0 flex-1 font-mono text-sm"
+                  :placeholder="
+                    t(
+                      'admin.settings.gatewayForwarding.codexFpMatchPlaceholder',
+                    )
+                  "
+                />
+                <label
+                  class="flex shrink-0 items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400"
+                >
+                  <input v-model="row.required" type="checkbox" />
+                  {{
+                    t("admin.settings.gatewayForwarding.codexFpRequired")
+                  }}
+                </label>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm shrink-0 text-red-600 hover:text-red-700 dark:text-red-400"
+                  @click="removeCodexFingerprintRow(index)"
+                >
+                  {{ t("admin.settings.gatewayForwarding.codexRemoveRow") }}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="addCodexFingerprintRow"
+              >
+                {{ t("admin.settings.gatewayForwarding.codexAddRow") }}
+              </button>
+
+              <p
+                v-if="codexFingerprintNoRequired"
+                class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+              >
+                {{
+                  t(
+                    "admin.settings.gatewayForwarding.codexFingerprintNoRequiredWarn",
+                  )
+                }}
+              </p>
             </div>
           </div>
 
@@ -6153,6 +6476,34 @@
                   </div>
                   <div>
                     <label class="input-label">{{
+                      t("admin.settings.payment.subscriptionUsdToCnyRate")
+                    }}</label>
+                    <input
+                      :value="form.payment_subscription_usd_to_cny_rate || ''"
+                      @input="
+                        form.payment_subscription_usd_to_cny_rate =
+                          parseFloat(
+                            ($event.target as HTMLInputElement).value,
+                          ) || 0
+                      "
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      class="input"
+                      :placeholder="
+                        t(
+                          'admin.settings.payment.subscriptionUsdToCnyRateDisabled',
+                        )
+                      "
+                    />
+                    <p class="mt-0.5 text-xs text-gray-400">
+                      {{
+                        t("admin.settings.payment.subscriptionUsdToCnyRateHint")
+                      }}
+                    </p>
+                  </div>
+                  <div>
+                    <label class="input-label">{{
                       t("admin.settings.payment.rechargeFeeRate")
                     }}</label>
                     <div class="relative">
@@ -6357,6 +6708,19 @@
                       </button>
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
                         t("admin.settings.payment.alipayForceQRCodeHint")
+                      }}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="input-label">{{
+                      t("admin.settings.payment.alipayMobilePrecreateDeepLink")
+                    }}</label>
+                    <div class="flex items-center gap-2">
+                      <Toggle
+                        v-model="form.payment_alipay_mobile_precreate_deep_link"
+                      />
+                      <span class="text-sm text-gray-500 dark:text-gray-400">{{
+                        t("admin.settings.payment.alipayMobilePrecreateDeepLinkHint")
                       }}</span>
                     </div>
                   </div>
@@ -7027,6 +7391,12 @@ import {
   normalizeRegistrationEmailSuffixDomains,
   parseRegistrationEmailSuffixWhitelistInput,
 } from "@/utils/registrationEmailPolicy";
+import {
+  defaultFingerprintSignalRows,
+  parseFingerprintSignalsToRows,
+  serializeFingerprintRowsToJSON,
+  type FingerprintSignalRow,
+} from "./codexFingerprintSignals";
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
@@ -7167,6 +7537,24 @@ const rateLimit429CooldownForm = reactive({
   cooldown_seconds: 5,
 });
 
+const ollamaCloudUsageLoading = ref(true);
+const ollamaCloudUsageSaving = ref(false);
+const ollamaCloudUsageForm = reactive({
+  enabled: false,
+  interval_minutes: 60,
+  debounce_minutes: 1,
+});
+
+const panelRateLimitLoading = ref(true);
+const panelRateLimitSaving = ref(false);
+const panelRateLimitForm = reactive({
+  enabled: true,
+  user_rpm: 240,
+  heavy_rpm: 60,
+  exempt_admin: true,
+  public_ip_rpm: 300,
+});
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
 const streamTimeoutSaving = ref(false);
@@ -7274,6 +7662,7 @@ type SettingsForm = Omit<
   | "wechat_connect_open_enabled"
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
+  | "payment_alipay_mobile_precreate_deep_link"
 > & {
   smtp_password: string;
   turnstile_secret_key: string;
@@ -7286,6 +7675,7 @@ type SettingsForm = Omit<
   wechat_connect_open_enabled: boolean;
   wechat_connect_mp_enabled: boolean;
   wechat_connect_mobile_enabled: boolean;
+  payment_alipay_mobile_precreate_deep_link: boolean;
   oidc_connect_client_secret: string;
   github_oauth_client_secret: string;
   google_oauth_client_secret: string;
@@ -7350,6 +7740,7 @@ const form = reactive<SettingsForm>({
   payment_order_timeout_minutes: 30,
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
+  payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
   payment_enabled_types: [],
   payment_help_image_url: "",
@@ -7363,6 +7754,7 @@ const form = reactive<SettingsForm>({
   payment_cancel_rate_limit_unit: "day",
   payment_cancel_rate_limit_window_mode: "rolling",
   payment_alipay_force_qrcode: false,
+  payment_alipay_mobile_precreate_deep_link: false,
   table_default_page_size: tablePageSizeDefault,
   table_page_size_options: [10, 20, 50, 100],
   custom_menu_items: [] as Array<{
@@ -7515,6 +7907,7 @@ const form = reactive<SettingsForm>({
   rewrite_message_cache_control: false,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
+  codex_cli_only_engine_fingerprint_signals: "",
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -7532,6 +7925,25 @@ const form = reactive<SettingsForm>({
   // Allow user view error requests
   allow_user_view_error_requests: false,
 });
+
+const codexFingerprintRows = ref<FingerprintSignalRow[]>(
+  defaultFingerprintSignalRows(),
+);
+const codexFingerprintNoRequired = computed(
+  () => !codexFingerprintRows.value.some((row) => row.required),
+);
+
+function addCodexFingerprintRow(): void {
+  codexFingerprintRows.value.push({
+    type: "header_exact",
+    match: "",
+    required: false,
+  });
+}
+
+function removeCodexFingerprintRow(index: number): void {
+  codexFingerprintRows.value.splice(index, 1);
+}
 
 type OpenAIAdvancedSchedulerOverrideKey =
   | "openai_advanced_scheduler_lb_top_k"
@@ -8360,6 +8772,12 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    codexFingerprintRows.value =
+      form.codex_cli_only_engine_fingerprint_signals?.trim()
+        ? parseFingerprintSignalsToRows(
+            form.codex_cli_only_engine_fingerprint_signals,
+          )
+        : defaultFingerprintSignalRows();
     form.forwarded_client_ip_headers = normalizeForwardedClientIpHeaders(
       form.forwarded_client_ip_headers,
     );
@@ -8861,6 +9279,8 @@ async function saveSettings() {
         form.antigravity_user_agent_version?.trim() || "",
       openai_codex_user_agent:
         form.openai_codex_user_agent?.trim() || "",
+      codex_cli_only_engine_fingerprint_signals:
+        serializeFingerprintRowsToJSON(codexFingerprintRows.value),
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
@@ -8873,6 +9293,8 @@ async function saveSettings() {
       payment_balance_disabled: form.payment_balance_disabled,
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
+      payment_subscription_usd_to_cny_rate:
+        Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
@@ -8889,6 +9311,8 @@ async function saveSettings() {
       payment_cancel_rate_limit_window_mode:
         form.payment_cancel_rate_limit_window_mode,
       payment_alipay_force_qrcode: form.payment_alipay_force_qrcode,
+      payment_alipay_mobile_precreate_deep_link:
+        form.payment_alipay_mobile_precreate_deep_link,
       openai_advanced_scheduler_enabled: form.openai_advanced_scheduler_enabled,
       openai_advanced_scheduler_sticky_weighted_enabled:
         form.openai_advanced_scheduler_sticky_weighted_enabled,
@@ -9262,6 +9686,80 @@ async function saveRateLimit429CooldownSettings() {
     );
   } finally {
     rateLimit429CooldownSaving.value = false;
+  }
+}
+
+async function loadOllamaCloudUsageSettings() {
+  ollamaCloudUsageLoading.value = true;
+  try {
+    Object.assign(
+      ollamaCloudUsageForm,
+      await adminAPI.accounts.getOllamaCloudUsageSettings(),
+    );
+  } catch (_error: unknown) {
+    // Keep fail-safe defaults when the optional endpoint is unavailable.
+  } finally {
+    ollamaCloudUsageLoading.value = false;
+  }
+}
+
+async function saveOllamaCloudUsageSettings() {
+  ollamaCloudUsageSaving.value = true;
+  try {
+    const updated = await adminAPI.accounts.updateOllamaCloudUsageSettings({
+      enabled: ollamaCloudUsageForm.enabled,
+      interval_minutes: ollamaCloudUsageForm.interval_minutes,
+      debounce_minutes: ollamaCloudUsageForm.debounce_minutes,
+    });
+    Object.assign(ollamaCloudUsageForm, updated);
+    appStore.showSuccess(t("admin.settings.ollamaCloudUsage.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.ollamaCloudUsage.saveFailed"),
+      ),
+    );
+  } finally {
+    ollamaCloudUsageSaving.value = false;
+  }
+}
+
+async function loadPanelRateLimitSettings() {
+  panelRateLimitLoading.value = true;
+  try {
+    Object.assign(
+      panelRateLimitForm,
+      await adminAPI.settings.getPanelRateLimitSettings(),
+    );
+  } catch (_error: unknown) {
+    // Keep backend defaults when the optional endpoint is unavailable.
+  } finally {
+    panelRateLimitLoading.value = false;
+  }
+}
+
+async function savePanelRateLimitSettings() {
+  panelRateLimitSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updatePanelRateLimitSettings({
+      enabled: panelRateLimitForm.enabled,
+      user_rpm: panelRateLimitForm.user_rpm,
+      heavy_rpm: panelRateLimitForm.heavy_rpm,
+      exempt_admin: panelRateLimitForm.exempt_admin,
+      public_ip_rpm: panelRateLimitForm.public_ip_rpm,
+    });
+    Object.assign(panelRateLimitForm, updated);
+    appStore.showSuccess(t("admin.settings.panelRateLimit.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.panelRateLimit.saveFailed"),
+      ),
+    );
+  } finally {
+    panelRateLimitSaving.value = false;
   }
 }
 
@@ -9884,6 +10382,8 @@ onMounted(() => {
   loadAdminApiKey();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
+  loadOllamaCloudUsageSettings();
+  loadPanelRateLimitSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
