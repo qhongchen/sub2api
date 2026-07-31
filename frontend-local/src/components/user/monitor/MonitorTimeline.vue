@@ -19,64 +19,44 @@
       role="img"
       :aria-label="t('monitorCommon.history60pts', { n: normalizedLength })"
     >
-      <div class="relative h-full w-full">
-        <svg
-          class="absolute inset-0 h-full w-full"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <line
-            v-for="y in GRID_LINES"
-            :key="y"
-            x1="0"
-            :y1="y"
-            x2="100"
-            :y2="y"
-            class="stroke-gray-200/80 dark:stroke-dark-600/70"
-            stroke-width="1"
-            vector-effect="non-scaling-stroke"
-          />
-          <line
-            x1="0"
-            :y1="INCIDENT_Y"
-            x2="100"
-            :y2="INCIDENT_Y"
-            class="stroke-gray-300/80 dark:stroke-dark-600"
-            stroke-width="1"
-            stroke-dasharray="2 3"
-            vector-effect="non-scaling-stroke"
-          />
-          <path
-            v-for="segment in lineSegments"
-            :key="segment.key"
-            :d="segment.path"
-            fill="none"
-            class="stroke-cyan-500 dark:stroke-cyan-400"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            vector-effect="non-scaling-stroke"
-          />
-        </svg>
-
-        <span
-          v-for="point in displayPoints"
-          :key="point.key"
-          class="group absolute inset-y-0"
-          :style="point.slotStyle"
-          :title="point.title"
-        >
-          <span
-            class="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-gray-200 opacity-0 transition-opacity group-hover:opacity-100 dark:bg-dark-600"
-          ></span>
-          <span
-            class="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-white transition-transform group-hover:scale-150 dark:ring-dark-800"
-            :class="point.markerClass"
-            :style="{ top: `${point.y}%` }"
-          ></span>
-        </span>
-      </div>
+      <svg
+        class="h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <line
+          v-for="y in GRID_LINES"
+          :key="y"
+          x1="0"
+          :y1="y"
+          x2="100"
+          :y2="y"
+          class="stroke-gray-200/80 dark:stroke-dark-600/70"
+          stroke-width="1"
+          vector-effect="non-scaling-stroke"
+        />
+        <line
+          x1="0"
+          :y1="INCIDENT_Y"
+          x2="100"
+          :y2="INCIDENT_Y"
+          class="stroke-gray-300/80 dark:stroke-dark-600"
+          stroke-width="1"
+          stroke-dasharray="2 3"
+          vector-effect="non-scaling-stroke"
+        />
+        <path
+          v-for="segment in lineSegments"
+          :key="segment.key"
+          :d="segment.path"
+          fill="none"
+          :class="segment.strokeClass"
+          stroke-width="2"
+          stroke-linecap="round"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
     </div>
 
     <div
@@ -91,8 +71,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { MonitorTimelinePoint } from '@/api/channelMonitor'
-import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
+import type { MonitorStatus, MonitorTimelinePoint } from '@/api/channelMonitor'
 import {
   STATUS_DEGRADED,
   STATUS_ERROR,
@@ -112,28 +91,23 @@ const props = withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
-const { statusLabel, formatLatency, formatRelativeTime } = useChannelMonitorFormat()
 
 interface ChartPoint {
-  key: string
   index: number
   x: number
-  y: number
-  connectsLine: boolean
-  markerClass: string
-  slotStyle: Record<string, string>
-  title: string
+  y: number | null
+  status: MonitorStatus
 }
 
 interface LineSegment {
   key: string
   path: string
+  strokeClass: string
 }
 
 const GRID_LINES = [16, 44, 72]
 const CHART_TOP = 10
 const CHART_BOTTOM = 72
-const NO_LATENCY_Y = 82
 const INCIDENT_Y = 90
 
 const normalizedLength = computed(() => {
@@ -165,62 +139,51 @@ const displayPoints = computed<ChartPoint[]>(() => {
     const index = padCount + offset
     const x = (index + 0.5) * slotWidth
     const latency = normalizedLatency(point.latency_ms)
-    const connectsLine =
-      latency !== null &&
-      (point.status === STATUS_OPERATIONAL || point.status === STATUS_DEGRADED)
-    const y = connectsLine
-      ? CHART_BOTTOM - (latency / maxLatency) * (CHART_BOTTOM - CHART_TOP)
-      : point.status === STATUS_FAILED || point.status === STATUS_ERROR
-        ? INCIDENT_Y
-        : NO_LATENCY_Y
-    const latencyText = latency === null ? formatLatency(null) : `${formatLatency(latency)}ms`
-    const relative = formatRelativeTime(point.checked_at)
-    const label = statusLabel(point.status)
-    let markerClass = 'h-1.5 w-1.5 bg-gray-400 dark:bg-gray-500'
-
-    if (point.status === STATUS_OPERATIONAL && connectsLine) {
-      markerClass = 'h-1.5 w-1.5 bg-cyan-500 dark:bg-cyan-400'
-    } else if (point.status === STATUS_DEGRADED) {
-      markerClass = 'h-2 w-2 bg-amber-500 dark:bg-amber-400'
-    } else if (point.status === STATUS_FAILED || point.status === STATUS_ERROR) {
-      markerClass = 'h-2 w-2 bg-red-500 dark:bg-red-400'
-    }
+    const isIncident = point.status === STATUS_FAILED || point.status === STATUS_ERROR
+    const y = isIncident
+      ? INCIDENT_Y
+      : latency === null
+        ? null
+        : CHART_BOTTOM - (latency / maxLatency) * (CHART_BOTTOM - CHART_TOP)
 
     return {
-      key: `${index}-${point.checked_at}`,
       index,
       x,
       y,
-      connectsLine,
-      markerClass,
-      slotStyle: {
-        left: `${index * slotWidth}%`,
-        width: `${slotWidth}%`,
-      },
-      title: `${relative} · ${label} · ${latencyText}`,
+      status: point.status,
     }
   })
 })
 
-const lineSegments = computed<LineSegment[]>(() => {
-  const segments: ChartPoint[][] = []
-  let current: ChartPoint[] = []
-
-  for (const point of displayPoints.value) {
-    const previous = current[current.length - 1]
-    if (!point.connectsLine || (previous && point.index !== previous.index + 1)) {
-      if (current.length > 1) segments.push(current)
-      current = []
-    }
-    if (point.connectsLine) current.push(point)
+function strokeClassForStatus(status: MonitorStatus): string {
+  if (status === STATUS_DEGRADED) return 'stroke-amber-500 dark:stroke-amber-400'
+  if (status === STATUS_FAILED || status === STATUS_ERROR) {
+    return 'stroke-red-500 dark:stroke-red-400'
   }
-  if (current.length > 1) segments.push(current)
+  return 'stroke-emerald-500 dark:stroke-emerald-400'
+}
 
-  return segments.map((segment) => ({
-    key: `${segment[0].index}-${segment[segment.length - 1].index}`,
-    path: segment
-      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(3)} ${point.y.toFixed(3)}`)
-      .join(' '),
-  }))
+const lineSegments = computed<LineSegment[]>(() => {
+  const segments: LineSegment[] = []
+
+  for (let index = 1; index < displayPoints.value.length; index += 1) {
+    const previous = displayPoints.value[index - 1]
+    const current = displayPoints.value[index]
+    if (
+      previous.index + 1 !== current.index ||
+      previous.y === null ||
+      current.y === null
+    ) {
+      continue
+    }
+
+    segments.push({
+      key: `${previous.index}-${current.index}`,
+      path: `M ${previous.x.toFixed(3)} ${previous.y.toFixed(3)} L ${current.x.toFixed(3)} ${current.y.toFixed(3)}`,
+      strokeClass: strokeClassForStatus(current.status),
+    })
+  }
+
+  return segments
 })
 </script>
