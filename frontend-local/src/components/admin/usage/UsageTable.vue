@@ -83,7 +83,7 @@
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.cost') }}</div>
-            <div class="font-semibold text-emerald-600 dark:text-emerald-300">{{ hasBillableCost(row) ? `$${num(row.actual_cost).toFixed(6)}` : '-' }}</div>
+            <div class="font-semibold text-emerald-600 dark:text-emerald-300">{{ hasBillableCost(row) ? `$${accountBilled(row).toFixed(6)}` : '-' }}</div>
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.requestId') }}</div>
@@ -113,6 +113,10 @@
                   :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
                 >
                   {{ formatDuration(row.duration_ms) }}
+                </span>
+                <span class="text-gray-400 dark:text-dark-500">{{ t('usage.outputSpeed') }}</span>
+                <span class="font-medium tabular-nums text-gray-700 dark:text-dark-200">
+                  {{ formatOutputSpeed(row) }}
                 </span>
               </div>
             </div>
@@ -344,7 +348,7 @@
                   <span>-</span>
                 </span>
                 <div v-else class="inline-flex items-center justify-start gap-1.5">
-                  <span class="font-mono text-sm font-semibold text-gray-950 dark:text-white">${{ num(row.actual_cost).toFixed(6) }}</span>
+                  <span class="font-mono text-sm font-semibold text-gray-950 dark:text-white">${{ accountBilled(row).toFixed(6) }}</span>
                   <button
                     type="button"
                     :aria-label="t('usage.costDetails')"
@@ -391,6 +395,10 @@
                       :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
                     >
                       {{ formatDuration(row.duration_ms) }}
+                    </span>
+                    <span class="text-gray-400 dark:text-dark-500">{{ t('usage.outputSpeed') }}</span>
+                    <span class="font-medium tabular-nums text-gray-700 dark:text-dark-200">
+                      {{ formatOutputSpeed(row) }}
                     </span>
                   </div>
                 </div>
@@ -849,6 +857,22 @@ const formatDuration = (ms: number | null | undefined): string => {
     return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
   }
   return `${Math.floor(totalSeconds / 3600)}h ${Math.floor((totalSeconds % 3600) / 60)}m`
+}
+
+const outputTokensPerSecond = (row: UsageTableRow): number | null => {
+  const outputTokens = num(row.output_tokens)
+  const firstTokenMs = row.first_token_ms
+  const durationMs = row.duration_ms
+  if (outputTokens <= 0 || firstTokenMs == null || durationMs == null || durationMs <= firstTokenMs) return null
+
+  const value = (outputTokens * 1000) / (durationMs - firstTokenMs)
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+const formatOutputSpeed = (row: UsageTableRow): string => {
+  const value = outputTokensPerSecond(row)
+  if (value == null) return '-'
+  return `${value.toFixed(value < 1 ? 2 : 1)} tok/s`
 }
 
 const latencyBarClass = (row: UsageTableRow): string | string[] => {
