@@ -27,7 +27,7 @@
  *
  *   - **`opt-out`** (default enabled) — menu visible when settings unloaded,
  *     hidden only when the backend explicitly sends `false`. Use for features
- *     that ship enabled by default (Channel Monitor, Payment).
+ *     that ship enabled by default (Channel Monitor).
  *   - **`opt-in`**  (default disabled) — menu hidden when settings unloaded,
  *     visible only when the backend explicitly sends `true`. Use for features
  *     that ship disabled (Available Channels).
@@ -104,20 +104,10 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Available Channels',
   }),
-  payment: defineFlag({
-    key: 'payment_enabled',
-    mode: 'opt-out',
-    label: 'Payment',
-  }),
   riskControl: defineFlag({
     key: 'risk_control_enabled',
     mode: 'opt-in',
     label: 'Risk Control',
-  }),
-  affiliate: defineFlag({
-    key: 'affiliate_enabled',
-    mode: 'opt-in',
-    label: 'Affiliate',
   }),
 } as const
 

@@ -96,14 +96,6 @@ const balance = computed(() => authStore.user?.balance.toFixed(2) || '0.00')
       </button>
     </form>
 
-    <template #footer>
-      <p class="text-gray-600">
-        Don't have an account?
-        <router-link to="/register" class="font-medium text-indigo-600 hover:underline">
-          Sign up
-        </router-link>
-      </p>
-    </template>
   </AuthLayout>
 </template>
 

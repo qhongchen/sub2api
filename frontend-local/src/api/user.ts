@@ -13,9 +13,7 @@ import type {
   User,
   ChangePasswordRequest,
   NotifyEmailEntry,
-  UserAuthProvider,
-  UserAffiliateDetail,
-  AffiliateTransferResponse
+  UserAuthProvider
 } from '@/types'
 import type { PlatformQuotasResponse } from './admin/users'
 
@@ -176,16 +174,6 @@ export async function startOAuthBinding(
   window.location.href = startURL
 }
 
-export async function getAffiliateDetail(): Promise<UserAffiliateDetail> {
-  const { data } = await apiClient.get<UserAffiliateDetail>('/user/aff')
-  return data
-}
-
-export async function transferAffiliateQuota(): Promise<AffiliateTransferResponse> {
-  const { data } = await apiClient.post<AffiliateTransferResponse>('/user/aff/transfer')
-  return data
-}
-
 export async function getMyPlatformQuotas(): Promise<PlatformQuotasResponse> {
   const { data } = await apiClient.get<PlatformQuotasResponse>('/user/platform-quotas')
   return data
@@ -204,8 +192,6 @@ export const userAPI = {
   unbindAuthIdentity,
   buildOAuthBindingStartURL,
   startOAuthBinding,
-  getAffiliateDetail,
-  transferAffiliateQuota,
   getMyPlatformQuotas
 }
 

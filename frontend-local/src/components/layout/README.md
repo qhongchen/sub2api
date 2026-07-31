@@ -103,20 +103,12 @@ Simple centered layout for authentication pages (login/register).
 ```vue
 <template>
   <AuthLayout>
-    <!-- Login/Register form content -->
+    <!-- Login or pending account-completion form content -->
     <h2 class="mb-6 text-2xl font-bold">Login</h2>
 
     <form @submit.prevent="handleLogin">
       <!-- Form fields -->
     </form>
-
-    <!-- Optional footer slot -->
-    <template #footer>
-      <p>
-        Don't have an account?
-        <router-link to="/register" class="text-indigo-600 hover:underline"> Sign up </router-link>
-      </p>
-    </template>
   </AuthLayout>
 </template>
 

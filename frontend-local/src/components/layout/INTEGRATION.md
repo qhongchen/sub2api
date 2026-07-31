@@ -33,6 +33,7 @@ const routes: RouteRecordRaw[] = [
     path: '/register',
     name: 'Register',
     component: RegisterView,
+    // Pending OAuth/SSO account completion only. Do not expose a public link.
     meta: { requiresAuth: false }
   },
 
@@ -54,12 +55,6 @@ const routes: RouteRecordRaw[] = [
     name: 'Usage',
     component: () => import('@/views/UsageView.vue'),
     meta: { requiresAuth: true, title: 'Usage Statistics' }
-  },
-  {
-    path: '/redeem',
-    name: 'Redeem',
-    component: () => import('@/views/RedeemView.vue'),
-    meta: { requiresAuth: true, title: 'Redeem Code' }
   },
   {
     path: '/profile',
@@ -99,17 +94,10 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/ProxiesView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true, title: 'Proxies' }
   },
-  {
-    path: '/admin/redeem-codes',
-    name: 'AdminRedeemCodes',
-    component: () => import('@/views/admin/RedeemCodesView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true, title: 'Redeem Codes' }
-  },
-
   // Default redirect
   {
     path: '/',
-    redirect: '/dashboard'
+    redirect: '/login'
   }
 ]
 
@@ -208,13 +196,6 @@ import { AppLayout } from '@/components/layout'
     <h2 class="mb-6 text-2xl font-bold text-gray-900">Login</h2>
 
     <!-- Your login form here -->
-
-    <template #footer>
-      <p class="text-gray-600">
-        Don't have an account?
-        <router-link to="/register" class="text-indigo-600 hover:underline"> Sign up </router-link>
-      </p>
-    </template>
   </AuthLayout>
 </template>
 

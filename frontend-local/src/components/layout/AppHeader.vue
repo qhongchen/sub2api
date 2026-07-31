@@ -251,10 +251,8 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
-const flagPayment = makeSidebarFlag(FeatureFlags.payment)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
-const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
@@ -324,10 +322,6 @@ const accountDropdownItems = computed(() => finalizeNav([
   { path: '/available-channels', label: t('nav.availableChannels'), icon: 'server', hideInSimpleMode: true, featureFlag: flagAvailableChannels },
   { path: '/monitor', label: t('nav.channelStatus'), icon: 'server', featureFlag: flagChannelMonitor },
   { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard', hideInSimpleMode: true },
-  { path: '/purchase', label: t('nav.buySubscription'), icon: 'creditCard', hideInSimpleMode: true, featureFlag: flagPayment },
-  { path: '/orders', label: t('nav.myOrders'), icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
-  { path: '/redeem', label: t('nav.redeem'), icon: 'gift', hideInSimpleMode: true },
-  { path: '/affiliate', label: t('nav.affiliate'), icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
   ...customMenuItems.value
 ]))
 

@@ -36,7 +36,7 @@ describe('AppHeader account dropdown', () => {
     expect(accountDropdownBlock).toContain("{ path: '/keys', label: t('nav.apiKeys')")
     expect(accountDropdownBlock).toContain("{ path: '/usage', label: t('nav.usage')")
     expect(accountDropdownBlock).toContain("{ path: '/subscriptions', label: t('nav.mySubscriptions')")
-    expect(accountDropdownBlock).toContain("{ path: '/orders', label: t('nav.myOrders')")
+    expect(accountDropdownBlock).not.toContain("'/orders'")
     expect(accountDropdownBlock).not.toContain("'/admin/users'")
   })
 })

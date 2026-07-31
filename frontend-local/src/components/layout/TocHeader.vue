@@ -378,12 +378,9 @@ let moreOpenTimer: ReturnType<typeof setTimeout> | null = null
 let moreCloseTimer: ReturnType<typeof setTimeout> | null = null
 
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
-const flagPayment = makeSidebarFlag(FeatureFlags.payment)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
-const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
-const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 
 const user = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.isAdmin)
@@ -458,10 +455,6 @@ const primaryNavItems = computed(() => (isAdmin.value ? adminPrimaryNavItems.val
 
 const secondaryNavItems = computed(() => finalizeNav([
   { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard', hideInSimpleMode: true },
-  { path: '/purchase', label: t('nav.buySubscription'), icon: 'creditCard', hideInSimpleMode: true, featureFlag: flagPayment },
-  { path: '/orders', label: t('nav.myOrders'), icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
-  { path: '/redeem', label: t('nav.redeem'), icon: 'gift', hideInSimpleMode: true },
-  { path: '/affiliate', label: t('nav.affiliate'), icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
   { path: '/profile', label: t('nav.profile'), icon: 'user' },
   ...customMenuItems.value
 ]))
@@ -506,56 +499,12 @@ const adminSettingsGroups = computed((): TocNavGroup[] => {
         { path: '/admin/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
         { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: 'creditCard', hideInSimpleMode: true },
         { path: '/admin/announcements', label: t('nav.announcements'), icon: 'bell' },
-        { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: 'gift', hideInSimpleMode: true },
-        { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: 'gift', hideInSimpleMode: true },
         {
           path: '/admin/risk-control',
           label: t('nav.riskControl'),
           icon: 'shield',
           hideInSimpleMode: true,
           featureFlag: flagRiskControl
-        },
-        {
-          path: '/admin/affiliates/invites',
-          label: t('nav.affiliateInviteRecords'),
-          icon: 'users',
-          hideInSimpleMode: true,
-          featureFlag: flagAffiliate
-        },
-        {
-          path: '/admin/affiliates/rebates',
-          label: t('nav.affiliateRebateRecords'),
-          icon: 'document',
-          hideInSimpleMode: true,
-          featureFlag: flagAffiliate
-        },
-        {
-          path: '/admin/affiliates/transfers',
-          label: t('nav.affiliateTransferRecords'),
-          icon: 'creditCard',
-          hideInSimpleMode: true,
-          featureFlag: flagAffiliate
-        },
-        {
-          path: '/admin/orders/dashboard',
-          label: t('nav.paymentDashboard'),
-          icon: 'chart',
-          hideInSimpleMode: true,
-          featureFlag: flagAdminPayment
-        },
-        {
-          path: '/admin/orders',
-          label: t('nav.orderManagement'),
-          icon: 'document',
-          hideInSimpleMode: true,
-          featureFlag: flagAdminPayment
-        },
-        {
-          path: '/admin/orders/plans',
-          label: t('nav.paymentPlans'),
-          icon: 'creditCard',
-          hideInSimpleMode: true,
-          featureFlag: flagAdminPayment
         }
       ]
     },

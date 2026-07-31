@@ -8,7 +8,7 @@ describe('embedded-url', () => {
     Object.defineProperty(window, 'location', {
       value: {
         origin: 'https://app.example.com',
-        href: 'https://app.example.com/user/purchase',
+        href: 'https://app.example.com/dashboard',
       },
       writable: true,
       configurable: true,
@@ -42,7 +42,7 @@ describe('embedded-url', () => {
     expect(url.searchParams.get('lang')).toBe('zh-CN')
     expect(url.searchParams.get('ui_mode')).toBe('embedded')
     expect(url.searchParams.get('src_host')).toBe('https://app.example.com')
-    expect(url.searchParams.get('src_url')).toBe('https://app.example.com/user/purchase')
+    expect(url.searchParams.get('src_url')).toBe('https://app.example.com/dashboard')
   })
 
   it('omits optional params when they are empty', () => {

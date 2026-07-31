@@ -65,8 +65,6 @@ Centered: Both horizontally and vertically
 │  │                                     │   │
 │  └─────────────────────────────────────┘   │
 │                                             │
-│    Don't have an account? Sign up          │
-│                                             │
 └─────────────────────────────────────────────┘
 ```
 

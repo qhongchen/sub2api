@@ -13,33 +13,37 @@ This directory contains the Vue Router configuration for the Sub2API frontend ap
 
 ### Public Routes (No Authentication Required)
 
-| Path        | Component    | Description            |
-| ----------- | ------------ | ---------------------- |
-| `/login`    | LoginView    | User login page        |
-| `/register` | RegisterView | User registration page |
+| Path               | Component         | Description                              |
+| ------------------ | ----------------- | ---------------------------------------- |
+| `/login`           | LoginView         | User login page                          |
+| `/register`        | RegisterView      | Pending OAuth/SSO account completion     |
+| `/email-verify`    | EmailVerifyView   | Pending account email verification       |
+| `/auth/*/callback` | OAuth callback    | OAuth/SSO callback routes                |
+| `/key-usage`       | KeyUsageView      | Public API key usage query               |
+| `/legal/:documentId` | LegalDocumentView | Public legal document                  |
 
 ### User Routes (Authentication Required)
 
-| Path         | Component     | Description                  |
-| ------------ | ------------- | ---------------------------- |
-| `/`          | -             | Redirects to `/dashboard`    |
-| `/dashboard` | DashboardView | User dashboard with stats    |
-| `/keys`      | KeysView      | API key management           |
-| `/usage`     | UsageView     | Usage records and statistics |
-| `/redeem`    | RedeemView    | Redeem code interface        |
-| `/profile`   | ProfileView   | User profile settings        |
+| Path             | Component         | Description                  |
+| ---------------- | ----------------- | ---------------------------- |
+| `/`              | -                 | Redirects to `/login`        |
+| `/dashboard`     | DashboardView     | User dashboard with stats    |
+| `/keys`          | KeysView          | API key management           |
+| `/usage`         | UsageView         | Usage records and statistics |
+| `/subscriptions` | SubscriptionsView | Assigned subscriptions       |
+| `/profile`       | ProfileView       | User profile settings        |
 
 ### Admin Routes (Admin Role Required)
 
-| Path               | Component          | Description                     |
-| ------------------ | ------------------ | ------------------------------- |
-| `/admin`           | -                  | Redirects to `/admin/dashboard` |
-| `/admin/dashboard` | AdminDashboardView | Admin dashboard                 |
-| `/admin/users`     | AdminUsersView     | User management                 |
-| `/admin/groups`    | AdminGroupsView    | Group management                |
-| `/admin/accounts`  | AdminAccountsView  | Account management              |
-| `/admin/proxies`   | AdminProxiesView   | Proxy management                |
-| `/admin/redeem`    | AdminRedeemView    | Redeem code management          |
+| Path                   | Component              | Description                     |
+| ---------------------- | ---------------------- | ------------------------------- |
+| `/admin`               | -                      | Redirects to `/admin/dashboard` |
+| `/admin/dashboard`     | AdminDashboardView     | Admin dashboard                 |
+| `/admin/users`         | AdminUsersView         | User and balance management     |
+| `/admin/groups`        | AdminGroupsView        | Group management                |
+| `/admin/accounts`      | AdminAccountsView      | Account pool management         |
+| `/admin/proxies`       | AdminProxiesView       | Proxy management                |
+| `/admin/subscriptions` | AdminSubscriptionsView | Subscription assignment         |
 
 ### Special Routes
 

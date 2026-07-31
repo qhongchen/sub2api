@@ -102,6 +102,7 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: () => import('@/views/auth/RegisterView.vue'),
+    // Pending OAuth/SSO account completion only. Do not expose a public link.
     meta: { requiresAuth: false }
   }
 ]
@@ -119,7 +120,6 @@ export default router
 ```typescript
 // From template
 <router-link to="/login">Login</router-link>
-<router-link to="/register">Sign Up</router-link>
 
 // From script
 import { useRouter } from 'vue-router';
@@ -128,9 +128,6 @@ const router = useRouter();
 
 // Navigate to login
 router.push('/login');
-
-// Navigate to register
-router.push('/register');
 
 // Navigate with redirect query
 router.push({

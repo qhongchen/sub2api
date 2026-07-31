@@ -256,9 +256,6 @@ const fallbackPlaceholders = [
   "{{days_remaining}}",
   "{{current_balance}}",
   "{{threshold}}",
-  "{{recharge_url}}",
-  "{{recharge_amount}}",
-  "{{order_id}}",
   "{{unsubscribe_url}}",
   "{{account_id}}",
   "{{account_name}}",
@@ -288,6 +285,17 @@ const fallbackPlaceholders = [
   "{{report_end_time}}",
   "{{report_html}}",
 ];
+
+const excludedTemplateEvents = new Set([
+  "subscription.purchase_success",
+  "balance.recharge_success",
+]);
+
+const excludedTemplatePlaceholders = new Set([
+  "{{recharge_url}}",
+  "{{recharge_amount}}",
+  "{{order_id}}",
+]);
 
 const loadingList = ref(true);
 const loadingTemplate = ref(false);
@@ -332,11 +340,6 @@ const eventDisplayMeta: Record<string, EventDisplayMeta> = {
     timing: "用户添加并验证额外通知邮箱时发送。",
     categoryLabel: "认证安全",
   },
-  "subscription.purchase_success": {
-    label: "订阅开通成功",
-    timing: "订阅订单完成支付并成功开通或续期后发送。",
-    categoryLabel: "订阅",
-  },
   "subscription.expiry_reminder": {
     label: "订阅到期提醒",
     timing: "后台任务在订阅仍有效且距离到期剩余 7 天、3 天、1 天时各发送一次，可通过邮件设置中的开关关闭。",
@@ -345,11 +348,6 @@ const eventDisplayMeta: Record<string, EventDisplayMeta> = {
   "balance.low": {
     label: "余额不足提醒",
     timing: "用户余额低于全局或个人配置的提醒阈值时发送。",
-    categoryLabel: "计费",
-  },
-  "balance.recharge_success": {
-    label: "余额充值成功",
-    timing: "余额充值订单支付完成并入账后发送。",
     categoryLabel: "计费",
   },
   "account.quota_alert": {
@@ -395,11 +393,6 @@ const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
     timing: "Sent when a user adds and verifies an extra notification email address.",
     categoryLabel: "Auth",
   },
-  "subscription.purchase_success": {
-    label: "Subscription Activated",
-    timing: "Sent after a subscription order is paid and the subscription is activated or extended.",
-    categoryLabel: "Subscription",
-  },
   "subscription.expiry_reminder": {
     label: "Subscription Expiry Reminder",
     timing: "Sent by the background job when an active subscription has 7, 3, or 1 day remaining. It can be disabled in Email settings.",
@@ -408,11 +401,6 @@ const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
   "balance.low": {
     label: "Low Balance Alert",
     timing: "Sent when a user's balance drops below the global or personal reminder threshold.",
-    categoryLabel: "Billing",
-  },
-  "balance.recharge_success": {
-    label: "Balance Recharge Success",
-    timing: "Sent after a balance recharge order is paid and credited.",
     categoryLabel: "Billing",
   },
   "account.quota_alert": {
@@ -510,7 +498,10 @@ const placeholderList = computed(() => {
     new Set(
       combined
         .map((item) => formatPlaceholder(item))
-        .filter((item) => item.length > 0),
+        .filter(
+          (item) =>
+            item.length > 0 && !excludedTemplatePlaceholders.has(item),
+        ),
     ),
   );
 });
@@ -593,7 +584,9 @@ async function loadTemplateList() {
   loadingList.value = true;
   try {
     const response = await adminAPI.settings.getEmailTemplates();
-    eventOptions.value = response.events.map(normalizeEventOption);
+    eventOptions.value = response.events
+      .map(normalizeEventOption)
+      .filter((option) => !excludedTemplateEvents.has(option.value));
     localeOptions.value = response.locales;
     placeholders.value = response.placeholders || [];
     initializingSelection.value = true;
