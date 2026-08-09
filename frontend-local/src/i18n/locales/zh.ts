@@ -1643,7 +1643,7 @@ export default {
       policy: {
         title: '审计策略', description: '配置适用分组、九类输入风险、Worker 与队列边界。', scope: '适用范围', allGroups: '全部分组', selectedGroups: '指定分组', searchGroups: '搜索分组', noGroups: '没有匹配分组', missingGroups: '配置中包含已删除的分组 ID', selectedCount: '已选择 {count} 个分组', scanners: 'Qwen3Guard 输入风险分类', workerCount: 'Worker 数量', queueCapacity: '持久队列容量', strategy: '节点策略', strategyHint: '按配置顺序优先尝试，必要时故障切换。'
       },
-      saveBar: { enabled: '启用提示词审计', blocking: '同步阻止', storePass: '保存安全事件', dirty: '有未保存的更改', synced: '配置已同步' },
+      saveBar: { enabled: '启用提示词审计', blocking: '同步阻止', blockingLatestTurnOnly: '仅审最新输入和上一轮输出', storePass: '保存安全事件', dirty: '有未保存的更改', synced: '配置已同步' },
       blockingConfirm: { title: '开启同步阻止？', message: '适用请求会在账号选择、计费和访问上游之前等待 Guard。命中 Block、Guard 不可用或响应非法时，请求都不会访问上游。', confirm: '理解风险并开启' },
       events: {
         title: '审计事件', description: '按身份、入口、风险、Hash 和时间复核事件，详情中可查看完整提示词。', decision: '判定', risk: '风险等级', endpoint: '入口', groupId: '分组 ID', userId: '用户 ID', apiKeyId: 'API Key ID', keyword: '关键词', startAt: '开始时间', endAt: '结束时间', deleteSelected: '删除选中项（{count}）', deleteByFilter: '按筛选删除', filterDeleteDialogTitle: '按筛选删除审计事件', filterDeleteDialogDesc: '选择删除的时间范围与风险条件后即可执行删除；删除不可恢复。如需提前查看匹配数量，可先获取删除预览。', filterTimeRange: '删除时间范围', filterTimeRangeHint: '将删除所选截止时间之前产生的事件；预览后新产生的事件不受影响。', timePresets: { '1d': '1 天前', '7d': '7 天前', '30d': '30 天前', '90d': '90 天前', all: '全部时间', custom: '自定义范围' }, customRangeInvalid: '自定义范围需要有效的开始与结束时间，且开始早于结束。', moreConditions: '更多条件（入口 / 关键词 / 分组 / 用户）', filterDeletePreviewAction: '获取删除预览', filterDeletePreviewing: '正在生成预览...', filterDeleteNeedPreview: '可直接确认删除；如需提前查看匹配数量，可先获取删除预览。', filterDeleteConfirmInvalidRange: '请先选择有效的删除时间范围（自定义范围需开始早于结束）。', filterDeleteConfirmNoMatches: '当前筛选匹配 0 条事件，没有可删除的内容。', selectAll: '选择当前页全部事件', selectEvent: '选择事件 {id}', time: '时间', identity: '用户 / 邮箱 / API Key', user: '用户名', email: '用户邮箱', apiKey: 'API Key 名称', group: '分组', route: '入口 / 模型', result: '判定 / 风险', preview: '脱敏预览', empty: '没有符合条件的事件。', passEventsDisabled: '当前未开启“保存安全事件”：安全请求仍会完成审计，但不会出现在事件列表中；Flag 和 Critical 风险事件仍会保存。', openConfiguration: '前往配置', detailTitle: '提示词审计事件详情', tabs: { summary: '审计摘要', risks: '具体风险', technical: '技术信息' }, promptFull: '完整提示词（未脱敏）', promptFullHint: '完整提示词已随事件入库，仅供管理员复核触发内容；请按敏感数据妥善处理，切勿外泄。', guardReturn: '模型审计返回', guardReturnHint: '展示 Guard 归一化后的结构化结果（判定、分类、分数与脱敏证据），不含原始响应体。', riskSummaries: '风险摘要', evidence: '脱敏证据', score: '分数', categories: '分类', model: '模型', stage: '请求阶段', noRisks: '本事件没有派生风险摘要。', requestId: 'Request ID', promptHash: 'Prompt SHA-256', technical: { scanner: '扫描器', policy: '策略', guardEndpoint: 'Guard 节点', config: '配置版本', chunks: '分片数', latency: '耗时', protocol: '协议' }, deleteConfirmTitle: '删除审计事件？', deleteConfirmMessage: '将永久删除 {count} 条事件及符合条件的孤立任务。', filterDeleteCount: '服务端快照匹配 {count} 条事件。', snapshotMax: '快照最大事件 ID', expiresAt: '确认令牌过期时间', filterDeleteWarning: '只删除预览高水位内的事件；预览后产生的新事件会保留。筛选一旦变化，必须重新预览。', confirmFilterDelete: '确认永久删除'
@@ -3069,6 +3069,8 @@ export default {
       timeoutMs: 'HTTP 超时 (ms)',
       retryCount: '失败重试次数',
       sampleRate: '采样率',
+      proxy: '代理服务器',
+      proxyHint: '审计请求经指定代理（IP管理-代理服务器）发出，适用于出口 IP 不受 OpenAI 支持的部署；默认直连。',
       recordNonHits: '记录未命中输入',
       recordNonHitsHint: '开启后会记录抽样但未命中的请求摘要，摘要会先脱敏再入库。',
       preHashCheck: '启用前置哈希比对',
@@ -3635,8 +3637,12 @@ export default {
         trustWarning: '此倍率由上游站点针对当前 API Key 自行声明，Sub2API 无法验证是否与实际扣费一致，请结合账单、余额变化和实际用量自行核验。',
         autoProbeSettings: '上游倍率自动探测',
         intervalMinutes: '探测周期（分钟）',
-        autoProbe: '自动探测',
-        autoProbeHint: '启用后按全局探测周期查询此账号；全局探测关闭时不会执行。',
+        autoProbe: '自动探测上游声明倍率',
+        autoProbeHint: '启用后按全局周期刷新上游声明倍率；此开关本身不会修改账号倍率。',
+        syncRate: '同步上游声明倍率',
+        syncRateHint: '成功探测后自动更新账号倍率，同步的是不含高峰的基准倍率；探测失败或声明超出允许范围时保持不变。开启本项会同时打开“自动探测上游声明倍率”。',
+        syncRateManagedHint: '当前倍率由上游声明的基准倍率（不含高峰）自动维护。',
+        syncedRateTooltip: '该账号倍率由上游声明的基准倍率（不含高峰）自动同步',
         manualProbe: '立即探测上游倍率',
         stale: '已过期',
         unsupported: '不支持',
@@ -3651,7 +3657,7 @@ export default {
         settingsSaved: '上游倍率探测设置已保存',
         settingsFailed: '保存上游倍率探测设置失败',
         probeFailed: '探测上游倍率失败',
-        noEligibleAccounts: '请选择 OpenAI API Key 账号',
+        noEligibleAccounts: '请选择 API Key 账号',
         batchLimit: '每次最多探测 20 个账号',
         batchCompleted: '已完成 {count} 个账号的倍率探测',
         batchPartial: '倍率探测部分完成：成功 {success} 个，失败 {failed} 个'
@@ -3872,7 +3878,11 @@ export default {
         collapseExpirations: '收起重置次数到期时间',
         expirationDetails: '重置次数到期明细',
         noCreditsAvailable: '没有可用的重置次数',
-        resetSuccess: '已重置 {windows} 个窗口',
+        resetSuccess: '已重置 {windows} 个窗口，次数和账号状态已更新',
+        resetCacheRefreshFailed: '窗口已重置、账号状态已恢复，但重置次数未能回读，请重新查询次数。',
+        resetAccountRecoveryFailed: '窗口已重置，但账号状态恢复失败，请手动恢复账号状态。',
+        resetAccountRefreshFailed: '窗口、账号状态和重置次数缓存已更新，但无法加载最新账号显示。',
+        refreshCachePersistFailed: '已显示实时次数，但到期明细获取失败，仍保留原有缓存明细。',
         confirmTitle: '确认重置周限',
         confirmMessage: '将消耗 1 次重置次数立即恢复当前窗口，剩余 {count} 次。此操作不可撤销，确定继续吗？'
       },
@@ -4041,6 +4051,9 @@ export default {
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
+        flattenNamespaces: '摊平 Codex namespace 工具（兼容）',
+        flattenNamespacesDesc:
+          '默认关闭：/responses 上的 namespace 工具声明原样转发，这正是 ChatGPT Codex 后端期望的形态。仅当该 OAuth 账号指向不认识 namespace 的兼容上游时才开启——摊平会把工具改名为 namespace__tool，使按 functions.<命名空间>.<工具> 寻址的模型（如 gpt-5.6 多智能体）无法调用。压缩（compact）请求不受该开关影响，始终摊平。',
         longContextBilling: 'API 长上下文计费',
         longContextBillingDesc: '默认关闭。仅当该账号的上游会按模型阈值收取 OpenAI API 长上下文费率时开启。',
         responsesWebsocketsV2: 'Responses WebSocket v2',
@@ -6749,6 +6762,12 @@ export default {
         openaiCodexUserAgent: 'OpenAI Codex UA',
         openaiCodexUserAgentPlaceholder: 'codex-tui/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.125.0)',
         openaiCodexUserAgentHint: '用于规避 OpenAI 上游 Cloudflare 对浏览器 UA 的访问质询。仅在检测到客户端 User-Agent 为浏览器（Mozilla/...）时生效，其他客户端原样透传。留空使用内置默认值。',
+        openaiCodexClientVersion: 'Codex 客户端版本号',
+        openaiCodexClientVersionPlaceholder: '留空则跟随自动同步',
+        openaiCodexClientVersionHint: '网关对上游声明的 Codex 客户端版本号，User-Agent 与 version 头同源使用。留空表示使用自动同步到的官方最新稳定版；填写后固定为该版本，不再跟随同步。',
+        openaiCodexVersionAutoSync: '自动同步 Codex 版本号',
+        openaiCodexVersionAutoSyncHint: '每 6 小时从官方仓库获取最新稳定版客户端版本号，无需为了跟版本而升级本服务。关闭后仅使用上方手填版本或内置版本。',
+        openaiCodexVersionSyncedValue: '当前同步到：{version}',
         codexFingerprintSignals: 'Codex 引擎指纹信号',
         codexFingerprintSignalsDesc: '定义引擎指纹信号：勾「必须」的信号需全部命中（AND），每条 / 分隔的变体取或（OR）；一条都不勾即不校验。默认只勾 x-codex- 前缀。类型：头精确 / 头前缀 / body 路径。',
         codexFpTypeHeaderExact: '头精确',

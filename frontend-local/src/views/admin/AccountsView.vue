@@ -405,6 +405,7 @@
                       :manual-refresh-token="usageManualRefreshToken"
                       compact
                       @usage-refreshed="handleUsageRefreshed"
+                      @account-updated="handleAccountUpdated"
                     />
                     <span v-else class="account-table-muted">-</span>
                   </td>
@@ -450,7 +451,18 @@
                   </td>
 
                   <td v-if="isCardFieldVisible('billing_rate')" class="account-table-cell">
-                    <span class="account-table-metric-value">{{ formatMultiplier(account.rate_multiplier) }}</span>
+                    <span class="account-table-metric-value inline-flex items-center gap-1">
+                      <span>{{ formatMultiplier(account.rate_multiplier) }}</span>
+                      <span
+                        v-if="account.extra?.upstream_billing_rate_sync_enabled === true"
+                        class="inline-flex cursor-help text-emerald-600 dark:text-emerald-400"
+                        :aria-label="t('admin.accounts.upstreamBilling.syncedRateTooltip')"
+                        :title="t('admin.accounts.upstreamBilling.syncedRateTooltip')"
+                        data-testid="account-rate-sync-indicator"
+                      >
+                        <Icon name="sync" size="xs" />
+                      </span>
+                    </span>
                   </td>
 
                   <td v-if="isCardFieldVisible('upstream_billing_rate')" class="account-table-cell">
@@ -603,6 +615,7 @@ import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRules
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
+import { formatMultiplier as formatMultiplierValue } from '@/utils/formatters'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type {
@@ -1346,7 +1359,7 @@ const getAccountEmail = (account: Account) => {
 const getTodayStats = (account: Account) => todayStatsByAccountId.value[String(account.id)] ?? buildDefaultTodayStats()
 
 const formatMultiplier = (value: number | null | undefined) => {
-  return `${(Number(value ?? 1) || 0).toFixed(2)}x`
+  return `${formatMultiplierValue(Number(value ?? 1) || 0)}x`
 }
 
 const formatSchedulerScore = (value: number | null | undefined) => {
@@ -1741,7 +1754,10 @@ const handleProbeUpstreamBilling = async (account: Account) => {
   probingUpstreamBilling.add(account.id)
   try {
     const result = await adminAPI.accounts.probeUpstreamBilling(account.id)
-    if (result.snapshot) patchUpstreamBillingSnapshot(account.id, result.snapshot)
+    if (result.snapshot) {
+      patchUpstreamBillingSnapshot(account.id, result.snapshot)
+      await reload()
+    }
   } catch (error) {
     console.error('Failed to probe upstream billing:', error)
     appStore.showError(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
@@ -1752,7 +1768,7 @@ const handleProbeUpstreamBilling = async (account: Account) => {
 
 const handleBulkProbeUpstreamBilling = async () => {
   const accountIDs = accounts.value
-    .filter(account => account.platform === 'openai' && account.type === 'apikey')
+    .filter(account => account.type === 'apikey')
     .map(account => account.id)
 
   if (accountIDs.length === 0) {
@@ -1770,6 +1786,7 @@ const handleBulkProbeUpstreamBilling = async () => {
     results.forEach(result => {
       if (result.snapshot) patchUpstreamBillingSnapshot(result.account_id, result.snapshot)
     })
+    await reload()
     const failed = results.filter(result => result.error).length
     if (failed > 0) {
       appStore.showError(t('admin.accounts.upstreamBilling.batchPartial', {
