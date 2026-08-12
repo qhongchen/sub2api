@@ -349,6 +349,11 @@
                     <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.usage.billingMode') }}</span>
                     <Select v-model="filters.billing_mode" :options="billingModeOptions" />
                   </label>
+
+                  <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.usage.upstreamModelAudit') }}</span>
+                    <Select v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" />
+                  </label>
                 </div>
               </div>
 
@@ -599,6 +604,7 @@ const filters = ref<AdminUsageQueryParams>({
   request_type: undefined,
   billing_type: null,
   billing_mode: undefined,
+  upstream_model_mismatch: undefined,
   start_date: undefined,
   end_date: undefined,
 })
@@ -670,6 +676,12 @@ const billingModeOptions = computed<SelectOption[]>(() => [
   { value: 'image', label: t('admin.usage.billingModeImage') },
 ])
 
+const upstreamModelMismatchOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allUpstreamModelAudit') },
+  { value: true, label: t('admin.usage.upstreamModelMismatchOnly') },
+  { value: false, label: t('admin.usage.upstreamModelMatchedOnly') },
+])
+
 const breakdownFilters = computed(() => {
   const f: Record<string, any> = {}
   if (filters.value.user_id) f.user_id = filters.value.user_id
@@ -678,6 +690,9 @@ const breakdownFilters = computed(() => {
   if (filters.value.group_id) f.group_id = filters.value.group_id
   if (filters.value.request_type != null) f.request_type = filters.value.request_type
   if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
+  if (filters.value.upstream_model_mismatch != null) {
+    f.upstream_model_mismatch = filters.value.upstream_model_mismatch
+  }
   return f
 })
 
@@ -691,6 +706,7 @@ const activeFilterCount = computed(() => {
   if (filters.value.request_type) count += 1
   if (filters.value.billing_type != null) count += 1
   if (filters.value.billing_mode) count += 1
+  if (filters.value.upstream_model_mismatch != null) count += 1
   if (filters.value.start_date || filters.value.end_date) count += 1
   return count
 })
@@ -909,6 +925,7 @@ const loadModelStats = async (source: ModelDistributionSource, force = false) =>
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       billing_type: filters.value.billing_type,
+      upstream_model_mismatch: filters.value.upstream_model_mismatch,
     }
 
     const response = await adminAPI.dashboard.getModelStats({ ...baseParams, model_source: source })
@@ -949,6 +966,7 @@ const loadChartData = async () => {
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       billing_type: filters.value.billing_type,
+      upstream_model_mismatch: filters.value.upstream_model_mismatch,
       include_stats: false,
       include_trend: true,
       include_model_stats: false,
@@ -996,6 +1014,7 @@ const resetFilters = () => {
     request_type: undefined,
     billing_type: null,
     billing_mode: undefined,
+    upstream_model_mismatch: undefined,
     start_date: undefined,
     end_date: undefined,
   }
@@ -1062,7 +1081,9 @@ const exportToExcel = async () => {
     const XLSX = await import('xlsx')
     const headers = [
       t('usage.time'), t('admin.usage.user'), t('usage.apiKeyFilter'),
-      t('admin.usage.account'), t('usage.model'), t('usage.upstreamModel'), t('usage.reasoningEffort'), t('admin.usage.group'),
+      t('admin.usage.account'), t('usage.requestedModel'), t('usage.sentUpstreamModel'),
+      t('usage.upstreamResponseModel'), t('usage.upstreamModelMismatch'),
+      t('usage.reasoningEffort'), t('admin.usage.group'),
       t('usage.inboundEndpoint'), t('usage.upstreamEndpoint'),
       t('usage.type'),
       t('admin.usage.inputTokens'), t('admin.usage.outputTokens'),
@@ -1086,7 +1107,9 @@ const exportToExcel = async () => {
       }
       const rows = (res.items || []).map((log: AdminUsageLog) => [
         log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
-        log.upstream_model || '', formatReasoningEffort(log.reasoning_effort), log.group?.name || '',
+        log.upstream_model || log.model, log.upstream_response_model || '',
+        log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'),
+        formatReasoningEffort(log.reasoning_effort), log.group?.name || '',
         log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
         log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
         log.input_cost?.toFixed(6) || '0.000000', log.output_cost?.toFixed(6) || '0.000000',

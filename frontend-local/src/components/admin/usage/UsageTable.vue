@@ -41,6 +41,22 @@
               {{ row.model || '-' }}
             </div>
             <div
+              v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
+              class="mt-1 flex flex-wrap items-center gap-1 text-[11px]"
+              :class="isLikelyModelVariant(row) ? 'text-amber-600 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'"
+              :title="modelAuditTitle(row)"
+            >
+              <span>{{ t('usage.upstreamResponseModel') }}: {{ row.upstream_response_model }}</span>
+              <span
+                class="inline-flex rounded px-1 py-px text-[10px] font-medium ring-1 ring-inset"
+                :class="isLikelyModelVariant(row)
+                  ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30'
+                  : 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/30'"
+              >
+                {{ isLikelyModelVariant(row) ? t('usage.modelVariant') : t('usage.modelMismatch') }}
+              </span>
+            </div>
+            <div
               class="mt-1 text-xs text-gray-500 dark:text-dark-400"
               @mouseenter="showLongTextTooltip($event, formatDateTime(row.created_at), { force: true })"
               @mouseleave="hideLongTextTooltip"
@@ -250,6 +266,22 @@
                       @mouseleave="hideLongTextTooltip"
                     >
                       ↳ {{ getUpstreamModel(row) }}
+                    </div>
+                    <div
+                      v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
+                      class="mt-1 max-w-[220px] break-all text-[10px]"
+                      :class="isLikelyModelVariant(row) ? 'text-amber-600 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'"
+                      :title="modelAuditTitle(row)"
+                    >
+                      <span>{{ t('usage.upstreamResponseModel') }}: {{ row.upstream_response_model }}</span>
+                      <span
+                        class="ml-1 inline-flex rounded px-1 py-px font-medium ring-1 ring-inset"
+                        :class="isLikelyModelVariant(row)
+                          ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30'
+                          : 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/30'"
+                      >
+                        {{ isLikelyModelVariant(row) ? t('usage.modelVariant') : t('usage.modelMismatch') }}
+                      </span>
                     </div>
                     <div v-if="row.reasoning_effort" class="mt-0.5 text-[10px] text-gray-500 dark:text-dark-400">
                       {{ formatReasoningEffort(row.reasoning_effort) }}
@@ -761,6 +793,8 @@ type UsageTableRow = Omit<
   outcome?: string
   requested_model?: string | null
   upstream_model?: string | null
+  upstream_response_model?: string | null
+  upstream_model_mismatch?: boolean | null
   billing_model?: string | null
   model_mapping_chain?: string | null
   session_id?: string
@@ -990,6 +1024,29 @@ const getUpstreamModel = (row: UsageTableRow): string => {
 const getBillingModel = (row: UsageTableRow): string => {
   return trimModel(row.billing_model) || getUpstreamModel(row) || trimModel(row.model) || getRequestedModel(row) || '-'
 }
+
+const getSentUpstreamModel = (row: UsageTableRow): string => {
+  return getUpstreamModel(row) || trimModel(row.model)
+}
+
+const normalizeModelVariant = (model: string): string => model
+  .trim()
+  .toLowerCase()
+  .replace(/-latest$/, '')
+  .replace(/-\d{4}-\d{2}-\d{2}$/, '')
+  .replace(/-\d{8}$/, '')
+
+const isLikelyModelVariant = (row: UsageTableRow): boolean => {
+  const sent = getSentUpstreamModel(row)
+  const response = trimModel(row.upstream_response_model)
+  return sent !== '' && response !== '' && normalizeModelVariant(sent) === normalizeModelVariant(response)
+}
+
+const modelAuditTitle = (row: UsageTableRow): string => [
+  `${t('usage.requestedModel')}: ${getRequestedModel(row) || '-'}`,
+  `${t('usage.sentUpstreamModel')}: ${getSentUpstreamModel(row) || '-'}`,
+  `${t('usage.upstreamResponseModel')}: ${trimModel(row.upstream_response_model) || '-'}`,
+].join('\n')
 
 const getModelMappingSteps = (row: UsageTableRow): string[] => {
   const chainSteps = trimModel(row.model_mapping_chain)

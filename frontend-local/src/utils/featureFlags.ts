@@ -70,6 +70,7 @@
  */
 
 import { useAppStore } from '@/stores/app'
+import { DEFAULT_INTERVAL_SECONDS } from '@/constants/channelMonitor'
 import type { PublicSettings } from '@/types'
 
 export type FeatureFlagMode = 'opt-in' | 'opt-out'
@@ -136,4 +137,38 @@ export function isFeatureFlagEnabled(flag: FeatureFlagDefinition): boolean {
  */
 export function makeSidebarFlag(flag: FeatureFlagDefinition): () => boolean {
   return () => isFeatureFlagEnabled(flag)
+}
+
+/** True when channel monitor feature flag is enabled. */
+export function isChannelMonitorRouteEnabled(): boolean {
+  return isFeatureFlagEnabled(FeatureFlags.channelMonitor)
+}
+
+export type ChannelMonitorMode = 'v1' | 'v2'
+
+/** Missing or invalid values keep the established V1 monitor active. */
+export function getChannelMonitorMode(): ChannelMonitorMode {
+  const appStore = useAppStore()
+  const mode = appStore.cachedPublicSettings?.channel_monitor_mode
+  return mode === 'v2' ? 'v2' : 'v1'
+}
+
+export function isChannelMonitorV1Mode(): boolean {
+  return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'v1'
+}
+
+export function isChannelMonitorV2Mode(): boolean {
+  return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'v2'
+}
+
+export function getChannelMonitorRefreshIntervalSeconds(): number {
+  const appStore = useAppStore()
+  const configured = appStore.cachedPublicSettings?.channel_monitor_default_interval_seconds
+  return configured && configured > 0 ? configured : DEFAULT_INTERVAL_SECONDS
+}
+
+/** Admins always see RPM/TPM; this setting only affects the user-facing view. */
+export function isChannelMonitorThroughputHidden(): boolean {
+  const appStore = useAppStore()
+  return Boolean(appStore.cachedPublicSettings?.channel_monitor_hide_throughput)
 }
