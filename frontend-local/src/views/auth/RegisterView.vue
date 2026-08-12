@@ -338,6 +338,7 @@ import {
   validateInvitationCode
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
+import { extractApiErrorCode } from '@/utils/apiError'
 import {
   isRegistrationEmailSuffixAllowed,
   normalizeRegistrationEmailSuffixWhitelist
@@ -382,6 +383,7 @@ const oidcOAuthProviderName = ref<string>('OIDC')
 const githubOAuthEnabled = ref<boolean>(false)
 const googleOAuthEnabled = ref<boolean>(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+const emailDomainQuotaEnabled = ref<boolean>(false)
 const loginAgreementEnabled = ref<boolean>(false)
 const loginAgreementMode = ref<'modal' | 'checkbox' | string>('modal')
 const loginAgreementUpdatedAt = ref<string>('')
@@ -493,6 +495,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    emailDomainQuotaEnabled.value = settings.registration_email_domain_quota_enabled === true
     applyLoginAgreementSettings(settings)
 
     // Read promo code from URL parameter only if promo code is enabled
@@ -791,6 +794,7 @@ function validateForm(): boolean {
     errors.email = t('auth.invalidEmail')
     isValid = false
   } else if (
+    !emailDomainQuotaEnabled.value &&
     !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
   ) {
     errors.email = buildEmailSuffixNotAllowedMessage()
@@ -924,15 +928,20 @@ async function handleRegister(): Promise<void> {
     }
 
     // Handle registration error
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.registrationFailed')
-    })
+    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.registrationFailed'))
 
     // Also show error toast
     appStore.showError(errorMessage.value)
   } finally {
     isLoading.value = false
   }
+}
+
+function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
+  }
+  return buildAuthErrorMessage(error, { fallback })
 }
 </script>
 

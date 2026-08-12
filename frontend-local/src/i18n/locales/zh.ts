@@ -476,6 +476,8 @@ export default {
       USER_NOT_ACTIVE: '账号已被禁用',
     },
     registrationFailed: '注册失败，请重试。',
+    emailDomainRegistrationLimit:
+      '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。',
     emailSuffixNotAllowed: '该邮箱域名不在允许注册范围内。',
     emailSuffixNotAllowedWithAllowed: '该邮箱域名不被允许。可用域名：{suffixes}',
     loginSuccess: '登录成功！欢迎回来。',
@@ -1813,6 +1815,7 @@ export default {
         status: '状态',
         fileName: '文件名',
         size: '大小',
+        parts: '分卷数',
         expiresAt: '过期时间',
         triggeredBy: '触发方式',
         startedAt: '开始时间',
@@ -1837,6 +1840,10 @@ export default {
       empty: '暂无备份记录',
       actions: {
         download: '下载',
+        downloadParts: '下载分卷',
+        downloadPartsHint: '请按顺序下载全部分卷后拼接 gzip 字节流：Linux/macOS 使用 cat payload.part-* > backup.sql.gz；Windows 使用 copy /b payload.part-000001+payload.part-000002 backup.sql.gz。',
+        partLabel: '第 {index} 卷',
+        downloadFailed: '下载地址为空',
         restore: '恢复',
         restoreConfirm: '确定要从此备份恢复吗？这将覆盖当前数据库！',
         restorePasswordPrompt: '请输入管理员密码以确认恢复操作',
@@ -2931,6 +2938,9 @@ export default {
         billingModelSourceChannelMapped: '以渠道映射后的模型计费',
         billingModelSourceRequested: '以请求模型计费',
         billingModelSourceUpstream: '以最终模型计费',
+        billingModelSourceResponse: '按上游响应模型计费',
+        billingModelSourceResponseWarning:
+          '计费基准以上游响应自报的模型为准。该模式只会降低费用、不会抬高，但请仅对可信的上游启用。',
         billingModelSourceHint: '控制使用哪个模型名称进行定价查找',
         selectedCount: '已选 {count} 个',
         searchGroups: '搜索分组...',
@@ -6545,9 +6555,12 @@ export default {
         emailVerificationHint: '新用户注册时需要验证邮箱',
         emailSuffixWhitelist: '邮箱域名白名单',
         emailSuffixWhitelistHint:
-          "仅允许使用指定域名的邮箱注册账号（例如 {'@'}qq.com, {'@'}gmail.com）",
+          "仅允许使用指定域名的邮箱注册账号；留空则不限制（例如 {'@'}qq.com, {'@'}gmail.com）",
         emailSuffixWhitelistPlaceholder: 'example.com',
         emailSuffixWhitelistInputHint: '留空则不限制',
+        emailDomainQuota: '非白名单域名限量注册',
+        emailDomainQuotaHint:
+          '开启后，白名单非空时，其他可注册主域名各限注册一个账户；关闭时非白名单域名直接拒绝注册。白名单为空时本开关无效果',
         promoCode: '优惠码',
         promoCodeHint: '允许用户在注册时使用优惠码',
         invitationCode: '邀请码注册',

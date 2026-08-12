@@ -476,6 +476,8 @@ export default {
       USER_NOT_ACTIVE: 'Account has been disabled.',
     },
     registrationFailed: 'Registration failed. Please try again.',
+    emailDomainRegistrationLimit:
+      'This email domain cannot register another account. Please use a mainstream email, or contact support to add your enterprise domain to the allowlist.',
     emailSuffixNotAllowed: 'This email domain is not allowed for registration.',
     emailSuffixNotAllowedWithAllowed:
       'This email domain is not allowed. Allowed domains: {suffixes}',
@@ -1849,6 +1851,7 @@ export default {
         status: 'Status',
         fileName: 'File Name',
         size: 'Size',
+        parts: 'Parts',
         expiresAt: 'Expires At',
         triggeredBy: 'Triggered By',
         startedAt: 'Started At',
@@ -1873,6 +1876,10 @@ export default {
       empty: 'No backup records',
       actions: {
         download: 'Download',
+        downloadParts: 'Download Parts',
+        downloadPartsHint: 'Download every part in order and concatenate the gzip bytes: on Linux/macOS run cat payload.part-* > backup.sql.gz; on Windows run copy /b payload.part-000001+payload.part-000002 backup.sql.gz.',
+        partLabel: 'Part {index}',
+        downloadFailed: 'Download URL is empty',
         restore: 'Restore',
         restoreConfirm: 'Are you sure you want to restore from this backup? This will overwrite the current database!',
         restorePasswordPrompt: 'Please enter your admin password to confirm the restore operation',
@@ -2913,6 +2920,9 @@ export default {
         billingModelSourceChannelMapped: 'Bill by channel-mapped model',
         billingModelSourceRequested: 'Bill by requested model',
         billingModelSourceUpstream: 'Bill by final upstream model',
+        billingModelSourceResponse: 'Bill by upstream response model',
+        billingModelSourceResponseWarning:
+          'Pricing follows the model declared by the upstream response. It can only lower the charge, never raise it. Only enable this for upstreams you trust.',
         billingModelSourceHint: 'Controls which model name is used for pricing lookup',
         selectedCount: '{count} selected',
         searchGroups: 'Search groups...',
@@ -6453,9 +6463,12 @@ export default {
         emailVerificationHint: 'Require email verification for new registrations',
         emailSuffixWhitelist: 'Email Domain Whitelist',
         emailSuffixWhitelistHint:
-          "Only email addresses from the specified domains can register (for example, {'@'}qq.com, {'@'}gmail.com)",
+          "Only email addresses from the specified domains can register; leave empty for no restriction (for example, {'@'}qq.com, {'@'}gmail.com)",
         emailSuffixWhitelistPlaceholder: 'example.com',
         emailSuffixWhitelistInputHint: 'Leave empty for no restriction',
+        emailDomainQuota: 'Non-allowlist Domain Quota',
+        emailDomainQuotaHint:
+          'When enabled and the allowlist is not empty, every other registrable domain can register one account. When disabled, non-allowlist domains are rejected. Has no effect while the allowlist is empty',
         promoCode: 'Promo Code',
         promoCodeHint: 'Allow users to use promo codes during registration',
         invitationCode: 'Invitation Code Registration',

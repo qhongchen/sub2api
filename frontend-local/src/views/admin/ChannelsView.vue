@@ -252,6 +252,9 @@
               <p class="mt-1 text-xs text-gray-400">
                 {{ t('admin.channels.form.billingModelSourceHint', 'Controls which model name is used for pricing lookup') }}
               </p>
+              <p v-if="form.billing_model_source === 'response_model'" class="mt-1 text-xs text-amber-500">
+                {{ t('admin.channels.form.billingModelSourceResponseWarning', 'Pricing follows the model declared by the upstream response. It can only lower the charge, never raise it. Only enable this for upstreams you trust.') }}
+              </p>
             </div>
 
             <!-- Platform Management -->
@@ -739,7 +742,8 @@ const statusEditOptions = computed(() => [
 const billingModelSourceOptions = computed(() => [
   { value: 'channel_mapped', label: t('admin.channels.form.billingModelSourceChannelMapped', 'Bill by channel-mapped model') },
   { value: 'requested', label: t('admin.channels.form.billingModelSourceRequested', 'Bill by requested model') },
-  { value: 'upstream', label: t('admin.channels.form.billingModelSourceUpstream', 'Bill by final upstream model') }
+  { value: 'upstream', label: t('admin.channels.form.billingModelSourceUpstream', 'Bill by final upstream model') },
+  { value: 'response_model', label: t('admin.channels.form.billingModelSourceResponse', 'Bill by upstream response model') }
 ])
 
 // ── State ──
