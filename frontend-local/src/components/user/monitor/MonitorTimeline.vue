@@ -177,11 +177,21 @@ const lineSegments = computed<LineSegment[]>(() => {
       continue
     }
 
-    segments.push({
-      key: `${previous.index}-${current.index}`,
-      path: `M ${previous.x.toFixed(3)} ${previous.y.toFixed(3)} L ${current.x.toFixed(3)} ${current.y.toFixed(3)}`,
-      strokeClass: strokeClassForStatus(current.status),
-    })
+    const midpointX = (previous.x + current.x) / 2
+    const midpointY = (previous.y + current.y) / 2
+
+    segments.push(
+      {
+        key: `${previous.index}-${current.index}-previous`,
+        path: `M ${previous.x.toFixed(3)} ${previous.y.toFixed(3)} L ${midpointX.toFixed(3)} ${midpointY.toFixed(3)}`,
+        strokeClass: strokeClassForStatus(previous.status),
+      },
+      {
+        key: `${previous.index}-${current.index}-current`,
+        path: `M ${midpointX.toFixed(3)} ${midpointY.toFixed(3)} L ${current.x.toFixed(3)} ${current.y.toFixed(3)}`,
+        strokeClass: strokeClassForStatus(current.status),
+      },
+    )
   }
 
   return segments
