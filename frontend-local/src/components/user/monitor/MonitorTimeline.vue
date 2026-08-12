@@ -77,6 +77,7 @@ import {
   STATUS_ERROR,
   STATUS_FAILED,
   STATUS_OPERATIONAL,
+  MONITOR_DEGRADED_THRESHOLD_MS,
 } from '@/constants/channelMonitor'
 
 const props = withDefaults(defineProps<{
@@ -131,7 +132,7 @@ const displayPoints = computed<ChartPoint[]>(() => {
     )
     .map((point) => normalizedLatency(point.latency_ms))
     .filter((latency): latency is number => latency !== null)
-  const maxLatency = Math.max(1, ...validLatencies)
+  const maxLatency = Math.max(MONITOR_DEGRADED_THRESHOLD_MS, ...validLatencies)
   const padCount = normalizedLength.value - real.length
   const slotWidth = 100 / normalizedLength.value
 

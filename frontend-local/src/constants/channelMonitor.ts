@@ -41,3 +41,6 @@ export const MONITOR_STATUSES: readonly MonitorStatus[] = [
 
 /** Default polling interval (seconds) for new monitors. */
 export const DEFAULT_INTERVAL_SECONDS = 60
+
+/** 必须与后端 monitorDegradedThreshold 保持一致。 */
+export const MONITOR_DEGRADED_THRESHOLD_MS = 6_000
