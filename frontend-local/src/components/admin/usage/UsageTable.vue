@@ -103,7 +103,21 @@
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.requestId') }}</div>
-            <div class="truncate font-mono text-xs text-gray-700 dark:text-dark-200">{{ shortRequestId(row.request_id) }}</div>
+            <div v-if="row.request_id" class="flex min-w-0 items-center gap-1.5">
+              <span class="truncate font-mono text-xs text-gray-700 dark:text-dark-200">
+                {{ shortRequestId(row.request_id) }}
+              </span>
+              <button
+                type="button"
+                class="shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
+                :class="copiedRequestId === row.request_id ? 'text-green-500 hover:text-green-500' : ''"
+                :title="copiedRequestId === row.request_id ? t('keys.copied') : t('keys.copyToClipboard')"
+                @click="copyRequestId(row.request_id)"
+              >
+                <Icon :name="copiedRequestId === row.request_id ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
           </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.performance') }}</div>
@@ -209,13 +223,25 @@
               </template>
 
               <template v-else-if="column.key === 'request_id'">
-                <span
-                  class="font-mono text-xs text-gray-700 dark:text-dark-200"
-                  @mouseenter="showLongTextTooltip($event, row.request_id, { force: true })"
-                  @mouseleave="hideLongTextTooltip"
-                >
-                  {{ shortRequestId(row.request_id) }}
-                </span>
+                <div v-if="row.request_id" class="flex max-w-[180px] items-center gap-1.5">
+                  <span
+                    class="min-w-0 truncate font-mono text-xs text-gray-700 dark:text-dark-200"
+                    @mouseenter="showLongTextTooltip($event, row.request_id, { force: true })"
+                    @mouseleave="hideLongTextTooltip"
+                  >
+                    {{ shortRequestId(row.request_id) }}
+                  </span>
+                  <button
+                    type="button"
+                    class="shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
+                    :class="copiedRequestId === row.request_id ? 'text-green-500 hover:text-green-500' : ''"
+                    :title="copiedRequestId === row.request_id ? t('keys.copied') : t('keys.copyToClipboard')"
+                    @click="copyRequestId(row.request_id)"
+                  >
+                    <Icon :name="copiedRequestId === row.request_id ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
               </template>
 
               <template v-else-if="column.key === 'endpoint'">
@@ -716,6 +742,7 @@ import {
 import DataTable from '@/components/common/DataTable.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { useClipboard } from '@/composables/useClipboard'
 import type { AdminUsageLog, UsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
 
@@ -844,6 +871,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { copyToClipboard } = useClipboard()
+const copiedRequestId = ref<string | null>(null)
 
 const tableColumns = computed<Column[]>(() => {
   if (!props.showDiagnosticsAction) return props.columns
@@ -931,6 +960,19 @@ const formatTokens = (value: number): string => {
 const shortRequestId = (value?: string | null): string => {
   if (!value) return '-'
   return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value
+}
+
+const copyRequestId = async (requestId?: string | null) => {
+  const value = requestId?.trim()
+  if (!value) return
+
+  const copied = await copyToClipboard(value, t('admin.usage.requestIdCopied'))
+  if (!copied) return
+
+  copiedRequestId.value = value
+  window.setTimeout(() => {
+    if (copiedRequestId.value === value) copiedRequestId.value = null
+  }, 2000)
 }
 
 const middleEllipsis = (value?: string | null, start = 10, end = 6): string => {

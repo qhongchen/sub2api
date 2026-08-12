@@ -73,3 +73,10 @@ export function formatByteRate(bytes: number, windowMinutes: number): string {
   const seconds = Math.max(1, (windowMinutes || 1) * 60)
   return `${formatBytes(bytes / seconds, 1)}/s`
 }
+
+export function formatMemorySizeMB(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return '-'
+  if (value === 0) return '0 MB'
+
+  return formatBytes(value * 1024 * 1024, 1)
+}
