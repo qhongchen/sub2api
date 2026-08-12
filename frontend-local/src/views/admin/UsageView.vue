@@ -725,7 +725,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'account', label: t('admin.usage.account'), sortable: false },
   { key: 'request_id', label: t('usage.requestId'), sortable: false },
   { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
-  { key: 'model', label: t('usage.billingModel'), sortable: false },
+  { key: 'model', label: t('usage.model'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   { key: 'cache', label: t('usage.cache'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },

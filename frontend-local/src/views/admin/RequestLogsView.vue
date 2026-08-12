@@ -930,7 +930,7 @@ const allColumns = computed<RequestLogColumn[]>(() => [
   { key: 'user', label: t('admin.requestLogs.table.user') },
   { key: 'account', label: t('admin.requestLogs.table.account') },
   { key: 'session', label: t('admin.requestLogs.table.session') },
-  { key: 'model', label: t('admin.requestLogs.table.billingModel') },
+  { key: 'model', label: t('admin.requestLogs.table.modelRoute') },
   { key: 'tokens', label: t('admin.requestLogs.table.tokens') },
   { key: 'cache', label: t('admin.requestLogs.table.cache') },
   { key: 'cost', label: t('admin.requestLogs.table.cost') },
@@ -1077,6 +1077,8 @@ const routingFields = computed<DiagnosticField[]>(() => {
     field('model', t('admin.requestLogs.diagnostics.model'), valueOrDash(log.model), true),
     field('requested_model', t('admin.requestLogs.diagnostics.requestedModel'), valueOrDash(log.requested_model), true),
     field('upstream_model', t('admin.requestLogs.diagnostics.upstreamModel'), valueOrDash(log.upstream_model), true),
+    field('upstream_response_model', t('admin.requestLogs.diagnostics.upstreamResponseModel'), valueOrDash(log.upstream_response_model), true),
+    field('upstream_model_mismatch', t('admin.requestLogs.diagnostics.upstreamModelConsistency'), formatUpstreamModelConsistency(log.upstream_model_mismatch)),
     field('reasoning_effort', t('admin.requestLogs.diagnostics.reasoningEffort'), formatReasoningEffort(log.reasoning_effort)),
     field('service_tier', t('admin.requestLogs.diagnostics.serviceTier'), valueOrDash(log.service_tier)),
     field('inbound_endpoint', t('admin.requestLogs.diagnostics.inboundEndpoint'), valueOrDash(log.inbound_endpoint), true, { wide: true }),
@@ -1173,6 +1175,13 @@ function formatMultiplierValue(value?: number | null): string {
 function formatBoolean(value?: boolean | null): string {
   if (value == null) return '-'
   return value ? t('admin.requestLogs.diagnostics.yes') : t('admin.requestLogs.diagnostics.no')
+}
+
+function formatUpstreamModelConsistency(value?: boolean | null): string {
+  if (value == null) return t('admin.requestLogs.diagnostics.consistencyUnobserved')
+  return value
+    ? t('admin.requestLogs.diagnostics.modelMismatch')
+    : t('admin.requestLogs.diagnostics.modelConsistent')
 }
 
 function formatIdentity(

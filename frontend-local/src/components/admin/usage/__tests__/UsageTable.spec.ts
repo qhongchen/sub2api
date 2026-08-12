@@ -709,16 +709,15 @@ describe('admin UsageTable tooltip', () => {
     expect(textColumn.text()).toContain('XHigh')
   })
 
-  it('uses the actual billing model as the primary model text for mapped rows', () => {
+  it('uses the routed upstream model as the primary model text for mapped rows', () => {
     const wrapper = mount(UsageTable, {
       props: {
         data: [
           {
-            request_id: 'req-admin-mapped-billing-model',
+            request_id: 'req-admin-mapped-model-route',
             model: 'gpt-5.4',
             requested_model: 'gpt-5.4',
             upstream_model: 'gpt-5.5',
-            billing_model: 'gpt-5.5',
             model_mapping_chain: 'gpt-5.4→gpt-5.5',
             actual_cost: 0.026144,
             total_cost: 0.026144,
@@ -762,7 +761,6 @@ describe('admin UsageTable tooltip', () => {
             model: 'gpt-5.5',
             requested_model: 'gpt-5.4',
             upstream_model: 'gpt-5.5',
-            billing_model: 'gpt-5.5',
             model_mapping_chain: 'gpt-5.4→gpt-5.5',
             reasoning_effort: 'xhigh',
             actual_cost: 0.026144,

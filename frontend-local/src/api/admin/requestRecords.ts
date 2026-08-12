@@ -50,7 +50,8 @@ export interface AdminRequestLog {
   model: string
   requested_model?: string | null
   upstream_model?: string | null
-  billing_model?: string | null
+  upstream_response_model?: string | null
+  upstream_model_mismatch?: boolean | null
   model_mapping_chain?: string | null
   billing_tier?: string | null
   service_tier?: string | null

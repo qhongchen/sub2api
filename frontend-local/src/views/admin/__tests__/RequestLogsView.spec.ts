@@ -136,9 +136,14 @@ const messages: Record<string, string> = {
   'admin.requestLogs.diagnostics.ipAddress': 'Source IP',
   'admin.requestLogs.diagnostics.userAgent': 'User-Agent',
   'admin.requestLogs.diagnostics.platform': 'Platform',
-  'admin.requestLogs.diagnostics.model': 'Billing model',
+  'admin.requestLogs.diagnostics.model': 'Model',
   'admin.requestLogs.diagnostics.requestedModel': 'Requested model',
   'admin.requestLogs.diagnostics.upstreamModel': 'Upstream model',
+  'admin.requestLogs.diagnostics.upstreamResponseModel': 'Upstream response model',
+  'admin.requestLogs.diagnostics.upstreamModelConsistency': 'Response model consistency',
+  'admin.requestLogs.diagnostics.consistencyUnobserved': 'Not observed',
+  'admin.requestLogs.diagnostics.modelConsistent': 'Consistent',
+  'admin.requestLogs.diagnostics.modelMismatch': 'Mismatch',
   'admin.requestLogs.diagnostics.reasoningEffort': 'Reasoning effort',
   'admin.requestLogs.diagnostics.serviceTier': 'Service tier',
   'admin.requestLogs.diagnostics.inboundEndpoint': 'Inbound endpoint',
@@ -186,7 +191,7 @@ const messages: Record<string, string> = {
   'admin.requestLogs.table.sourceIp': 'Source IP',
   'admin.requestLogs.table.platform': 'Platform',
   'admin.requestLogs.table.model': 'Model',
-  'admin.requestLogs.table.billingModel': 'Billing Model',
+  'admin.requestLogs.table.modelRoute': 'Model Route',
   'admin.requestLogs.table.tokens': 'Token',
   'admin.requestLogs.table.cache': 'Cache',
   'admin.requestLogs.table.cost': 'Cost',
@@ -389,6 +394,8 @@ const successRow = {
   user_agent: 'codex-cli/1.0',
   requested_model: '5.4-mini',
   upstream_model: 'gpt-5.5',
+  upstream_response_model: 'gpt-5.5-20260601',
+  upstream_model_mismatch: true,
   model_mapping_chain: '5.4-mini→gpt-5.5',
   billing_tier: 'XHigh',
   service_tier: 'priority',
@@ -822,6 +829,10 @@ describe('RequestLogsView', () => {
     expect(dialogText).toContain('Session Linkage')
     expect(dialogText).toContain('Resources & Billing')
     expect(dialogText).toContain('Upstream Attempts Timeline')
+    expect(dialogText).toContain('Upstream response model')
+    expect(dialogText).toContain('gpt-5.5-20260601')
+    expect(dialogText).toContain('Response model consistency')
+    expect(dialogText).toContain('Mismatch')
     expect(dialogText).toContain('req-success')
     expect(dialogText).not.toContain('prompt-cache-key-demo')
   })
@@ -923,7 +934,7 @@ describe('RequestLogsView', () => {
     expect(headerText).toContain('Time')
     expect(headerText).toContain('User')
     expect(headerText).toContain('Account')
-    expect(headerText).toContain('Billing Model')
+    expect(headerText).toContain('Model Route')
     expect(headerText).toContain('Token')
     expect(headerText).toContain('Cache')
     expect(headerText).toContain('Cost')

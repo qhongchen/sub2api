@@ -3,7 +3,6 @@ package dto
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -706,18 +705,11 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	if l == nil {
 		return nil
 	}
-	billingModel := strings.TrimSpace(l.Model)
-	if l.UpstreamModel != nil {
-		if upstreamModel := strings.TrimSpace(*l.UpstreamModel); upstreamModel != "" {
-			billingModel = upstreamModel
-		}
-	}
 	usageLog := usageLogFromServiceUser(l)
 	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
 	return &AdminUsageLog{
 		UsageLog:              usageLog,
 		UpstreamModel:         l.UpstreamModel,
-		BillingModel:          optionalStringPtr(billingModel),
 		UpstreamResponseModel: l.UpstreamResponseModel,
 		UpstreamModelMismatch: l.UpstreamModelMismatch,
 		ChannelID:             l.ChannelID,
@@ -728,14 +720,6 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		IPAddress:             l.IPAddress,
 		Account:               AccountSummaryFromService(l.Account),
 	}
-}
-
-func optionalStringPtr(value string) *string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil
-	}
-	return &value
 }
 
 func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTask {

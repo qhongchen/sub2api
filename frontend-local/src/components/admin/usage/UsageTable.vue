@@ -35,10 +35,18 @@
           <div class="min-w-0">
             <div
               class="truncate text-sm font-semibold text-gray-950 dark:text-white"
-              @mouseenter="showLongTextTooltip($event, row.model)"
+              @mouseenter="showLongTextTooltip($event, getDisplayModel(row))"
               @mouseleave="hideLongTextTooltip"
             >
-              {{ row.model || '-' }}
+              {{ getDisplayModel(row) }}
+            </div>
+            <div
+              v-if="getModelSecondaryText(row)"
+              class="mt-0.5 truncate text-[11px] text-gray-500 dark:text-dark-400"
+              @mouseenter="showLongTextTooltip($event, getModelSecondaryText(row))"
+              @mouseleave="hideLongTextTooltip"
+            >
+              {{ getModelSecondaryText(row) }}
             </div>
             <div
               v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
@@ -266,9 +274,9 @@
                   <div class="min-w-0">
                     <span
                       class="model-primary-text block max-w-[180px] truncate text-sm font-semibold text-gray-950 dark:text-white"
-                      @mouseenter="showLongTextTooltip($event, getBillingModel(row))"
+                      @mouseenter="showLongTextTooltip($event, getDisplayModel(row))"
                       @mouseleave="hideLongTextTooltip"
-                    >{{ getBillingModel(row) }}</span>
+                    >{{ getDisplayModel(row) }}</span>
                     <div
                       v-if="getModelSecondaryText(row)"
                       class="model-secondary-text mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500 dark:text-dark-400"
@@ -278,7 +286,7 @@
                       {{ getModelSecondaryText(row) }}
                     </div>
                     <div
-                      v-else-if="getRequestedModel(row) && getRequestedModel(row) !== getBillingModel(row)"
+                      v-else-if="getRequestedModel(row) && getRequestedModel(row) !== getDisplayModel(row)"
                       class="mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500 dark:text-dark-400"
                       @mouseenter="showLongTextTooltip($event, getRequestedModel(row))"
                       @mouseleave="hideLongTextTooltip"
@@ -286,7 +294,7 @@
                       {{ getRequestedModel(row) }}
                     </div>
                     <div
-                      v-else-if="getUpstreamModel(row) && getUpstreamModel(row) !== getBillingModel(row)"
+                      v-else-if="getUpstreamModel(row) && getUpstreamModel(row) !== getDisplayModel(row)"
                       class="mt-0.5 max-w-[180px] truncate text-[10px] text-gray-500 dark:text-dark-400"
                       @mouseenter="showLongTextTooltip($event, getUpstreamModel(row))"
                       @mouseleave="hideLongTextTooltip"
@@ -822,7 +830,6 @@ type UsageTableRow = Omit<
   upstream_model?: string | null
   upstream_response_model?: string | null
   upstream_model_mismatch?: boolean | null
-  billing_model?: string | null
   model_mapping_chain?: string | null
   session_id?: string
   session_source?: string
@@ -1063,8 +1070,8 @@ const getUpstreamModel = (row: UsageTableRow): string => {
   return trimModel(row.upstream_model)
 }
 
-const getBillingModel = (row: UsageTableRow): string => {
-  return trimModel(row.billing_model) || getUpstreamModel(row) || trimModel(row.model) || getRequestedModel(row) || '-'
+const getDisplayModel = (row: UsageTableRow): string => {
+  return getUpstreamModel(row) || trimModel(row.model) || getRequestedModel(row) || '-'
 }
 
 const getSentUpstreamModel = (row: UsageTableRow): string => {
@@ -1108,7 +1115,7 @@ const getModelMappingSteps = (row: UsageTableRow): string[] => {
 
 const getModelSecondaryText = (row: UsageTableRow): string => {
   const requested = getRequestedModel(row)
-  const target = getUpstreamModel(row) || getBillingModel(row)
+  const target = getDisplayModel(row)
   if (requested && target && normalizeModelForCompare(requested) !== normalizeModelForCompare(target)) {
     return formatModelMapping(requested, target)
   }
@@ -1124,7 +1131,7 @@ const getModelSecondaryText = (row: UsageTableRow): string => {
 const getModelIconModel = (row: UsageTableRow): string => {
   const chainSteps = getModelMappingSteps(row)
   const candidates = [
-    getBillingModel(row),
+    getDisplayModel(row),
     getUpstreamModel(row),
     ...chainSteps.slice().reverse(),
   ].filter((candidate): candidate is string => Boolean(candidate))

@@ -55,19 +55,20 @@ type Record struct {
 	SessionSource   string `json:"session_source,omitempty"`
 	ClientSessionID string `json:"client_session_id,omitempty"`
 
-	Platform          string `json:"platform,omitempty"`
-	Model             string `json:"model,omitempty"`
-	RequestedModel    string `json:"requested_model,omitempty"`
-	UpstreamModel     string `json:"upstream_model,omitempty"`
-	BillingModel      string `json:"billing_model,omitempty"`
-	ModelMappingChain string `json:"model_mapping_chain,omitempty"`
-	BillingTier       string `json:"billing_tier,omitempty"`
-	ServiceTier       string `json:"service_tier,omitempty"`
-	ReasoningEffort   string `json:"reasoning_effort,omitempty"`
-	RequestType       *int16 `json:"request_type,omitempty"`
-	Stream            bool   `json:"stream"`
-	InboundEndpoint   string `json:"inbound_endpoint,omitempty"`
-	UpstreamEndpoint  string `json:"upstream_endpoint,omitempty"`
+	Platform              string `json:"platform,omitempty"`
+	Model                 string `json:"model,omitempty"`
+	RequestedModel        string `json:"requested_model,omitempty"`
+	UpstreamModel         string `json:"upstream_model,omitempty"`
+	UpstreamResponseModel string `json:"upstream_response_model,omitempty"`
+	UpstreamModelMismatch *bool  `json:"upstream_model_mismatch,omitempty"`
+	ModelMappingChain     string `json:"model_mapping_chain,omitempty"`
+	BillingTier           string `json:"billing_tier,omitempty"`
+	ServiceTier           string `json:"service_tier,omitempty"`
+	ReasoningEffort       string `json:"reasoning_effort,omitempty"`
+	RequestType           *int16 `json:"request_type,omitempty"`
+	Stream                bool   `json:"stream"`
+	InboundEndpoint       string `json:"inbound_endpoint,omitempty"`
+	UpstreamEndpoint      string `json:"upstream_endpoint,omitempty"`
 
 	Outcome      string `json:"outcome"`
 	StatusCode   *int   `json:"status_code,omitempty"`

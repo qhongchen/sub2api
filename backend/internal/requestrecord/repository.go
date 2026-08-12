@@ -264,11 +264,12 @@ SELECT
   COALESCE(rr.session_source, ''),
   COALESCE(rr.client_session_id, ''),
   COALESCE(rr.platform, ''),
-	  COALESCE(rr.model, ''),
-	  COALESCE(NULLIF(ul.requested_model, ''), rr.requested_model, ''),
-	  COALESCE(NULLIF(ul.upstream_model, ''), rr.upstream_model, ''),
-	  COALESCE(NULLIF(ul.upstream_model, ''), NULLIF(rr.upstream_model, ''), NULLIF(ul.model, ''), NULLIF(rr.model, ''), ''),
-	  rr.request_type,
+  COALESCE(rr.model, ''),
+  COALESCE(NULLIF(ul.requested_model, ''), rr.requested_model, ''),
+  COALESCE(NULLIF(ul.upstream_model, ''), rr.upstream_model, ''),
+  COALESCE(ul.upstream_response_model, ''),
+  ul.upstream_model_mismatch,
+  rr.request_type,
   rr.stream,
   COALESCE(rr.inbound_endpoint, ul.inbound_endpoint, o.inbound_endpoint, ''),
   COALESCE(rr.upstream_endpoint, ul.upstream_endpoint, o.upstream_endpoint, ''),
@@ -539,7 +540,7 @@ func scanRecord(rows recordScanner) (*Record, error) {
 	var inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, cacheCreation5mTokens, cacheCreation1hTokens sql.NullInt64
 	var imageOutputTokens, imageCount, billingType sql.NullInt64
 	var imageOutputCost, inputCost, outputCost, cacheCreationCost, cacheReadCost, totalCost, actualCost, rateMultiplier, accountRateMultiplier, accountStatsCost sql.NullFloat64
-	var cacheTTLOverridden sql.NullBool
+	var cacheTTLOverridden, upstreamModelMismatch sql.NullBool
 	var imageSizeBreakdown sql.NullString
 	var upstreamAttempts sql.NullString
 	var userEmail, userUsername, apiKeyName, accountName, groupName sql.NullString
@@ -561,7 +562,8 @@ func scanRecord(rows recordScanner) (*Record, error) {
 		&item.Model,
 		&item.RequestedModel,
 		&item.UpstreamModel,
-		&item.BillingModel,
+		&item.UpstreamResponseModel,
+		&upstreamModelMismatch,
 		&requestType,
 		&item.Stream,
 		&item.InboundEndpoint,
@@ -655,6 +657,7 @@ func scanRecord(rows recordScanner) (*Record, error) {
 	item.AccountRateMultiplier = nullFloat64Ptr(accountRateMultiplier)
 	item.AccountStatsCost = nullFloat64Ptr(accountStatsCost)
 	item.CacheTTLOverridden = nullBoolPtr(cacheTTLOverridden)
+	item.UpstreamModelMismatch = nullBoolPtr(upstreamModelMismatch)
 	item.UpstreamAttempts = parseUpstreamAttempts(upstreamAttempts.String)
 	if !item.Billable {
 		clearBillingDisplayFields(&item)
@@ -681,7 +684,7 @@ func requestRecordListColumns() []string {
 	return []string{
 		"id", "created_at", "updated_at", "completed_at", "request_id", "client_request_id",
 		"user_id", "api_key_id", "account_id", "group_id", "session_id", "session_source",
-		"client_session_id", "platform", "model", "requested_model", "upstream_model", "billing_model",
+		"client_session_id", "platform", "model", "requested_model", "upstream_model", "upstream_response_model", "upstream_model_mismatch",
 		"request_type", "stream", "inbound_endpoint", "upstream_endpoint", "outcome",
 		"status_code", "duration_ms", "first_token_ms", "billable", "input_tokens",
 		"output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_creation_5m_tokens",
