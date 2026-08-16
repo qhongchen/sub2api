@@ -146,7 +146,7 @@ SET
   outcome = $3,
   status_code = $4,
   duration_ms = $5,
-  first_token_ms = $6,
+  first_token_ms = COALESCE($6, first_token_ms),
   billable = $7,
   input_tokens = $8,
   output_tokens = $9,
@@ -171,6 +171,30 @@ WHERE request_id = $14
 		strings.TrimSpace(input.UpstreamEndpoint),
 		requestID,
 	)
+	return err
+}
+
+func (r *repository) UpdateFirstToken(ctx context.Context, requestID string, firstTokenMs int) error {
+	if r == nil || r.db == nil {
+		return fmt.Errorf("nil requestrecord repository")
+	}
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return fmt.Errorf("request_id is required")
+	}
+	if firstTokenMs < 0 {
+		return fmt.Errorf("first_token_ms must be non-negative")
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+UPDATE request_records
+SET
+  updated_at = $1,
+  first_token_ms = $2
+WHERE request_id = $3
+  AND completed_at IS NULL
+  AND first_token_ms IS NULL
+`, time.Now(), firstTokenMs, requestID)
 	return err
 }
 

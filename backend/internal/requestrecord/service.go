@@ -12,6 +12,10 @@ type Repository interface {
 	Summary(ctx context.Context, filter *Filter) (*Summary, error)
 }
 
+type firstTokenUpdater interface {
+	UpdateFirstToken(ctx context.Context, requestID string, firstTokenMs int) error
+}
+
 type Service struct {
 	repo Repository
 }
@@ -32,6 +36,17 @@ func (s *Service) Complete(ctx context.Context, input *CompleteInput) error {
 		return nil
 	}
 	return s.repo.Complete(ctx, input)
+}
+
+func (s *Service) UpdateFirstToken(ctx context.Context, requestID string, firstTokenMs int) error {
+	if s == nil || s.repo == nil || firstTokenMs < 0 {
+		return nil
+	}
+	updater, ok := s.repo.(firstTokenUpdater)
+	if !ok {
+		return nil
+	}
+	return updater.UpdateFirstToken(ctx, requestID, firstTokenMs)
 }
 
 func (s *Service) ListRecords(ctx context.Context, filter *Filter) (*List, error) {

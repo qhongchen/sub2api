@@ -283,6 +283,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		if completedVisibleEvent && firstTokenMs == nil {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
+			NotifyFirstToken(c.Request.Context(), ms)
 		}
 		eventStartsClientOutput = false
 		eventStartsVisibleOutput = false
@@ -600,6 +601,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if !guardFirstOutput && firstTokenMs == nil && startsVisibleOutput {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+				NotifyFirstToken(c.Request.Context(), ms)
 				stopFirstOutputTimer()
 			}
 			if eventType == "response.completed" || eventType == "response.done" {

@@ -1089,6 +1089,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 						if firstTokenMs == nil && data != "[DONE]" {
 							ms := int(time.Since(startTime).Milliseconds())
 							firstTokenMs = &ms
+							NotifyFirstToken(c.Request.Context(), ms)
 						}
 						if usagePatch != nil {
 							mergeSSEUsagePatch(usage, usagePatch)

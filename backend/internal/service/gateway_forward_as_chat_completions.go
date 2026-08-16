@@ -421,6 +421,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
+			NotifyFirstToken(c.Request.Context(), ms)
 		}
 
 		// Extract usage from message_delta

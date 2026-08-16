@@ -30,6 +30,10 @@ type requestRecordRecorder interface {
 	Complete(ctx context.Context, input *requestrecord.CompleteInput) error
 }
 
+type requestRecordFirstTokenUpdater interface {
+	UpdateFirstToken(ctx context.Context, requestID string, firstTokenMs int) error
+}
+
 func getRequestID(c *gin.Context) string {
 	if c == nil || c.Request == nil {
 		return ""
@@ -90,7 +94,42 @@ func startRequestRecord(
 	}
 	c.Set(requestRecordHandleContextKey, handle)
 	c.Set(requestRecordCompletedContextKey, false)
+	bindRequestRecordFirstTokenObserver(c, recorder, handle)
 	return handle
+}
+
+func bindRequestRecordFirstTokenObserver(
+	c *gin.Context,
+	recorder requestRecordRecorder,
+	handle *requestrecord.Handle,
+) {
+	if c == nil || c.Request == nil || handle == nil {
+		return
+	}
+	updater, ok := recorder.(requestRecordFirstTokenUpdater)
+	if !ok {
+		return
+	}
+	requestID := strings.TrimSpace(handle.RequestID)
+	if requestID == "" {
+		return
+	}
+	requestLogger := logger.FromContext(c.Request.Context())
+	ctx := service.WithFirstTokenObserver(c.Request.Context(), func(firstTokenMs int) {
+		go func() {
+			updateCtx, cancel := context.WithTimeout(context.Background(), requestRecordCompleteTimeout)
+			defer cancel()
+			if err := updater.UpdateFirstToken(updateCtx, requestID, firstTokenMs); err != nil {
+				requestLogger.Warn(
+					"request_record.first_token_update_failed",
+					zap.String("request_id", requestID),
+					zap.Int("first_token_ms", firstTokenMs),
+					zap.Error(err),
+				)
+			}
+		}()
+	})
+	c.Request = c.Request.WithContext(ctx)
 }
 
 func normalizeRequestRecordRouting(c *gin.Context, input *requestrecord.StartInput) {

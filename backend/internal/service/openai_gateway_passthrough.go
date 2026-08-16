@@ -1381,6 +1381,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if firstTokenMs == nil && openAIStreamDataStartsVisibleOutput(trimmedData, eventType) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+				NotifyFirstToken(c.Request.Context(), ms)
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)
 		}

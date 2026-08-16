@@ -318,6 +318,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &elapsed
+					NotifyFirstToken(c.Request.Context(), elapsed)
 				}
 			}
 		}
