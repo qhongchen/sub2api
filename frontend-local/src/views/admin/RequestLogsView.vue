@@ -707,7 +707,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -876,10 +876,6 @@ let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
 let apiKeySearchTimeout: ReturnType<typeof setTimeout> | null = null
 let accountSearchTimeout: ReturnType<typeof setTimeout> | null = null
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
-let pendingRefreshTimer: ReturnType<typeof setInterval> | null = null
-
-const PENDING_REFRESH_INTERVAL_MS = 1000
-const PENDING_REFRESH_MAX_AGE_MS = 15 * 60 * 1000
 
 const timeRangeOptions = computed<Array<{ value: TimeRangePreset; label: string; icon: 'calendar' }>>(() => [
   { value: 'today', label: t('admin.dashboard.rangeToday'), icon: 'calendar' },
@@ -1495,50 +1491,6 @@ function stopAutoRefresh() {
   }
 }
 
-const hasRecentPendingLogs = computed(() => {
-  const now = Date.now()
-  return logs.value.some((log) => {
-    if (!isPendingRequest(log)) return false
-    const createdAt = Date.parse(log.created_at)
-    return Number.isFinite(createdAt) && now - createdAt <= PENDING_REFRESH_MAX_AGE_MS
-  })
-})
-
-function stopPendingRefresh() {
-  if (pendingRefreshTimer) {
-    clearInterval(pendingRefreshTimer)
-    pendingRefreshTimer = null
-  }
-}
-
-function startPendingRefresh() {
-  stopPendingRefresh()
-  pendingRefreshTimer = setInterval(() => {
-    if (
-      document.visibilityState !== 'visible' ||
-      loading.value ||
-      loadingMore.value ||
-      refreshingSilently.value ||
-      opsDisabled.value
-    ) {
-      return
-    }
-    void refreshFirstPageSilently()
-  }, PENDING_REFRESH_INTERVAL_MS)
-}
-
-watch(
-  hasRecentPendingLogs,
-  (hasPending) => {
-    if (hasPending) {
-      startPendingRefresh()
-    } else {
-      stopPendingRefresh()
-    }
-  },
-  { immediate: true },
-)
-
 function startAutoRefresh() {
   stopAutoRefresh()
   autoRefreshTimer = setInterval(() => {
@@ -1723,7 +1675,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopLoadMoreObserver()
   stopAutoRefresh()
-  stopPendingRefresh()
   if (userSearchTimeout) clearTimeout(userSearchTimeout)
   if (apiKeySearchTimeout) clearTimeout(apiKeySearchTimeout)
   if (accountSearchTimeout) clearTimeout(accountSearchTimeout)

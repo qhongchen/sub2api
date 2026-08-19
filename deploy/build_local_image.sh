@@ -13,7 +13,7 @@ REMOVE_BUILDER_AFTER_PUSH="${REMOVE_BUILDER_AFTER_PUSH:-false}"
 
 # 国内基础镜像源
 NODE_IMAGE="${NODE_IMAGE:-docker.m.daocloud.io/library/node:24-alpine}"
-GOLANG_IMAGE="${GOLANG_IMAGE:-docker.m.daocloud.io/library/golang:1.26.5-alpine}"
+GOLANG_IMAGE="${GOLANG_IMAGE:-docker.m.daocloud.io/library/golang:1.26.6-alpine}"
 ALPINE_IMAGE="${ALPINE_IMAGE:-docker.m.daocloud.io/library/alpine:3.21}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-docker.m.daocloud.io/library/postgres:18-alpine}"
 ALPINE_MIRROR="${ALPINE_MIRROR:-https://mirrors.aliyun.com/alpine}"

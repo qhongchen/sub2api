@@ -613,7 +613,7 @@ import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
-import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
+import { buildGrokUsageRefreshKey, buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatCountdown, formatCurrency, formatDateTime, formatNumber, formatRelativeTime, formatTokensK } from '@/utils/format'
 import { formatMultiplier as formatMultiplierValue } from '@/utils/formatters'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
@@ -1038,6 +1038,7 @@ const shouldReplaceAccountRow = (current: Account, next: Account) => {
         JSON.stringify(next.scheduler_scores ?? next.scheduler_score ?? null)
     ) ||
     buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next) ||
+    buildGrokUsageRefreshKey(current) !== buildGrokUsageRefreshKey(next) ||
     JSON.stringify(current.extra?.upstream_billing_probe ?? null) !==
       JSON.stringify(next.extra?.upstream_billing_probe ?? null)
   )
@@ -1330,17 +1331,107 @@ const isAccountPrivacyModeDisplayable = (account: Account) => {
   ].includes(getAccountPrivacyMode(account))
 }
 
+const GROK_QUOTA_SIGNAL_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const GROK_QUOTA_SIGNAL_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+
+const firstNonBlankString = (...values: unknown[]): string | undefined => {
+  return values.find((value): value is string => (
+    typeof value === 'string' && value.trim().length > 0
+  ))
+}
+
+const normalizeGrokPlanKey = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '')
+}
+
+const grokPersistedQuotaSnapshot = (
+  extra: Record<string, unknown>
+): Record<string, unknown> | undefined => {
+  const usage = extra.grok_usage_snapshot
+  if (usage && typeof usage === 'object' && !Array.isArray(usage)) {
+    return usage as Record<string, unknown>
+  }
+  const legacy = extra.grok_quota_snapshot
+  if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+    return legacy as Record<string, unknown>
+  }
+  return undefined
+}
+
+const isGrokQuotaTimestampFresh = (raw: unknown): boolean => {
+  const value = String(raw || '').trim()
+  if (!value) return false
+  const observedAt = Date.parse(value)
+  if (!Number.isFinite(observedAt)) return false
+  const age = Date.now() - observedAt
+  return age <= GROK_QUOTA_SIGNAL_MAX_AGE_MS && age >= -GROK_QUOTA_SIGNAL_MAX_FUTURE_SKEW_MS
+}
+
+const isGrok45ResponsesQuotaModel = (model: unknown): boolean => {
+  const value = String(model || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(x-ai|xai)\//, '')
+  return value === 'grok-4.5' || value.startsWith('grok-4.5-')
+}
+
+const grokQuotaLooksHeavy = (snapshot: Record<string, unknown> | undefined): boolean => {
+  const requests = snapshot?.requests as Record<string, unknown> | undefined
+  const tokens = snapshot?.tokens as Record<string, unknown> | undefined
+  const requestLimit = Number(requests?.limit ?? 0)
+  const tokenLimit = Number(tokens?.limit ?? 0)
+  return requestLimit >= 8300 || tokenLimit >= 53_000_000
+}
+
+const grok45ResponsesPlanIsHeavy = (
+  snapshot: Record<string, unknown> | undefined
+): boolean => {
+  if (!snapshot) return false
+  const hint = normalizeGrokPlanKey(snapshot.plan_from_45_responses)
+  if (hint === 'supergrokheavy' && isGrokQuotaTimestampFresh(snapshot.plan_from_45_responses_at)) {
+    return true
+  }
+  const observedAt = snapshot.last_headers_seen_at || snapshot.updated_at
+  return (
+    isGrok45ResponsesQuotaModel(snapshot.model) &&
+    isGrokQuotaTimestampFresh(observedAt) &&
+    grokQuotaLooksHeavy(snapshot)
+  )
+}
+
 const getAccountPlanType = (account: Account) => {
   if (account.platform === 'grok') {
-    const extra = account.extra as Record<string, unknown> | undefined
-    const billing = extra?.grok_billing_snapshot as Record<string, unknown> | undefined
-    const quota = extra?.grok_quota_snapshot as Record<string, unknown> | undefined
-    return (
-      getRecordString(billing, 'plan') ||
-      getRecordString(quota, 'subscription_tier') ||
-      getCredentialString(account, 'subscription_tier') ||
-      getExtraString(account, 'subscription_tier') ||
-      getCredentialString(account, 'plan_type') ||
+    const extra = (account.extra || {}) as Record<string, unknown>
+    const billing = extra.grok_billing_snapshot as Record<string, unknown> | undefined
+    const usage = extra.grok_usage_snapshot as Record<string, unknown> | undefined
+    const legacyQuota = extra.grok_quota_snapshot as Record<string, unknown> | undefined
+    const quota = grokPersistedQuotaSnapshot(extra)
+    const credentialTier = firstNonBlankString(account.credentials?.subscription_tier)
+    const credentialTierKey = normalizeGrokPlanKey(credentialTier)
+    if (credentialTierKey && credentialTierKey !== 'supergrokpro') {
+      return credentialTier
+    }
+    if (
+      grok45ResponsesPlanIsHeavy(quota) &&
+      (credentialTierKey === 'supergrokpro' ||
+        normalizeGrokPlanKey(billing?.plan) === 'supergrok' ||
+        normalizeGrokPlanKey(billing?.plan) === 'supergrokpro')
+    ) {
+      return 'SuperGrok Heavy'
+    }
+    if (credentialTierKey === 'supergrokpro') {
+      return firstNonBlankString(billing?.plan) || 'SuperGrok'
+    }
+    return firstNonBlankString(
+      billing?.plan,
+      usage?.subscription_tier,
+      legacyQuota?.subscription_tier,
+      extra.subscription_tier,
+      account.credentials?.plan_type,
       getAccountParentString(account, 'parent_plan_type')
     )
   }
