@@ -30,9 +30,6 @@ const (
 	monitorWorkerConcurrency = 5
 	// monitorStartupLoadTimeout Start 时一次性加载所有 enabled monitor 的总超时。
 	monitorStartupLoadTimeout = 10 * time.Second
-	// monitorMinIntervalSeconds / monitorMaxIntervalSeconds 用户配置的检测间隔上下限。
-	monitorMinIntervalSeconds = 15
-	monitorMaxIntervalSeconds = 3600
 	// monitorMessageMaxBytes message 字段最大字节数（与 schema/migration 一致）。
 	monitorMessageMaxBytes = 500
 	// monitorResponseMaxBytes 单次模型响应最大读取字节，防止 OOM。
@@ -83,10 +80,10 @@ const (
 	MonitorDefaultQuotaModel = "quota"
 
 	// monitorQuotaFetchCacheTTL 配额快照缓存时长。多个监控可能关联同一账号，
-	// 而 interval 最小 15s 且国产配额服务无缓存，TTL 防止打爆上游配额端点。
+	// 国产配额服务无缓存，TTL 防止频繁访问上游配额端点。
 	monitorQuotaFetchCacheTTL = 5 * time.Minute
 	// monitorQuotaErrorCacheTTL 失败快照的负缓存时长：失败也短缓存，避免
-	// 故障/凭据失效期间每次调度（最小 15s）都带真实凭据打上游；到期自动重试。
+	// 故障/凭据失效期间每次调度都带真实凭据打上游；到期自动重试。
 	monitorQuotaErrorCacheTTL = 60 * time.Second
 	// monitorQuotaFetchTimeout singleflight 内单次配额抓取的总超时
 	// （脱离调用方 ctx，防止某个监控的取消波及共享同一账号的其他监控）。
@@ -172,10 +169,10 @@ var (
 		"CHANNEL_MONITOR_INVALID_REQUEST_BODY", "openai-compatible replace-mode body_override must include non-empty messages for chat_completions or non-empty instructions and input for responses",
 	)
 	ErrChannelMonitorInvalidInterval = infraerrors.BadRequest(
-		"CHANNEL_MONITOR_INVALID_INTERVAL", "interval_seconds must be in [15, 3600]",
+		"CHANNEL_MONITOR_INVALID_INTERVAL", "interval_seconds must be a positive number of seconds",
 	)
 	ErrChannelMonitorInvalidJitter = infraerrors.BadRequest(
-		"CHANNEL_MONITOR_INVALID_JITTER", "jitter_seconds must be >= 0 and interval_seconds - jitter_seconds must be >= 15",
+		"CHANNEL_MONITOR_INVALID_JITTER", "jitter_seconds must be >= 0 and less than interval_seconds",
 	)
 	ErrChannelMonitorInvalidEndpoint = infraerrors.BadRequest(
 		"CHANNEL_MONITOR_INVALID_ENDPOINT", "endpoint must be a valid https URL",

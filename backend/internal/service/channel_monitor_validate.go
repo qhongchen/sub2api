@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // 渠道监控参数校验与归一化辅助函数。
@@ -101,18 +102,27 @@ func validateAPIMode(provider, apiMode string) error {
 	}
 }
 
-// validateInterval 校验 interval_seconds 范围。
+const maxChannelMonitorIntervalSeconds = int64(time.Duration(1<<63-1) / time.Second)
+
+func channelMonitorIntervalDuration(seconds int) (time.Duration, bool) {
+	if seconds <= 0 || int64(seconds) > maxChannelMonitorIntervalSeconds {
+		return 0, false
+	}
+	return time.Duration(seconds) * time.Second, true
+}
+
+// validateInterval 校验 interval_seconds 为可表示的正秒数。
 func validateInterval(sec int) error {
-	if sec < monitorMinIntervalSeconds || sec > monitorMaxIntervalSeconds {
+	if _, ok := channelMonitorIntervalDuration(sec); !ok {
 		return ErrChannelMonitorInvalidInterval
 	}
 	return nil
 }
 
 // validateJitter 校验 jitter_seconds（调度 ± 随机抖动）：
-// 非负，且 interval - jitter 不得低于最小检测间隔，防止随机偏移后实际间隔过短打爆上游。
+// 非负，且必须小于 interval，避免随机偏移产生零间隔的紧循环。
 func validateJitter(jitterSec, intervalSec int) error {
-	if jitterSec < 0 || intervalSec-jitterSec < monitorMinIntervalSeconds {
+	if jitterSec < 0 || jitterSec >= intervalSec {
 		return ErrChannelMonitorInvalidJitter
 	}
 	return nil

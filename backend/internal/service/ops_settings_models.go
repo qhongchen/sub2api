@@ -3,8 +3,9 @@ package service
 // Ops settings models stored in DB `settings` table (JSON blobs).
 
 type OpsEmailNotificationConfig struct {
-	Alert  OpsEmailAlertConfig  `json:"alert"`
-	Report OpsEmailReportConfig `json:"report"`
+	Alert        OpsEmailAlertConfig        `json:"alert"`
+	Report       OpsEmailReportConfig       `json:"report"`
+	ChannelStatus OpsEmailChannelStatusConfig `json:"channel_status"`
 }
 
 type OpsEmailAlertConfig struct {
@@ -33,9 +34,18 @@ type OpsEmailReportConfig struct {
 
 // OpsEmailNotificationConfigUpdateRequest allows partial updates, while the
 // frontend can still send the full config shape.
+// OpsEmailChannelStatusConfig 渠道状态通知配置。
+// 当渠道连续 N 次（ConsecutiveThreshold）成功后转为失败，或连续 N 次失败后转为成功时发送邮件。
+type OpsEmailChannelStatusConfig struct {
+	Enabled              bool     `json:"enabled"`
+	Recipients           []string `json:"recipients"`
+	ConsecutiveThreshold int      `json:"consecutive_threshold"`
+}
+
 type OpsEmailNotificationConfigUpdateRequest struct {
-	Alert  *OpsEmailAlertConfig  `json:"alert"`
-	Report *OpsEmailReportConfig `json:"report"`
+	Alert         *OpsEmailAlertConfig         `json:"alert"`
+	Report        *OpsEmailReportConfig        `json:"report"`
+	ChannelStatus *OpsEmailChannelStatusConfig `json:"channel_status"`
 }
 
 type OpsDistributedLockSettings struct {

@@ -360,6 +360,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		mappedModelBytes = []byte(mappedModel)
 	}
 	bufferedStreamEvents := make([][]byte, 0, 4)
+	bufferedStreamEventBytes := int64(0)
+	clientOutputStarted := false
 	eventCount := 0
 	tokenEventCount := 0
 	terminalEventCount := 0
@@ -431,6 +433,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			emitStreamMessage(buffered, false)
 		}
 		bufferedStreamEvents = bufferedStreamEvents[:0]
+		bufferedStreamEventBytes = 0
 		flushStreamWriter(true)
 		flushedBufferedEventCount += flushed
 		if debugEnabled {
@@ -448,6 +451,36 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 
 	readTimeout := s.openAIWSReadTimeout()
 	var pendingJSONDocuments [][]byte
+	reasoningEffort := ""
+	if reqStream && account.Platform == PlatformOpenAI {
+		if value := ApplyThinkingEnabledFallback(
+			extractOpenAIReasoningEffort(payload, mappedModel, originalModel),
+			payloadAsJSONBytes(payload),
+			mappedModel,
+		); value != nil {
+			reasoningEffort = *value
+		}
+	}
+	firstOutputTimeout := time.Duration(0)
+	if reqStream && account.Platform == PlatformOpenAI {
+		firstOutputTimeout = s.openAIFirstOutputTimeoutForAccount(account, reasoningEffort)
+	}
+	firstOutputObserved := firstOutputTimeout <= 0
+	firstOutputDeadline := startTime.Add(firstOutputTimeout)
+	firstOutputTimeoutError := func() error {
+		lease.MarkBroken()
+		return s.newOpenAIFirstOutputTimeoutError(
+			ctx,
+			c,
+			account,
+			startTime,
+			originalModel,
+			reasoningEffort,
+			firstOutputTimeout,
+			"websocket_first_semantic_output",
+			lease.HandshakeHeaders(),
+		)
+	}
 
 	for {
 		var message []byte
@@ -456,7 +489,17 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			message = pendingJSONDocuments[0]
 			pendingJSONDocuments = pendingJSONDocuments[1:]
 		} else {
-			message, readErr = lease.ReadMessageWithContextTimeout(ctx, readTimeout)
+			currentReadTimeout := readTimeout
+			if !firstOutputObserved {
+				remaining := time.Until(firstOutputDeadline)
+				if remaining <= 0 {
+					return nil, firstOutputTimeoutError()
+				}
+				if currentReadTimeout <= 0 || remaining < currentReadTimeout {
+					currentReadTimeout = remaining
+				}
+			}
+			message, readErr = lease.ReadMessageWithContextTimeout(ctx, currentReadTimeout)
 			if readErr == nil {
 				if documents, repaired := splitOpenAIConcatenatedJSONDocuments(message); repaired {
 					logOpenAIWSModeInfo(
@@ -470,6 +513,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					pendingJSONDocuments = append(pendingJSONDocuments, documents[1:]...)
 				}
 			}
+		}
+		if !firstOutputObserved && time.Now().After(firstOutputDeadline) {
+			return nil, firstOutputTimeoutError()
 		}
 		if readErr == nil && !json.Valid(message) {
 			eventType, _, _ := parseOpenAIWSEventEnvelope(message)
@@ -491,6 +537,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			return nil, errors.New("upstream websocket returned malformed Responses event JSON after downstream output")
 		}
 		if readErr != nil {
+			if !firstOutputObserved && ctx.Err() == nil && time.Now().After(firstOutputDeadline) {
+				return nil, firstOutputTimeoutError()
+			}
 			lease.MarkBroken()
 			closeStatus, closeReason := summarizeOpenAIWSReadCloseError(readErr)
 			logOpenAIWSModeInfo(
@@ -544,6 +593,10 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		isTerminalEvent := isOpenAIWSTerminalEvent(eventType)
 		if isTerminalEvent {
 			terminalEventCount++
+		}
+		startsClientOutput := openAIStreamDataStartsClientOutput(string(message), eventType) || isTerminalEvent
+		if !firstOutputObserved && startsClientOutput {
+			firstOutputObserved = true
 		}
 		if firstTokenMs == nil && isTokenEvent {
 			ms := int(time.Since(startTime).Milliseconds())
@@ -661,13 +714,26 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 
 		if reqStream {
-			// 在首个 token 前先缓冲事件（如 response.created），
+			// 在首个语义输出前先缓冲事件（如 response.created），
 			// 以便上游早期断连时仍可安全回退到 HTTP，不给下游发送半截流。
-			shouldBuffer := firstTokenMs == nil && !isTokenEvent && !isTerminalEvent
+			shouldBuffer := !clientOutputStarted && !startsClientOutput
 			if shouldBuffer {
+				if bufferedStreamEventBytes+int64(len(message)) > openAIFirstOutputStageMaxBytes {
+					lease.MarkBroken()
+					return nil, s.newOpenAIStreamFailoverError(
+						c,
+						account,
+						true,
+						lease.HandshakeHeader("x-request-id"),
+						nil,
+						"OpenAI WS first-output staging limit exceeded",
+						lease.HandshakeHeaders(),
+					)
+				}
 				buffered := make([]byte, len(message))
 				copy(buffered, message)
 				bufferedStreamEvents = append(bufferedStreamEvents, buffered)
+				bufferedStreamEventBytes += int64(len(buffered))
 				bufferedEventCount++
 				if debugEnabled && shouldLogOpenAIWSBufferedEvent(bufferedEventCount) {
 					logOpenAIWSModeDebug(
@@ -681,6 +747,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					)
 				}
 			} else {
+				clientOutputStarted = true
 				flushBufferedStreamEvents(eventType)
 				emitStreamMessage(message, isTerminalEvent)
 			}

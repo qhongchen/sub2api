@@ -679,6 +679,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 	resp *http.Response,
 	logPrefix string,
 	requestID string,
+	firstOutputGuardOption ...*openAIFirstOutputBodyGuard,
 ) (*apicompat.ResponsesResponse, OpenAIUsage, *apicompat.BufferedResponseAccumulator, error) {
 	acc := apicompat.NewBufferedResponseAccumulator()
 	var usage OpenAIUsage
@@ -687,6 +688,25 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 	}
 
 	scanner := s.newUpstreamSSEScanner(resp.Body)
+	var firstOutputGuard *openAIFirstOutputBodyGuard
+	if len(firstOutputGuardOption) > 0 {
+		firstOutputGuard = firstOutputGuardOption[0]
+	}
+	var firstOutputScanGuard atomic.Bool
+	if firstOutputGuard != nil {
+		firstOutputScanGuard.Store(true)
+		scanner.Split(openAIFirstOutputDynamicScanLines(&firstOutputScanGuard))
+	}
+	observeFirstOutput := func(payload, eventType string) bool {
+		if firstOutputGuard == nil || !firstOutputGuard.pending() || !openAIStreamDataStartsClientOutput(payload, eventType) {
+			return true
+		}
+		if !firstOutputGuard.observe() {
+			return false
+		}
+		firstOutputScanGuard.Store(false)
+		return true
+	}
 
 	streamInterval := time.Duration(0)
 	if s.cfg != nil && s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
@@ -729,7 +749,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 		line string
 		err  error
 	}
-	events := make(chan scanEvent, 16)
+	events := make(chan scanEvent, openAIFirstOutputEventQueueSize(firstOutputGuard != nil && firstOutputGuard.pending()))
 	done := make(chan struct{})
 	go func() {
 		defer close(events)
@@ -758,6 +778,9 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 					payload := openAICompatPayloadWithEventType(frame.Data, frame.EventType)
 					var event apicompat.ResponsesStreamEvent
 					if err := json.Unmarshal([]byte(payload), &event); err == nil {
+						if !observeFirstOutput(payload, event.Type) {
+							return nil, usage, acc, context.DeadlineExceeded
+						}
 						acc.ProcessEvent(&event)
 						if isOpenAICompatResponsesTerminalEvent(event.Type) && event.Response != nil {
 							if event.Usage != nil {
@@ -802,6 +825,9 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 					zap.String("request_id", requestID),
 				)
 				continue
+			}
+			if !observeFirstOutput(payload, event.Type) {
+				return nil, usage, acc, context.DeadlineExceeded
 			}
 
 			acc.ProcessEvent(&event)

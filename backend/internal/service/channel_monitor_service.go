@@ -82,6 +82,11 @@ type ChannelMonitorService struct {
 	// 之后构造，构造参数注入会破坏既有依赖顺序）。nil 时 fail-closed：
 	// 配额模式的检测产出「未配置」错误快照，Create/Update 关联账号直接报错。
 	quotaFetcher *ChannelMonitorQuotaFetcher
+	// emailService 由 wire 通过 SetEmailService 注入，用于渠道状态变化时发送通知邮件。
+	// nil 时状态变化检测仍执行但不发邮件。
+	emailService *EmailService
+	// opsService 由 wire 通过 SetOpsService 注入，用于读取渠道状态通知配置。
+	opsService *OpsService
 }
 
 const maxChannelMonitorNameRunes = 100
@@ -630,6 +635,7 @@ func (s *ChannelMonitorService) RunCheck(ctx context.Context, id int64) ([]*Chec
 		results = s.runChecksConcurrent(ctx, m)
 	}
 	s.persistCheckResults(ctx, m, results)
+	s.detectAndNotifyChannelStatusChange(ctx, m, results)
 	return results, nil
 }
 
@@ -693,6 +699,109 @@ func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *Chan
 	}
 }
 
+// detectAndNotifyChannelStatusChange 检测渠道状态变化并发送通知邮件。
+// 对每个模型：查询最近 threshold+1 条历史记录（含刚写入的本次），
+// 如果最近 threshold 条全部为同一状态，且前一条为相反状态，则判定为状态翻转。
+func (s *ChannelMonitorService) detectAndNotifyChannelStatusChange(ctx context.Context, m *ChannelMonitor, results []*CheckResult) {
+	if s == nil || s.emailService == nil || s.opsService == nil {
+		return
+	}
+
+	emailCfg, err := s.opsService.GetEmailNotificationConfig(ctx)
+	if err != nil || emailCfg == nil || !emailCfg.ChannelStatus.Enabled {
+		return
+	}
+	if len(emailCfg.ChannelStatus.Recipients) == 0 {
+		return
+	}
+
+	threshold := emailCfg.ChannelStatus.ConsecutiveThreshold
+	if threshold < 1 {
+		threshold = 5
+	}
+
+	for _, r := range results {
+		s.checkModelStatusTransition(ctx, m, r, threshold, emailCfg.ChannelStatus.Recipients)
+	}
+}
+
+// checkModelStatusTransition 检查单个模型的状态翻转并发送邮件。
+func (s *ChannelMonitorService) checkModelStatusTransition(ctx context.Context, m *ChannelMonitor, r *CheckResult, threshold int, recipients []string) {
+	// 查询最近 threshold+1 条历史（含刚写入的本次检测），按 checked_at DESC 排序。
+	history, err := s.repo.ListHistory(ctx, m.ID, r.Model, threshold+1)
+	if err != nil || len(history) < threshold+1 {
+		return
+	}
+
+	// history[0] 是最新（本次），history[threshold] 是翻转前的最后一条
+	currentState := history[0].Status
+	prevState := history[threshold].Status
+
+	currentIsSuccess := isMonitorStatusSuccess(currentState)
+	prevIsSuccess := isMonitorStatusSuccess(prevState)
+
+	// 状态未翻转则不通知
+	if currentIsSuccess == prevIsSuccess {
+		return
+	}
+
+	// 最近 threshold 条（history[0..threshold-1]）必须全部为同一状态
+	for i := 0; i < threshold; i++ {
+		if isMonitorStatusSuccess(history[i].Status) != currentIsSuccess {
+			return
+		}
+	}
+
+	s.sendChannelStatusEmail(ctx, m, r.Model, prevState, currentState, threshold, recipients)
+}
+
+// isMonitorStatusSuccess 判断监控状态是否为"成功"（operational/degraded）。
+func isMonitorStatusSuccess(status string) bool {
+	return status == MonitorStatusOperational || status == MonitorStatusDegraded
+}
+
+// sendChannelStatusEmail 发送渠道状态变化通知邮件。
+func (s *ChannelMonitorService) sendChannelStatusEmail(ctx context.Context, m *ChannelMonitor, model, prevState, currentState string, consecutiveCount int, recipients []string) {
+	vars := map[string]string{
+		"channel_name":      m.Name,
+		"model":             model,
+		"previous_state":    prevState,
+		"current_state":     currentState,
+		"consecutive_count": fmt.Sprintf("%d", consecutiveCount),
+		"triggered_at":      time.Now().UTC().Format(time.RFC3339),
+	}
+
+	subject := fmt.Sprintf("[渠道状态变更] %s - %s", m.Name, currentState)
+	body := fmt.Sprintf("渠道：%s\n模型：%s\n之前状态：%s\n当前状态：%s\n连续次数：%d\n触发时间：%s",
+		m.Name, model, prevState, currentState, consecutiveCount, vars["triggered_at"])
+
+	for _, to := range recipients {
+		addr := strings.TrimSpace(to)
+		if addr == "" {
+			continue
+		}
+		if s.emailService.notificationEmailService != nil {
+			if err := s.emailService.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+				Event:          NotificationEmailEventOpsChannelStatus,
+				RecipientEmail: addr,
+				RecipientName:  emailRecipientName(addr),
+				SourceType:     "ops_channel_status",
+				SourceID:       fmt.Sprintf("%d", m.ID),
+				Variables:      vars,
+			}); err == nil {
+				continue
+			} else if !shouldFallbackNotificationEmail(err) {
+				continue
+			}
+		}
+		if err := s.emailService.SendEmail(ctx, addr, subject, body); err != nil {
+			slog.Error("channel_monitor: send channel status email failed",
+				"monitor_id", m.ID, "recipient", addr, "error", err)
+			continue
+		}
+	}
+}
+
 // runChecksConcurrent 对 primary + extra 模型并发执行检测。
 // errgroup 仅用于等待，不传播错误（每个 model 失败都已打包进 CheckResult）。
 func (s *ChannelMonitorService) runChecksConcurrent(ctx context.Context, m *ChannelMonitor) []*CheckResult {
@@ -741,6 +850,22 @@ func (s *ChannelMonitorService) SetQuotaFetcher(fetcher *ChannelMonitorQuotaFetc
 		return
 	}
 	s.quotaFetcher = fetcher
+}
+
+// SetEmailService 由 wire 注入邮件服务，用于渠道状态变化通知。
+func (s *ChannelMonitorService) SetEmailService(emailService *EmailService) {
+	if s == nil {
+		return
+	}
+	s.emailService = emailService
+}
+
+// SetOpsService 由 wire 注入运维服务，用于读取渠道状态通知配置。
+func (s *ChannelMonitorService) SetOpsService(opsService *OpsService) {
+	if s == nil {
+		return
+	}
+	s.opsService = opsService
 }
 
 // ListEnabledMonitors 返回所有 enabled=true 的监控（解密后），供 runner 启动时建立任务表。

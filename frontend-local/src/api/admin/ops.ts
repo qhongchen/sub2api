@@ -747,6 +747,11 @@ export interface EmailNotificationConfig {
     account_health_schedule: string
     account_health_error_rate_threshold: number
   }
+  channel_status: {
+    enabled: boolean
+    recipients: string[]
+    consecutive_threshold: number
+  }
 }
 
 export interface OpsMetricThresholds {
@@ -1219,6 +1224,10 @@ export async function updateEmailNotificationConfig(config: EmailNotificationCon
   return data
 }
 
+export async function sendChannelStatusTestEmail(): Promise<void> {
+  await apiClient.post('/admin/ops/email-notification/channel-status/test')
+}
+
 // Runtime settings (DB-backed)
 export async function getAlertRuntimeSettings(): Promise<OpsAlertRuntimeSettings> {
   const { data } = await apiClient.get<OpsAlertRuntimeSettings>('/admin/ops/runtime/alert')
@@ -1321,6 +1330,7 @@ export const opsAPI = {
   createAlertSilence,
   getEmailNotificationConfig,
   updateEmailNotificationConfig,
+  sendChannelStatusTestEmail,
   getAlertRuntimeSettings,
   updateAlertRuntimeSettings,
   getRuntimeLogConfig,

@@ -22,6 +22,7 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const saving = ref(false)
+const sendingChannelStatusTest = ref(false)
 
 // 运行时设置
 const runtimeSettings = ref<OpsAlertRuntimeSettings | null>(null)
@@ -39,6 +40,7 @@ const metricThresholds = ref<OpsMetricThresholds>({
 
 // 加载所有配置
 async function loadAllSettings() {
+  resetRecipientInputs()
   loading.value = true
   try {
     const [runtime, email, advanced, thresholds] = await Promise.all([
@@ -77,6 +79,7 @@ watch(() => props.show, (show) => {
 // 邮件输入
 const alertRecipientInput = ref('')
 const reportRecipientInput = ref('')
+const channelStatusRecipientInput = ref('')
 
 // 严重级别选项
 const severityOptions: Array<{ value: AlertSeverity | ''; label: string }> = [
@@ -91,30 +94,42 @@ function isValidEmailAddress(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-// 添加收件人
-function addRecipient(target: 'alert' | 'report') {
-  if (!emailConfig.value) return
-  const raw = (target === 'alert' ? alertRecipientInput.value : reportRecipientInput.value).trim()
-  if (!raw) return
+function resetRecipientInputs() {
+  alertRecipientInput.value = ''
+  reportRecipientInput.value = ''
+  channelStatusRecipientInput.value = ''
+}
+
+// 将输入框中的邮箱提交到对应收件人列表。
+function addRecipient(target: 'alert' | 'report' | 'channel_status'): boolean {
+  if (!emailConfig.value) return false
+  const raw = (target === 'alert' ? alertRecipientInput.value : target === 'report' ? reportRecipientInput.value : channelStatusRecipientInput.value).trim()
+  if (!raw) return true
 
   if (!isValidEmailAddress(raw)) {
     appStore.showError(t('common.invalidEmail'))
-    return
+    return false
   }
 
   const normalized = raw.toLowerCase()
-  const list = target === 'alert' ? emailConfig.value.alert.recipients : emailConfig.value.report.recipients
+  const list = target === 'alert' ? emailConfig.value.alert.recipients : target === 'report' ? emailConfig.value.report.recipients : emailConfig.value.channel_status.recipients
   if (!list.includes(normalized)) {
     list.push(normalized)
   }
   if (target === 'alert') alertRecipientInput.value = ''
-  else reportRecipientInput.value = ''
+  else if (target === 'report') reportRecipientInput.value = ''
+  else channelStatusRecipientInput.value = ''
+  return true
+}
+
+function addPendingRecipients(): boolean {
+  return addRecipient('alert') && addRecipient('report') && addRecipient('channel_status')
 }
 
 // 移除收件人
-function removeRecipient(target: 'alert' | 'report', email: string) {
+function removeRecipient(target: 'alert' | 'report' | 'channel_status', email: string) {
   if (!emailConfig.value) return
-  const list = target === 'alert' ? emailConfig.value.alert.recipients : emailConfig.value.report.recipients
+  const list = target === 'alert' ? emailConfig.value.alert.recipients : target === 'report' ? emailConfig.value.report.recipients : emailConfig.value.channel_status.recipients
   const idx = list.indexOf(email)
   if (idx >= 0) list.splice(idx, 1)
 }
@@ -131,7 +146,7 @@ const validation = computed(() => {
     }
   }
 
-  // 邮件配置: 启用但无收件人时不阻断保存, 保存时会自动禁用
+  // 邮件配置允许先开启后补充收件人；运行时会在收件人为空时跳过发送。
 
   // 验证高级设置
   if (advancedSettings.value) {
@@ -170,18 +185,10 @@ async function saveAllSettings() {
     appStore.showError(validation.value.errors[0])
     return
   }
+  if (!addPendingRecipients()) return
 
   saving.value = true
   try {
-    // 无收件人时自动禁用邮件通知
-    if (emailConfig.value) {
-      if (emailConfig.value.alert.enabled && emailConfig.value.alert.recipients.length === 0) {
-        emailConfig.value.alert.enabled = false
-      }
-      if (emailConfig.value.report.enabled && emailConfig.value.report.recipients.length === 0) {
-        emailConfig.value.report.enabled = false
-      }
-    }
     await Promise.all([
       runtimeSettings.value ? opsAPI.updateAlertRuntimeSettings(runtimeSettings.value) : Promise.resolve(),
       emailConfig.value ? opsAPI.updateEmailNotificationConfig(emailConfig.value) : Promise.resolve(),
@@ -198,6 +205,32 @@ async function saveAllSettings() {
     saving.value = false
   }
 }
+
+async function sendChannelStatusTest() {
+  if (!emailConfig.value) return
+  if (!addRecipient('channel_status')) return
+  if (emailConfig.value.channel_status.recipients.length === 0) {
+    appStore.showError(t('admin.ops.settings.channelStatusTestRecipientsRequired'))
+    return
+  }
+
+  sendingChannelStatusTest.value = true
+  try {
+    // 测试需要读取已保存的收件人，先持久化当前邮件配置。
+    emailConfig.value = await opsAPI.updateEmailNotificationConfig(emailConfig.value)
+    await opsAPI.sendChannelStatusTestEmail()
+    appStore.showSuccess(t('admin.ops.settings.channelStatusTestSent'))
+  } catch (err: any) {
+    console.error('[OpsSettingsDialog] Failed to send channel status test email', err)
+    appStore.showError(err?.message || err?.response?.data?.message || err?.response?.data?.detail || t('admin.ops.settings.channelStatusTestFailed'))
+  } finally {
+    sendingChannelStatusTest.value = false
+  }
+}
+
+const hasChannelStatusRecipient = computed(() =>
+  (emailConfig.value?.channel_status.recipients.length ?? 0) > 0 || channelStatusRecipientInput.value.trim() !== ''
+)
 </script>
 
 <template>
@@ -335,6 +368,75 @@ async function saveAllSettings() {
             <div v-if="emailConfig.report.weekly_summary_enabled">
               <input v-model="emailConfig.report.weekly_summary_schedule" type="text" class="input" placeholder="0 9 * * 1" />
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 渠道状态通知配置 -->
+      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
+        <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.settings.channelStatusConfig') }}</h4>
+        <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.settings.channelStatusHint') }}</p>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="font-medium text-gray-900 dark:text-white">{{ t('admin.ops.settings.enableChannelStatus') }}</label>
+            </div>
+            <Toggle v-model="emailConfig.channel_status.enabled" />
+          </div>
+
+          <div v-if="emailConfig.channel_status.enabled">
+            <label class="input-label">{{ t('admin.ops.settings.channelStatusRecipients') }}</label>
+            <div class="flex gap-2">
+              <input
+                v-model="channelStatusRecipientInput"
+                type="email"
+                class="input"
+                :placeholder="t('admin.ops.settings.emailPlaceholder')"
+                @keydown.enter.prevent="addRecipient('channel_status')"
+              />
+              <button class="btn btn-secondary whitespace-nowrap" type="button" @click="addRecipient('channel_status')">
+                {{ t('common.add') }}
+              </button>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <span
+                v-for="email in emailConfig.channel_status.recipients"
+                :key="email"
+                class="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+              >
+                {{ email }}
+                <button type="button" class="text-blue-700/80 hover:text-blue-900" @click="removeRecipient('channel_status', email)">×</button>
+              </span>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.ops.settings.recipientsHint') }}
+            </p>
+          </div>
+
+          <div v-if="emailConfig.channel_status.enabled">
+            <label class="input-label">{{ t('admin.ops.settings.consecutiveThreshold') }}</label>
+            <input
+              v-model.number="emailConfig.channel_status.consecutive_threshold"
+              type="number"
+              min="1"
+              max="100"
+              class="input"
+            />
+            <p class="mt-1 text-xs text-gray-500">{{ t('admin.ops.settings.consecutiveThresholdHint') }}</p>
+          </div>
+
+          <div v-if="emailConfig.channel_status.enabled" class="flex items-center justify-between gap-4">
+            <p class="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.settings.channelStatusTestHint') }}</p>
+            <button
+              data-testid="channel-status-test-email"
+              type="button"
+              class="btn btn-secondary btn-sm shrink-0"
+              :disabled="sendingChannelStatusTest || !hasChannelStatusRecipient"
+              @click="sendChannelStatusTest"
+            >
+              {{ sendingChannelStatusTest ? t('admin.ops.settings.channelStatusTestSending') : t('admin.ops.settings.channelStatusTest') }}
+            </button>
           </div>
         </div>
       </div>

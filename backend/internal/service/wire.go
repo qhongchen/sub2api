@@ -693,6 +693,7 @@ func ProvideOpsService(
 	settingService *SettingService,
 	authCacheInvalidationWorker *AuthCacheInvalidationWorker,
 	apiKeyService *APIKeyService,
+	notificationEmailService *NotificationEmailService,
 ) *OpsService {
 	svc := NewOpsService(
 		opsRepo,
@@ -715,6 +716,7 @@ func ProvideOpsService(
 	}
 	svc.authCacheInvalidationWorker = authCacheInvalidationWorker
 	svc.apiKeyService = apiKeyService
+	svc.SetNotificationEmailService(notificationEmailService)
 	svc.StartRuntimeSettingsRefresh(context.Background())
 	return svc
 }
@@ -975,6 +977,8 @@ func ProvideChannelMonitorRunner(
 	svc *ChannelMonitorService,
 	settingService *SettingService,
 	quotaFetcher *ChannelMonitorQuotaFetcher,
+	emailService *EmailService,
+	opsService *OpsService,
 ) *ChannelMonitorRunner {
 	r := NewChannelMonitorRunner(svc, settingService)
 	if svc != nil {
@@ -983,6 +987,8 @@ func ProvideChannelMonitorRunner(
 		svc.SetRuntimeReader(settingService)
 		svc.SetScheduler(r)
 		svc.SetQuotaFetcher(quotaFetcher)
+		svc.SetEmailService(emailService)
+		svc.SetOpsService(opsService)
 	}
 	r.Start()
 	return r

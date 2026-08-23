@@ -33,6 +33,7 @@ const (
 	NotificationEmailEventCyberPolicyNotice           = "content_moderation.cyber_policy_notice"
 	NotificationEmailEventOpsAlert                    = "ops.alert"
 	NotificationEmailEventOpsScheduledReport          = "ops.scheduled_report"
+	NotificationEmailEventOpsChannelStatus            = "ops.channel_status"
 
 	notificationEmailTemplateKeyPrefix    = "notification_email_template:"
 	notificationEmailPreferenceKeyPrefix  = "notification_email_preference:"
@@ -1034,6 +1035,7 @@ var notificationEmailEventOrder = []string{
 	NotificationEmailEventCyberPolicyNotice,
 	NotificationEmailEventOpsAlert,
 	NotificationEmailEventOpsScheduledReport,
+	NotificationEmailEventOpsChannelStatus,
 }
 
 var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
@@ -1151,6 +1153,15 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 			),
 			append(append([]string{}, notificationEmailOpsSummaryPlaceholders...), "report_detail_display", "report_html")...,
 		),
+	},
+	NotificationEmailEventOpsChannelStatus: {
+		Event:       NotificationEmailEventOpsChannelStatus,
+		Label:       "Ops channel status change",
+		Description: "Sent to configured operations recipients when a channel monitor transitions between success and failure states.",
+		Category:    "ops",
+		Optional:    false,
+		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...),
+			"channel_name", "model", "previous_state", "current_state", "consecutive_count", "triggered_at"),
 	},
 }
 
@@ -1434,6 +1445,28 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 		notificationEmailLocaleChinese: {
 			Subject: "[运维报表] {{report_name}}",
 			HTML:    notificationEmailOpsScheduledReportTemplate(notificationEmailLocaleChinese),
+		},
+	},
+	NotificationEmailEventOpsChannelStatus: {
+		notificationEmailDefaultLocale: {
+			Subject: "[Ops Channel Status] {{channel_name}} - {{current_state}}",
+			HTML: notificationEmailCard("#3b82f6", "Channel Status Change", `
+<p><strong>Channel</strong>: {{channel_name}}</p>
+<p><strong>Model</strong>: {{model}}</p>
+<p><strong>Previous State</strong>: {{previous_state}}</p>
+<p><strong>Current State</strong>: {{current_state}}</p>
+<p><strong>Consecutive Count</strong>: {{consecutive_count}}</p>
+<p><strong>Triggered At</strong>: {{triggered_at}}</p>`),
+		},
+		notificationEmailLocaleChinese: {
+			Subject: "[渠道状态变更] {{channel_name}} - {{current_state}}",
+			HTML: notificationEmailCard("#3b82f6", "渠道状态变更", `
+<p><strong>渠道名称</strong>：{{channel_name}}</p>
+<p><strong>模型</strong>：{{model}}</p>
+<p><strong>之前状态</strong>：{{previous_state}}</p>
+<p><strong>当前状态</strong>：{{current_state}}</p>
+<p><strong>连续次数</strong>：{{consecutive_count}}</p>
+<p><strong>触发时间</strong>：{{triggered_at}}</p>`),
 		},
 	},
 }

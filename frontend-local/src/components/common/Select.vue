@@ -111,7 +111,7 @@
 
             <!-- Empty state -->
             <div v-if="filteredOptions.length === 0" class="select-empty">
-              {{ emptyTextDisplay }}
+              {{ props.loading ? t('common.loading') : emptyTextDisplay }}
             </div>
           </div>
         </div>
@@ -154,11 +154,14 @@ interface Props {
   id?: string
   ariaLabel?: string
   ariaDescribedby?: string
+  remote?: boolean
+  loading?: boolean
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string | number | boolean | null): void
   (e: 'change', value: string | number | boolean | null, option: SelectOption | null): void
+  (e: 'search', query: string): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -169,7 +172,9 @@ const props = withDefaults(defineProps<Props>(), {
   creatablePrefix: '',
   clearable: false,
   valueKey: 'value',
-  labelKey: 'label'
+  labelKey: 'label',
+  remote: false,
+  loading: false
 })
 
 const emit = defineEmits<Emits>()
@@ -192,7 +197,11 @@ const placeholderText = computed(() => props.placeholder ?? t('common.selectOpti
 const searchPlaceholderText = computed(() => props.searchPlaceholder ?? t('common.searchPlaceholder'))
 const emptyTextDisplay = computed(() => props.emptyText ?? t('common.noOptionsFound'))
 
+const REMOTE_SEARCH_DEBOUNCE_MS = 300
+let remoteSearchTimer: ReturnType<typeof setTimeout> | null = null
+
 const isSearchable = computed(() => {
+  if (props.remote) return true
   if (props.searchable === 'auto') return props.options.length > 5
   return props.searchable
 })
@@ -273,7 +282,7 @@ const hasValue = computed(
 
 const filteredOptions = computed(() => {
   let opts = props.options as any[]
-  if (isSearchable.value && searchQuery.value) {
+  if (isSearchable.value && searchQuery.value && !props.remote) {
     const query = searchQuery.value.toLowerCase()
     opts = opts.filter((opt) => {
       // Match label
@@ -374,9 +383,22 @@ watch(isOpen, (open) => {
   } else {
     searchQuery.value = ''
     focusedIndex.value = -1
+    if (remoteSearchTimer) {
+      clearTimeout(remoteSearchTimer)
+      remoteSearchTimer = null
+    }
     window.removeEventListener('scroll', updateTriggerRect, { capture: true })
     window.removeEventListener('resize', calculateDropdownPosition)
   }
+})
+
+watch(searchQuery, (query) => {
+  if (!props.remote || !isOpen.value) return
+  if (remoteSearchTimer) clearTimeout(remoteSearchTimer)
+  remoteSearchTimer = setTimeout(() => {
+    remoteSearchTimer = null
+    emit('search', query.trim())
+  }, REMOTE_SEARCH_DEBOUNCE_MS)
 })
 
 const selectOption = (option: any) => {
@@ -464,6 +486,10 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', updateTriggerRect, { capture: true })
   window.removeEventListener('resize', calculateDropdownPosition)
+  if (remoteSearchTimer) {
+    clearTimeout(remoteSearchTimer)
+    remoteSearchTimer = null
+  }
 })
 </script>
 

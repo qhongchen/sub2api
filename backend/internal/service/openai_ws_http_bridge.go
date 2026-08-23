@@ -9,10 +9,12 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -182,6 +184,43 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		return nil, errors.New("client websocket writer is nil")
 	}
 	responseModelObserver := &upstreamResponseModelObserver{}
+	turnStart := time.Now()
+	reasoningEffort := ""
+	if account.Platform == PlatformOpenAI {
+		mappedRequestModel := account.GetMappedModel(originalModel)
+		if value := ApplyThinkingEnabledFallback(
+			extractOpenAIReasoningEffortFromBody(payload, mappedRequestModel, originalModel),
+			payload,
+			mappedRequestModel,
+		); value != nil {
+			reasoningEffort = *value
+		}
+	}
+	firstOutputTimeout := time.Duration(0)
+	if account.Platform == PlatformOpenAI {
+		firstOutputTimeout = s.openAIFirstOutputTimeoutForAccount(account, reasoningEffort)
+	}
+	firstOutputTimeoutError := func(headers http.Header) error {
+		failoverErr := s.newOpenAIFirstOutputTimeoutError(
+			ctx,
+			c,
+			account,
+			turnStart,
+			originalModel,
+			reasoningEffort,
+			firstOutputTimeout,
+			"websocket_http_bridge_first_semantic_output",
+			headers,
+		)
+		if turn == 1 {
+			return failoverErr
+		}
+		return NewOpenAIWSClientCloseError(
+			coderws.StatusGoingAway,
+			"upstream produced no semantic output; please reconnect",
+			context.DeadlineExceeded,
+		)
+	}
 
 	body, err := prepareOpenAIWSHTTPBridgeBody(payload)
 	if err != nil {
@@ -196,6 +235,14 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	}
 
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	var headerGuard *openAIFirstOutputHeaderGuard
+	if firstOutputTimeout > 0 {
+		upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(
+			upstreamCtx,
+			releaseUpstreamCtx,
+			turnStart.Add(firstOutputTimeout),
+		)
+	}
 	var upstreamReq *http.Request
 	if account.Platform == PlatformGrok {
 		upstreamModel := resolveGrokWSUpstreamModel(account, body, originalModel)
@@ -220,8 +267,13 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	} else {
 		upstreamReq, err = s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token)
 	}
-	releaseUpstreamCtx()
+	if headerGuard == nil {
+		releaseUpstreamCtx()
+	}
 	if err != nil {
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		return nil, err
 	}
 	if account.Platform != PlatformGrok && isOpenAIResponsesLiteWebSocketPayload(payload) {
@@ -237,15 +289,34 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		c.Set("openai_ws_http_bridge", true)
 	}
 
-	turnStart := time.Now()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	if headerGuard != nil && headerGuard.stopHeaderWait() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		headerGuard.close()
+		var headers http.Header
+		if resp != nil {
+			headers = resp.Header
+		}
+		return nil, firstOutputTimeoutError(headers)
+	}
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		if turn == 1 {
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 		}
 		safeErr := sanitizeUpstreamErrorMessage(err.Error())
 		_ = writeClientMessage(buildOpenAIWSHTTPBridgeErrorEvent(http.StatusBadGateway, "Upstream request failed"))
 		return nil, fmt.Errorf("upstream http bridge request failed: %s", safeErr)
+	}
+	if headerGuard != nil {
+		resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -307,6 +378,44 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			mappedModelBytes = []byte(mappedModel)
 		}
 	}
+	const (
+		firstOutputStatePending uint32 = iota
+		firstOutputStateObserved
+		firstOutputStateTimedOut
+	)
+	var firstOutputState atomic.Uint32
+	var firstOutputTimer *time.Timer
+	if firstOutputTimeout <= 0 {
+		firstOutputState.Store(firstOutputStateObserved)
+	} else {
+		remaining := time.Until(turnStart.Add(firstOutputTimeout))
+		if remaining <= 0 {
+			remaining = time.Nanosecond
+		}
+		firstOutputTimer = time.AfterFunc(remaining, func() {
+			if firstOutputState.CompareAndSwap(firstOutputStatePending, firstOutputStateTimedOut) {
+				_ = resp.Body.Close()
+			}
+		})
+		defer firstOutputTimer.Stop()
+	}
+	markFirstOutputObserved := func() bool {
+		for {
+			switch firstOutputState.Load() {
+			case firstOutputStateObserved:
+				return true
+			case firstOutputStateTimedOut:
+				return false
+			case firstOutputStatePending:
+				if firstOutputState.CompareAndSwap(firstOutputStatePending, firstOutputStateObserved) {
+					if firstOutputTimer != nil {
+						firstOutputTimer.Stop()
+					}
+					return true
+				}
+			}
+		}
+	}
 
 	resultWithUsage := func() *OpenAIForwardResult {
 		imageCount := imageCounter.Count()
@@ -353,6 +462,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	defer putSSEScannerBuf64K(scanBuf)
 
 	for scanner.Scan() {
+		if firstOutputState.Load() == firstOutputStateTimedOut {
+			return resultWithUsage(), firstOutputTimeoutError(resp.Header)
+		}
 		line := scanner.Text()
 		data, ok := extractOpenAISSEDataLine(line)
 		if !ok {
@@ -463,6 +575,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				clientMessage = rewritten
 			}
 		}
+		startsClientOutput := openAIStreamDataStartsClientOutput(string(clientMessage), eventType) ||
+			isOpenAIWSTerminalEvent(eventType)
+		if startsClientOutput && !markFirstOutputObserved() {
+			return resultWithUsage(), firstOutputTimeoutError(resp.Header)
+		}
 		if !clientDisconnected {
 			stageBeforeSemanticOutput := turn == 1 && account.Platform == PlatformOpenAI && !wroteDownstream
 			commitStagedMessages := !stageBeforeSemanticOutput ||
@@ -538,6 +655,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			)
 			return resultWithUsage(), nil
 		}
+	}
+	if firstOutputState.Load() == firstOutputStateTimedOut {
+		return resultWithUsage(), firstOutputTimeoutError(resp.Header)
 	}
 	if err := scanner.Err(); err != nil {
 		streamErr := fmt.Errorf("read upstream http bridge stream: %w", err)

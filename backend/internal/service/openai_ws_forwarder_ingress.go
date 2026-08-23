@@ -849,9 +849,88 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				mappedModelBytes = []byte(mappedModel)
 			}
 		}
+		reasoningEffort := ""
+		if value := ApplyThinkingEnabledFallback(
+			extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel),
+			payload,
+			mappedModel,
+		); value != nil {
+			reasoningEffort = *value
+		}
+		firstOutputTimeout := time.Duration(0)
+		if account.Platform == PlatformOpenAI {
+			firstOutputTimeout = s.openAIFirstOutputTimeoutForAccount(account, reasoningEffort)
+		}
+		firstOutputObserved := firstOutputTimeout <= 0
+		firstOutputDeadline := turnStart.Add(firstOutputTimeout)
+		pendingClientMessages := make([][]byte, 0, 4)
+		pendingClientMessageBytes := int64(0)
+		firstOutputTimeoutError := func() error {
+			lease.MarkBroken()
+			failoverErr := s.newOpenAIFirstOutputTimeoutError(
+				ctx,
+				c,
+				account,
+				turnStart,
+				originalModel,
+				reasoningEffort,
+				firstOutputTimeout,
+				"websocket_first_semantic_output",
+				lease.HandshakeHeaders(),
+			)
+			if turn == 1 {
+				return failoverErr
+			}
+			closeErr := NewOpenAIWSClientCloseError(
+				coderws.StatusGoingAway,
+				"upstream produced no semantic output; please reconnect",
+				context.DeadlineExceeded,
+			)
+			return wrapOpenAIWSIngressTurnError("first_output_timeout", closeErr, wroteDownstream)
+		}
+		writeTurnMessage := func(message []byte) error {
+			if clientDisconnected {
+				return nil
+			}
+			if err := writeClientMessage(message); err != nil {
+				if isOpenAIWSClientDisconnectError(err) {
+					clientDisconnected = true
+					closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)
+					logOpenAIWSModeInfo(
+						"ingress_ws_client_disconnected_drain account_id=%d turn=%d conn_id=%s close_status=%s close_reason=%s",
+						account.ID,
+						turn,
+						truncateOpenAIWSLogValue(lease.ConnID(), openAIWSIDValueMaxLen),
+						closeStatus,
+						truncateOpenAIWSLogValue(closeReason, openAIWSHeaderValueMaxLen),
+					)
+					return nil
+				}
+				return wrapOpenAIWSIngressTurnError(
+					"write_client",
+					fmt.Errorf("write client websocket event: %w", err),
+					wroteDownstream,
+				)
+			}
+			wroteDownstream = true
+			return nil
+		}
 		for {
-			upstreamMessage, readErr := lease.ReadMessageWithContextTimeout(ctx, s.openAIWSReadTimeout())
+			readTimeout := s.openAIWSReadTimeout()
+			if !firstOutputObserved {
+				remaining := time.Until(firstOutputDeadline)
+				if remaining <= 0 {
+					return nil, firstOutputTimeoutError()
+				}
+				if readTimeout <= 0 || remaining < readTimeout {
+					readTimeout = remaining
+				}
+			}
+			upstreamMessage, readErr := lease.ReadMessageWithContextTimeout(ctx, readTimeout)
 			if readErr != nil {
+				if !firstOutputObserved && ctx.Err() == nil && time.Now().After(firstOutputDeadline) {
+					return nil, firstOutputTimeoutError()
+				}
 				lease.MarkBroken()
 				return nil, wrapOpenAIWSIngressTurnError(
 					"read_upstream",
@@ -954,6 +1033,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if isTerminalEvent {
 				terminalEventCount++
 			}
+			startsClientOutput := openAIStreamDataStartsClientOutput(string(upstreamMessage), eventType) || isTerminalEvent
+			if !firstOutputObserved && startsClientOutput {
+				if time.Now().After(firstOutputDeadline) {
+					return nil, firstOutputTimeoutError()
+				}
+				firstOutputObserved = true
+			}
 			if firstTokenMs == nil && isTokenEvent {
 				ms := int(time.Since(turnStart).Milliseconds())
 				firstTokenMs = &ms
@@ -986,27 +1072,34 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					}
 				}
 				replayCollector.AddEvent(eventType, upstreamMessage)
-				if err := writeClientMessage(upstreamMessage); err != nil {
-					if isOpenAIWSClientDisconnectError(err) {
-						clientDisconnected = true
-						closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)
-						logOpenAIWSModeInfo(
-							"ingress_ws_client_disconnected_drain account_id=%d turn=%d conn_id=%s close_status=%s close_reason=%s",
-							account.ID,
-							turn,
-							truncateOpenAIWSLogValue(lease.ConnID(), openAIWSIDValueMaxLen),
-							closeStatus,
-							truncateOpenAIWSLogValue(closeReason, openAIWSHeaderValueMaxLen),
-						)
-					} else {
-						return nil, wrapOpenAIWSIngressTurnError(
-							"write_client",
-							fmt.Errorf("write client websocket event: %w", err),
-							wroteDownstream,
+				stageBeforeSemanticOutput := turn == 1 && !firstOutputObserved
+				if stageBeforeSemanticOutput {
+					if pendingClientMessageBytes+int64(len(upstreamMessage)) > openAIFirstOutputStageMaxBytes {
+						lease.MarkBroken()
+						return nil, s.newOpenAIStreamFailoverError(
+							c,
+							account,
+							true,
+							lease.HandshakeHeader("x-request-id"),
+							nil,
+							"OpenAI WS first-output staging limit exceeded",
+							lease.HandshakeHeaders(),
 						)
 					}
+					pendingClientMessages = append(pendingClientMessages, append([]byte(nil), upstreamMessage...))
+					pendingClientMessageBytes += int64(len(upstreamMessage))
 				} else {
-					wroteDownstream = true
+					messages := append(pendingClientMessages, upstreamMessage)
+					pendingClientMessages = nil
+					pendingClientMessageBytes = 0
+					for _, message := range messages {
+						if err := writeTurnMessage(message); err != nil {
+							return nil, err
+						}
+						if clientDisconnected {
+							break
+						}
+					}
 				}
 			}
 			if isTerminalEvent {

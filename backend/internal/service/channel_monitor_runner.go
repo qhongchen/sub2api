@@ -75,16 +75,15 @@ type scheduledMonitor struct {
 }
 
 // nextDelay 计算下一次触发的等待时长：interval ± [0, jitter] 的均匀随机偏移。
-// 校验链路已保证 interval - jitter >= monitorMinIntervalSeconds，
-// 这里仍 clamp 一次下限，兜底数据库中违反约束的脏数据。
+// 校验链路保证 jitter 小于 interval；此处兜底旧数据，避免形成零间隔循环。
 func (t *scheduledMonitor) nextDelay() time.Duration {
 	if t.jitter <= 0 {
 		return t.interval
 	}
 	offset := time.Duration(rand.Int64N(int64(2*t.jitter) + 1)) // [0, 2*jitter]
 	d := t.interval - t.jitter + offset
-	if floor := monitorMinIntervalSeconds * time.Second; d < floor {
-		d = floor
+	if d <= 0 {
+		d = time.Second
 	}
 	return d
 }
@@ -151,10 +150,9 @@ func (r *ChannelMonitorRunner) Schedule(m *ChannelMonitor) {
 		r.Unschedule(m.ID)
 		return
 	}
-	interval := time.Duration(m.IntervalSeconds) * time.Second
-	if interval <= 0 {
-		// Create/Update 已通过 validateInterval 校验区间，正常路径不可能到这里。
-		// 真触发说明数据库中存在违反约束的数据或校验链路有 bug，记 Error 暴露问题。
+	interval, ok := channelMonitorIntervalDuration(m.IntervalSeconds)
+	if !ok {
+		// Create/Update 已校验正整数；此处仅兜底历史脏数据与 duration 溢出。
 		slog.Error("channel_monitor: skip schedule for invalid interval",
 			"monitor_id", m.ID, "interval_seconds", m.IntervalSeconds)
 		return

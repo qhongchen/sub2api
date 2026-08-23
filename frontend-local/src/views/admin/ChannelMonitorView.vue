@@ -78,6 +78,9 @@
             <span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium" :class="providerBadgeClass(row.provider)">
               {{ providerLabel(row.provider) }}
             </span>
+            <span class="ml-1 inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium" :class="checkModeBadgeClass(row.check_mode)">
+              {{ checkModeLabel(row.check_mode) }}
+            </span>
           </template>
 
           <template #cell-primary_model="{ row }">
@@ -204,6 +207,8 @@ const adminMonitorTab = ref<'v2' | 'legacy'>(isChannelMonitorV1Mode() ? 'legacy'
 const {
   providerLabel,
   providerBadgeClass,
+  checkModeLabel,
+  checkModeBadgeClass,
   formatLatency,
   formatAvailability,
 } = useChannelMonitorFormat()

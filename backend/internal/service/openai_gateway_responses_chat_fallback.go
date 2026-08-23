@@ -70,6 +70,19 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
 	// 国产模型默认 effort 补充：需要 mappedModel 判定，推迟到 billingModel 算出之后。
 	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
+	reasoningEffortValue := ""
+	if reasoningEffort != nil {
+		reasoningEffortValue = *reasoningEffort
+	}
+	var firstOutputOptions *openAIFirstOutputRequestOptions
+	if clientStream {
+		firstOutputOptions = s.openAIFirstOutputRequestOptions(
+			account,
+			startTime,
+			originalModel,
+			reasoningEffortValue,
+		)
+	}
 	chatReq.Model = upstreamModel
 	if clientStream {
 		chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}
@@ -104,7 +117,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, account.GetOpenAIUserAgent(), "")
+	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, account.GetOpenAIUserAgent(), "", firstOutputOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +132,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	}
 
 	if clientStream {
-		return s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		return s.streamChatCompletionsAsResponses(c, resp, account, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, firstOutputOptions)
 	}
 	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
@@ -166,6 +179,7 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	c *gin.Context,
 	resp *http.Response,
+	account *Account,
 	originalModel string,
 	customTools map[string]bool,
 	toolSearch bool,
@@ -175,21 +189,81 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	reasoningEffort *string,
 	serviceTier *string,
 	startTime time.Time,
+	firstOutputOptions *openAIFirstOutputRequestOptions,
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
+	var firstOutputGuard *openAIFirstOutputBodyGuard
+	var firstOutputStage *openAIFirstOutputStage
+	if firstOutputOptions != nil {
+		firstOutputGuard = newOpenAIFirstOutputBodyGuard(
+			resp.Body,
+			firstOutputOptions.startTime.Add(firstOutputOptions.timeout),
+		)
+		defer firstOutputGuard.close()
+		firstOutputStage = newDefaultOpenAIFirstOutputStage()
+		defer func() {
+			if err := firstOutputStage.Close(); err != nil {
+				logger.LegacyPrintf("service.openai_gateway", "OpenAI responses chat fallback first-output staging cleanup failed: account=%d model=%s error=%v", account.ID, originalModel, err)
+			}
+		}()
+	}
 
 	state := apicompat.NewChatCompletionsToResponsesStreamState(originalModel)
 	state.CustomTools = customTools
 	state.ToolSearchDeclared = toolSearch
 	state.NamespaceTools = namespaceTools
 	clientDisconnected := false
+	var streamFailoverErr *UpstreamFailoverError
 
-	writeEvents := func(events []apicompat.ResponsesStreamEvent) {
-		if clientDisconnected || len(events) == 0 {
+	firstOutputTimeoutError := func() *UpstreamFailoverError {
+		return s.newOpenAIFirstOutputTimeoutError(
+			c.Request.Context(),
+			c,
+			account,
+			firstOutputOptions.startTime,
+			firstOutputOptions.originalModel,
+			firstOutputOptions.reasoningEffort,
+			firstOutputOptions.timeout,
+			"semantic_output",
+			resp.Header,
+		)
+	}
+	setFirstOutputStageError := func(err error) {
+		message := "OpenAI responses chat fallback first-output staging failed"
+		if errors.Is(err, errOpenAIFirstOutputStageLimit) {
+			message = "OpenAI responses chat fallback first-output staging limit exceeded"
+		}
+		streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message, resp.Header)
+		streamFailoverErr.SafeToFailoverAfterWrite = true
+		_ = resp.Body.Close()
+	}
+	releaseFirstOutputStage := func() {
+		if firstOutputStage == nil || firstOutputStage.closed || firstOutputGuard == nil || firstOutputGuard.pending() {
+			return
+		}
+		if clientDisconnected {
+			_ = firstOutputStage.Close()
 			return
 		}
 		writeStreamHeaders()
+		if err := firstOutputStage.CommitTo(c.Writer); err != nil {
+			clientDisconnected = true
+			logger.L().Debug("openai responses chat fallback: client disconnected while committing first output",
+				zap.Error(err),
+				zap.String("request_id", requestID),
+			)
+		}
+	}
+
+	writeEvents := func(events []apicompat.ResponsesStreamEvent) {
+		if clientDisconnected || streamFailoverErr != nil || len(events) == 0 {
+			return
+		}
+		releaseFirstOutputStage()
+		if clientDisconnected {
+			return
+		}
 		for _, event := range events {
 			sse, err := apicompat.ResponsesEventToSSE(event)
 			if err != nil {
@@ -199,6 +273,14 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 				)
 				continue
 			}
+			if firstOutputStage != nil && !firstOutputStage.closed {
+				if _, err := firstOutputStage.WriteString(sse); err != nil {
+					setFirstOutputStageError(err)
+					return
+				}
+				continue
+			}
+			writeStreamHeaders()
 			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
 				clientDisconnected = true
 				logger.L().Debug("openai responses chat fallback: client disconnected, continuing to drain upstream for billing",
@@ -208,14 +290,32 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 				return
 			}
 		}
-		c.Writer.Flush()
+		if !clientDisconnected && (firstOutputStage == nil || firstOutputStage.closed) {
+			c.Writer.Flush()
+		}
 	}
 
 	scan := s.scanCCStream(resp, "openai responses chat fallback", requestID, startTime, func(chunk *apicompat.ChatCompletionsChunk) {
 		events := apicompat.ChatCompletionsChunkToResponsesEvents(chunk, state)
 		s.cacheReasoningItemsFromEvents(events)
 		writeEvents(events)
-	})
+	}, firstOutputGuard)
+
+	if firstOutputGuard != nil && firstOutputGuard.timedOut() {
+		return nil, firstOutputTimeoutError()
+	}
+	if streamFailoverErr != nil {
+		return nil, streamFailoverErr
+	}
+	if firstOutputGuard != nil && firstOutputGuard.pending() {
+		message := "OpenAI responses chat fallback ended before first semantic output"
+		if errors.Is(scan.Err, errOpenAIFirstOutputScannerLimit) {
+			message = "OpenAI responses chat fallback SSE line exceeds guarded first-output limit"
+		}
+		failoverErr := s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message, resp.Header)
+		failoverErr.SafeToFailoverAfterWrite = true
+		return nil, failoverErr
+	}
 
 	if scan.Err != nil {
 		return &OpenAIForwardResult{
@@ -231,6 +331,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 			FirstTokenMs:    scan.FirstTokenMs,
 		}, fmt.Errorf("stream usage incomplete: %w", scan.Err)
 	}
+	releaseFirstOutputStage()
 
 	finalEvents := apicompat.FinalizeChatCompletionsResponsesStream(state)
 	s.cacheReasoningItemsFromEvents(finalEvents)
@@ -262,13 +363,24 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	}, nil
 }
 
-func chatChunkStartsResponsesOutput(chunk *apicompat.ChatCompletionsChunk) bool {
+func chatChunkStartsVisibleOutput(chunk *apicompat.ChatCompletionsChunk) bool {
 	if chunk == nil {
 		return false
 	}
 	for _, choice := range chunk.Choices {
-		if choice.Delta.Content != nil || choice.Delta.ReasoningContent != nil || len(choice.Delta.ToolCalls) > 0 {
+		if choice.Delta.Content != nil && *choice.Delta.Content != "" {
 			return true
+		}
+		if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+			return true
+		}
+		if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
+			return true
+		}
+		for _, toolCall := range choice.Delta.ToolCalls {
+			if toolCall.ID != "" || toolCall.Function.Name != "" || toolCall.Function.Arguments != "" {
+				return true
+			}
 		}
 	}
 	return false

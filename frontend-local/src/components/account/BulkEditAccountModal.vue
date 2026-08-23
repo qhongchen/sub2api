@@ -82,6 +82,104 @@
         </div>
       </div>
 
+      <!-- OpenAI per-account first-output timeout -->
+      <div
+        v-if="allOpenAIFirstOutputTimeoutCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between gap-4">
+          <div class="flex-1">
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.firstOutputTimeout') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.firstOutputTimeoutDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIFirstOutputTimeout"
+            type="checkbox"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div :class="!enableOpenAIFirstOutputTimeout && 'pointer-events-none opacity-50'">
+          <Select
+            v-model="openAIFirstOutputTimeoutMode"
+            data-testid="bulk-edit-openai-first-output-timeout-mode"
+            :options="openAIFirstOutputTimeoutModeOptions"
+          />
+          <input
+            v-if="openAIFirstOutputTimeoutMode === 'custom'"
+            v-model.number="openAIFirstOutputTimeoutSeconds"
+            type="number"
+            min="30"
+            max="1800"
+            step="1"
+            class="input mt-2"
+            data-testid="bulk-edit-openai-first-output-timeout-seconds"
+            :placeholder="t('admin.accounts.openai.firstOutputTimeoutSecondsPlaceholder')"
+          />
+        </div>
+      </div>
+
+      <!-- OpenAI API long-context billing -->
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between gap-4">
+          <div class="flex-1">
+            <label
+              id="bulk-edit-openai-long-context-billing-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-long-context-billing-enabled"
+            >
+              {{ t('admin.accounts.openai.longContextBilling') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.longContextBillingDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAILongContextBilling"
+            id="bulk-edit-openai-long-context-billing-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-long-context-billing-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-long-context-billing-body"
+          :class="!enableOpenAILongContextBilling && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-long-context-billing-label"
+        >
+          <button
+            type="button"
+            data-testid="bulk-edit-openai-long-context-billing-toggle"
+            role="switch"
+            :disabled="!enableOpenAILongContextBilling"
+            :aria-checked="openAILongContextBillingEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openAILongContextBillingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="openAILongContextBillingEnabled = !openAILongContextBillingEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openAILongContextBillingEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+        <p
+          class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+          data-testid="bulk-edit-openai-long-context-shadow-hint"
+        >
+          {{ t('admin.accounts.bulkEdit.longContextShadowHint') }}
+        </p>
+      </div>
+
       <!-- Base URL (API Key only) -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
@@ -887,6 +985,101 @@
         </div>
       </div>
 
+      <!-- OpenAI API Key endpoint capabilities -->
+      <div v-if="allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between gap-4">
+          <div class="flex-1">
+            <label
+              id="bulk-edit-openai-endpoint-capabilities-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-endpoint-capabilities-enabled"
+            >
+              {{ t('admin.accounts.openai.endpointCapabilities') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.endpointCapabilitiesDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIEndpointCapabilities"
+            id="bulk-edit-openai-endpoint-capabilities-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-endpoint-capabilities-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-endpoint-capabilities-body"
+          :class="!enableOpenAIEndpointCapabilities && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-endpoint-capabilities-label"
+        >
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label
+              v-for="option in openAIEndpointCapabilityOptions"
+              :key="option.value"
+              class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-dark-600"
+            >
+              <input
+                type="checkbox"
+                :disabled="!enableOpenAIEndpointCapabilities"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500"
+                :data-testid="`bulk-edit-openai-endpoint-capability-${option.value}`"
+                :checked="openAIEndpointCapabilities.includes(option.value)"
+                @change="toggleOpenAIEndpointCapability(option.value, $event)"
+              />
+              <span class="text-gray-700 dark:text-gray-200">{{ option.label }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- OpenAI API Key Responses route -->
+      <div v-if="allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between gap-4">
+          <div class="flex-1">
+            <label
+              id="bulk-edit-openai-responses-mode-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-responses-mode-enabled"
+            >
+              {{ t('admin.accounts.openai.responsesMode') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.responsesModeDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIResponsesMode"
+            id="bulk-edit-openai-responses-mode-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-responses-mode-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-responses-mode-body"
+          :class="!enableOpenAIResponsesMode && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-responses-mode-label"
+        >
+          <Select
+            v-model="openAIResponsesMode"
+            :disabled="!enableOpenAIResponsesMode || !openAIResponsesModeApplicable"
+            data-testid="bulk-edit-openai-responses-mode-select"
+            :options="openAIResponsesModeOptions"
+            aria-labelledby="bulk-edit-openai-responses-mode-label"
+          />
+          <p
+            v-if="enableOpenAIEndpointCapabilities && !openAITextGenerationCapabilityEnabled"
+            class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+            data-testid="bulk-edit-openai-responses-mode-not-applicable"
+          >
+            {{ t('admin.accounts.openai.responsesModeTextDisabledHint') }}
+          </p>
+        </div>
+      </div>
+
       <!-- OpenAI API Key WS mode -->
       <div v-if="allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
@@ -1238,7 +1431,15 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, OpenAICompactMode } from '@/types'
+import type {
+  Proxy as ProxyConfig,
+  AdminGroup,
+  AccountPlatform,
+  AccountType,
+  OpenAICompactMode,
+  OpenAIEndpointCapability,
+  OpenAIResponsesMode
+} from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -1306,6 +1507,15 @@ const allOpenAIPassthroughCapable = computed(() => {
     targetSelectedPlatforms.value[0] === 'openai' &&
     targetSelectedTypes.value.length > 0 &&
     targetSelectedTypes.value.every(t => t === 'oauth' || t === 'apikey')
+  )
+})
+
+const allOpenAIFirstOutputTimeoutCapable = computed(() => {
+  return (
+    targetSelectedPlatforms.value.length === 1 &&
+    targetSelectedPlatforms.value[0] === 'openai' &&
+    targetSelectedTypes.value.length > 0 &&
+    targetSelectedTypes.value.every(t => t === 'oauth' || t === 'setup-token' || t === 'apikey')
   )
 })
 
@@ -1382,6 +1592,10 @@ const enableRateMultiplier = ref(false)
 const enableStatus = ref(false)
 const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
+const enableOpenAILongContextBilling = ref(false)
+const enableOpenAIFirstOutputTimeout = ref(false)
+const enableOpenAIEndpointCapabilities = ref(false)
+const enableOpenAIResponsesMode = ref(false)
 const enableOpenAIWSMode = ref(false)
 const enableOpenAIAPIKeyWSMode = ref(false)
 const enableCodexCLIOnly = ref(false)
@@ -1443,6 +1657,15 @@ const rateMultiplier = ref(1)
 const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
+const openAILongContextBillingEnabled = ref(false)
+type OpenAIFirstOutputTimeoutMode = 'inherit' | 'custom' | 'disabled'
+const openAIFirstOutputTimeoutMode = ref<OpenAIFirstOutputTimeoutMode>('inherit')
+const openAIFirstOutputTimeoutSeconds = ref<number | null>(120)
+const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>([
+  'chat_completions',
+  'embeddings'
+])
+const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -1494,11 +1717,75 @@ const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_CTX_POOL, label: t('admin.accounts.openai.wsModeCtxPool') },
   { value: OPENAI_WS_MODE_PASSTHROUGH, label: t('admin.accounts.openai.wsModePassthrough') }
 ])
+const openAIFirstOutputTimeoutModeOptions = computed(() => [
+  { value: 'inherit' as OpenAIFirstOutputTimeoutMode, label: t('admin.accounts.openai.firstOutputTimeoutInherit') },
+  { value: 'custom' as OpenAIFirstOutputTimeoutMode, label: t('admin.accounts.openai.firstOutputTimeoutCustom') },
+  { value: 'disabled' as OpenAIFirstOutputTimeoutMode, label: t('admin.accounts.openai.firstOutputTimeoutDisabled') }
+])
 const openAICompactModeOptions = computed(() => [
   { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
   { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
   { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
 ])
+const openAIResponsesModeOptions = computed(() => [
+  { value: 'auto', label: t('admin.accounts.openai.responsesModeAuto') },
+  { value: 'force_responses', label: t('admin.accounts.openai.responsesModeForceResponses') },
+  {
+    value: 'force_chat_completions',
+    label: t('admin.accounts.openai.responsesModeForceChatCompletions')
+  }
+])
+const openAITextEndpointCapabilityLabel = computed(() => {
+  if (openAIResponsesMode.value === 'force_responses') {
+    return t('admin.accounts.openai.capabilityResponses')
+  }
+  if (openAIResponsesMode.value === 'force_chat_completions') {
+    return t('admin.accounts.openai.capabilityChatCompletions')
+  }
+  return t('admin.accounts.openai.capabilityTextAuto')
+})
+const openAIEndpointCapabilityOptions = computed<
+  Array<{ value: OpenAIEndpointCapability; label: string }>
+>(() => [
+  { value: 'chat_completions', label: openAITextEndpointCapabilityLabel.value },
+  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') }
+])
+const openAITextGenerationCapabilityEnabled = computed(() =>
+  openAIEndpointCapabilities.value.includes('chat_completions')
+)
+const openAIResponsesModeApplicable = computed(
+  () => !enableOpenAIEndpointCapabilities.value || openAITextGenerationCapabilityEnabled.value
+)
+
+const normalizeOpenAIEndpointCapabilities = (values: OpenAIEndpointCapability[]) => {
+  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+  const selected = allowed.filter((value) => values.includes(value))
+  return selected.length > 0 ? selected : allowed
+}
+
+const toggleOpenAIEndpointCapability = (
+  capability: OpenAIEndpointCapability,
+  event?: Event
+) => {
+  if (openAIEndpointCapabilities.value.includes(capability)) {
+    if (openAIEndpointCapabilities.value.length <= 1) {
+      const input = event?.target as HTMLInputElement | null
+      if (input) input.checked = true
+      return
+    }
+    openAIEndpointCapabilities.value = openAIEndpointCapabilities.value.filter(
+      (value) => value !== capability
+    )
+    if (!openAITextGenerationCapabilityEnabled.value) {
+      openAIResponsesMode.value = 'auto'
+    }
+    return
+  }
+  openAIEndpointCapabilities.value = normalizeOpenAIEndpointCapabilities([
+    ...openAIEndpointCapabilities.value,
+    capability
+  ])
+}
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiOAuthResponsesWebSocketV2Mode.value)
 )
@@ -1599,6 +1886,11 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   const updates: Record<string, unknown> = {}
   const credentials: Record<string, unknown> = {}
   let credentialsChanged = false
+  const applyOpenAILongContextBilling =
+    enableOpenAILongContextBilling.value && allOpenAIPassthroughCapable.value
+  const applyOpenAIEndpointCapabilities =
+    enableOpenAIEndpointCapabilities.value && allOpenAIAPIKey.value
+  const applyOpenAIResponsesMode = enableOpenAIResponsesMode.value && allOpenAIAPIKey.value
   const ensureExtra = (): Record<string, unknown> => {
     if (!updates.extra) {
       updates.extra = {}
@@ -1651,6 +1943,39 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     if (!openaiPassthroughEnabled.value) {
       extra.openai_oauth_passthrough = false
     }
+  }
+
+  if (applyOpenAILongContextBilling) {
+    const extra = ensureExtra()
+    extra.openai_long_context_billing_enabled = openAILongContextBillingEnabled.value
+  }
+
+  if (enableOpenAIFirstOutputTimeout.value && allOpenAIFirstOutputTimeoutCapable.value) {
+    const extra = ensureExtra()
+    if (openAIFirstOutputTimeoutMode.value === 'custom') {
+      extra.openai_first_output_timeout_seconds = openAIFirstOutputTimeoutSeconds.value
+    } else {
+      extra.openai_first_output_timeout_seconds = openAIFirstOutputTimeoutMode.value === 'disabled' ? 0 : null
+    }
+  }
+
+  if (applyOpenAIEndpointCapabilities) {
+    credentials.openai_capabilities =
+      openAIEndpointCapabilities.value.length === 2
+        ? null
+        : [...openAIEndpointCapabilities.value]
+    credentialsChanged = true
+  }
+
+  if (
+    applyOpenAIResponsesMode ||
+    (applyOpenAIEndpointCapabilities && !openAITextGenerationCapabilityEnabled.value)
+  ) {
+    const extra = ensureExtra()
+    extra.openai_responses_mode =
+      !openAIResponsesModeApplicable.value || openAIResponsesMode.value === 'auto'
+        ? null
+        : openAIResponsesMode.value
   }
 
   if (enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
@@ -1815,6 +2140,10 @@ const handleSubmit = async () => {
   const hasAnyFieldEnabled =
     enableBaseUrl.value ||
     enableOpenAIPassthrough.value ||
+    (enableOpenAILongContextBilling.value && allOpenAIPassthroughCapable.value) ||
+    (enableOpenAIFirstOutputTimeout.value && allOpenAIFirstOutputTimeoutCapable.value) ||
+    (enableOpenAIEndpointCapabilities.value && allOpenAIAPIKey.value) ||
+    (enableOpenAIResponsesMode.value && allOpenAIAPIKey.value) ||
     enableModelRestriction.value ||
     enableCustomErrorCodes.value ||
     enableInterceptWarmup.value ||
@@ -1837,6 +2166,17 @@ const handleSubmit = async () => {
 
   if (!hasAnyFieldEnabled) {
     appStore.showError(t('admin.accounts.bulkEdit.noFieldsSelected'))
+    return
+  }
+
+  if (
+    enableOpenAIFirstOutputTimeout.value &&
+    openAIFirstOutputTimeoutMode.value === 'custom' &&
+    (!Number.isInteger(openAIFirstOutputTimeoutSeconds.value) ||
+      (openAIFirstOutputTimeoutSeconds.value ?? 0) < 30 ||
+      (openAIFirstOutputTimeoutSeconds.value ?? 0) > 1800)
+  ) {
+    appStore.showError(t('admin.accounts.openai.firstOutputTimeoutInvalid'))
     return
   }
 
@@ -1883,11 +2223,22 @@ const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
       : await adminAPI.accounts.bulkUpdate(props.accountIds, updates)
     const success = res.success || 0
     const failed = res.failed || 0
+    const inherited = res.long_context_inherited_count || 0
 
     if (success > 0 && failed === 0) {
-      appStore.showSuccess(t('admin.accounts.bulkEdit.success', { count: success }))
+      if (inherited > 0) {
+        appStore.showSuccess(t('admin.accounts.bulkEdit.successWithInherited', {
+          count: success,
+          inherited
+        }))
+      } else {
+        appStore.showSuccess(t('admin.accounts.bulkEdit.success', { count: success }))
+      }
     } else if (success > 0) {
-      appStore.showError(t('admin.accounts.bulkEdit.partialSuccess', { success, failed }))
+      const key = inherited > 0
+        ? 'admin.accounts.bulkEdit.partialSuccessWithInherited'
+        : 'admin.accounts.bulkEdit.partialSuccess'
+      appStore.showError(t(key, { success, failed, inherited }))
     } else {
       appStore.showError(t('admin.accounts.bulkEdit.failed'))
     }
@@ -1903,6 +2254,8 @@ const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
       pendingUpdatesForConfirm.value = baseUpdates
       mixedChannelWarningMessage.value = error.message
       showMixedChannelWarning.value = true
+    } else if (error.reason === 'OPENAI_LONG_CONTEXT_PARENT_REQUIRED') {
+      appStore.showError(t('admin.accounts.bulkEdit.longContextParentRequired'))
     } else {
       appStore.showError(error.message || t('admin.accounts.bulkEdit.failed'))
       console.error('Error bulk updating accounts:', error)
@@ -1944,6 +2297,10 @@ watch(
       enableStatus.value = false
       enableGroups.value = false
       enableOpenAIPassthrough.value = false
+      enableOpenAILongContextBilling.value = false
+      enableOpenAIFirstOutputTimeout.value = false
+      enableOpenAIEndpointCapabilities.value = false
+      enableOpenAIResponsesMode.value = false
       enableOpenAIWSMode.value = false
       enableOpenAIAPIKeyWSMode.value = false
       enableCodexCLIOnly.value = false
@@ -1955,6 +2312,11 @@ watch(
       // Reset all values
       baseUrl.value = ''
       openaiPassthroughEnabled.value = false
+      openAILongContextBillingEnabled.value = false
+      openAIFirstOutputTimeoutMode.value = 'inherit'
+      openAIFirstOutputTimeoutSeconds.value = 120
+      openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
+      openAIResponsesMode.value = 'auto'
       modelRestrictionMode.value = 'whitelist'
       allowedModels.value = []
       modelMappings.value = []

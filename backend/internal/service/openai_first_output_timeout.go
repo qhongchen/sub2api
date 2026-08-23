@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
@@ -31,6 +32,68 @@ var (
 	errOpenAIFirstOutputStageLimit   = errors.New("openai first-output staging limit exceeded")
 	errOpenAIFirstOutputScannerLimit = errors.New("openai pre-output scanner token limit exceeded")
 )
+
+const (
+	openAIFirstOutputBodyGuardPending uint32 = iota
+	openAIFirstOutputBodyGuardObserved
+	openAIFirstOutputBodyGuardTimedOut
+)
+
+type openAIFirstOutputBodyGuard struct {
+	state atomic.Uint32
+	timer *time.Timer
+	body  io.Closer
+}
+
+func newOpenAIFirstOutputBodyGuard(body io.Closer, deadline time.Time) *openAIFirstOutputBodyGuard {
+	if body == nil || deadline.IsZero() {
+		return nil
+	}
+	guard := &openAIFirstOutputBodyGuard{body: body}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		remaining = time.Nanosecond
+	}
+	guard.timer = time.AfterFunc(remaining, func() {
+		if guard.state.CompareAndSwap(openAIFirstOutputBodyGuardPending, openAIFirstOutputBodyGuardTimedOut) {
+			_ = guard.body.Close()
+		}
+	})
+	return guard
+}
+
+func (g *openAIFirstOutputBodyGuard) observe() bool {
+	if g == nil {
+		return true
+	}
+	for {
+		switch g.state.Load() {
+		case openAIFirstOutputBodyGuardObserved:
+			return true
+		case openAIFirstOutputBodyGuardTimedOut:
+			return false
+		case openAIFirstOutputBodyGuardPending:
+			if g.state.CompareAndSwap(openAIFirstOutputBodyGuardPending, openAIFirstOutputBodyGuardObserved) {
+				g.timer.Stop()
+				return true
+			}
+		}
+	}
+}
+
+func (g *openAIFirstOutputBodyGuard) pending() bool {
+	return g != nil && g.state.Load() == openAIFirstOutputBodyGuardPending
+}
+
+func (g *openAIFirstOutputBodyGuard) timedOut() bool {
+	return g != nil && g.state.Load() == openAIFirstOutputBodyGuardTimedOut
+}
+
+func (g *openAIFirstOutputBodyGuard) close() {
+	if g != nil && g.timer != nil {
+		g.timer.Stop()
+	}
+}
 
 type openAIFirstOutputStage struct {
 	limit      int64
@@ -230,7 +293,31 @@ func (s *openAIFirstOutputStage) Close() error {
 }
 
 func (s *OpenAIGatewayService) openAIFirstOutputTimeout(reasoningEffort string) time.Duration {
-	if s == nil || s.cfg == nil || s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds <= 0 {
+	return s.openAIFirstOutputTimeoutForAccount(nil, reasoningEffort)
+}
+
+func (s *OpenAIGatewayService) openAIFirstOutputTimeoutForAccount(account *Account, reasoningEffort string) time.Duration {
+	if s == nil {
+		return 0
+	}
+	if account != nil && account.Platform == PlatformOpenAI {
+		if seconds, configured, valid := openAIFirstOutputTimeoutOverride(account.Extra); configured {
+			if valid {
+				if seconds == 0 {
+					return 0
+				}
+				return time.Duration(seconds) * time.Second
+			}
+			slog.Warn("invalid OpenAI account first-output timeout; falling back to gateway setting",
+				"account_id", account.ID,
+				"extra_key", OpenAIFirstOutputTimeoutExtraKey,
+			)
+		}
+	}
+	if s.cfg == nil {
+		return 0
+	}
+	if s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds <= 0 {
 		return 0
 	}
 	seconds := s.cfg.Gateway.OpenAIFirstOutputTimeoutSeconds

@@ -29,7 +29,7 @@ import (
 // Fetch 永不返回 error：所有失败都降级为 Success=false 的快照照常入库，
 // 由 deriveQuotaCheckResult 推导为 failed/error 状态。
 //
-// 多个监控可能关联同一账号，而 interval 最小 15s 且国产配额服务自身无缓存，
+// 多个监控可能关联同一账号，且国产配额服务自身无缓存，
 // 所以快照统一带 TTL 缓存（成功 monitorQuotaFetchCacheTTL、失败
 // monitorQuotaErrorCacheTTL 负缓存），防止打爆上游配额端点；同账号的并发
 // 抓取由 singleflight 合并为一次上游查询。

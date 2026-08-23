@@ -92,6 +92,14 @@ func (s *OpsService) UpdateEmailNotificationConfig(ctx context.Context, req *Ops
 		cfg.Report.AccountHealthErrorRateThreshold = req.Report.AccountHealthErrorRateThreshold
 	}
 
+	if req.ChannelStatus != nil {
+		cfg.ChannelStatus.Enabled = req.ChannelStatus.Enabled
+		if req.ChannelStatus.Recipients != nil {
+			cfg.ChannelStatus.Recipients = req.ChannelStatus.Recipients
+		}
+		cfg.ChannelStatus.ConsecutiveThreshold = req.ChannelStatus.ConsecutiveThreshold
+	}
+
 	if err := validateOpsEmailNotificationConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -105,6 +113,56 @@ func (s *OpsService) UpdateEmailNotificationConfig(ctx context.Context, req *Ops
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// SendTestChannelStatusEmail sends a real channel-status email to the saved recipients.
+// It intentionally does not require ChannelStatus.Enabled so administrators can verify
+// the mail path before enabling runtime notifications.
+func (s *OpsService) SendTestChannelStatusEmail(ctx context.Context) error {
+	if s == nil || s.notificationEmailService == nil {
+		return errors.New("channel status notification email service is not configured")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	cfg, err := s.GetEmailNotificationConfig(ctx)
+	if err != nil {
+		return err
+	}
+	recipients := make([]string, 0, len(cfg.ChannelStatus.Recipients))
+	for _, recipient := range cfg.ChannelStatus.Recipients {
+		if recipient = strings.TrimSpace(recipient); recipient != "" {
+			recipients = append(recipients, recipient)
+		}
+	}
+	if len(recipients) == 0 {
+		return errors.New("configure at least one channel status notification recipient first")
+	}
+
+	triggeredAt := time.Now().UTC()
+	variables := map[string]string{
+		"channel_name":      "Channel status notification test",
+		"model":             "test-model",
+		"previous_state":    MonitorStatusFailed,
+		"current_state":     MonitorStatusOperational,
+		"consecutive_count": "1",
+		"triggered_at":      triggeredAt.Format(time.RFC3339),
+	}
+	sourceID := triggeredAt.Format(time.RFC3339Nano)
+	for _, recipient := range recipients {
+		if err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+			Event:          NotificationEmailEventOpsChannelStatus,
+			RecipientEmail: recipient,
+			RecipientName:  emailRecipientName(recipient),
+			SourceType:     "ops_channel_status_test",
+			SourceID:       sourceID,
+			Variables:      variables,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func defaultOpsEmailNotificationConfig() *OpsEmailNotificationConfig {
@@ -131,6 +189,11 @@ func defaultOpsEmailNotificationConfig() *OpsEmailNotificationConfig {
 			AccountHealthSchedule:           "0 9 * * *",
 			AccountHealthErrorRateThreshold: 10.0,
 		},
+		ChannelStatus: OpsEmailChannelStatusConfig{
+			Enabled:              false,
+			Recipients:           []string{},
+			ConsecutiveThreshold: 5,
+		},
 	}
 }
 
@@ -143,6 +206,9 @@ func normalizeOpsEmailNotificationConfig(cfg *OpsEmailNotificationConfig) {
 	}
 	if cfg.Report.Recipients == nil {
 		cfg.Report.Recipients = []string{}
+	}
+	if cfg.ChannelStatus.Recipients == nil {
+		cfg.ChannelStatus.Recipients = []string{}
 	}
 
 	cfg.Alert.MinSeverity = strings.TrimSpace(cfg.Alert.MinSeverity)
@@ -188,6 +254,9 @@ func validateOpsEmailNotificationConfig(cfg *OpsEmailNotificationConfig) error {
 	}
 	if cfg.Report.AccountHealthErrorRateThreshold < 0 || cfg.Report.AccountHealthErrorRateThreshold > 100 {
 		return errors.New("report.account_health_error_rate_threshold must be between 0 and 100")
+	}
+	if cfg.ChannelStatus.ConsecutiveThreshold < 1 {
+		return errors.New("channel_status.consecutive_threshold must be >= 1")
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -70,6 +71,19 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	convertedEffort := chatReq.ReasoningEffort
 	reasoningEffort := &convertedEffort
 	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
+	reasoningEffortValue := ""
+	if reasoningEffort != nil {
+		reasoningEffortValue = *reasoningEffort
+	}
+	var firstOutputOptions *openAIFirstOutputRequestOptions
+	if clientStream {
+		firstOutputOptions = s.openAIFirstOutputRequestOptions(
+			account,
+			startTime,
+			originalModel,
+			reasoningEffortValue,
+		)
+	}
 	serviceTier := extractOpenAIServiceTierFromBody(body)
 
 	chatBody, err := json.Marshal(chatReq)
@@ -105,7 +119,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, account.GetOpenAIUserAgent(), "")
+	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, account.GetOpenAIUserAgent(), "", firstOutputOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +138,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 
 	// 5. Convert response
 	if clientStream {
-		return s.streamChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		return s.streamChatCompletionsAsAnthropic(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, firstOutputOptions)
 	}
 	return s.bufferChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
@@ -167,24 +181,86 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(
 func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 	c *gin.Context,
 	resp *http.Response,
+	account *Account,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
 	reasoningEffort *string,
 	serviceTier *string,
 	startTime time.Time,
+	firstOutputOptions *openAIFirstOutputRequestOptions,
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
+	var firstOutputGuard *openAIFirstOutputBodyGuard
+	var firstOutputStage *openAIFirstOutputStage
+	if firstOutputOptions != nil {
+		firstOutputGuard = newOpenAIFirstOutputBodyGuard(
+			resp.Body,
+			firstOutputOptions.startTime.Add(firstOutputOptions.timeout),
+		)
+		defer firstOutputGuard.close()
+		firstOutputStage = newDefaultOpenAIFirstOutputStage()
+		defer func() {
+			if err := firstOutputStage.Close(); err != nil {
+				logger.LegacyPrintf("service.openai_gateway", "OpenAI messages chat fallback first-output staging cleanup failed: account=%d model=%s error=%v", account.ID, originalModel, err)
+			}
+		}()
+	}
 
 	anthropicState := apicompat.NewChatCompletionsToAnthropicStreamState(originalModel)
 	clientDisconnected := false
+	var streamFailoverErr *UpstreamFailoverError
+
+	firstOutputTimeoutError := func() *UpstreamFailoverError {
+		return s.newOpenAIFirstOutputTimeoutError(
+			c.Request.Context(),
+			c,
+			account,
+			firstOutputOptions.startTime,
+			firstOutputOptions.originalModel,
+			firstOutputOptions.reasoningEffort,
+			firstOutputOptions.timeout,
+			"semantic_output",
+			resp.Header,
+		)
+	}
+	setFirstOutputStageError := func(err error) {
+		message := "OpenAI messages chat fallback first-output staging failed"
+		if errors.Is(err, errOpenAIFirstOutputStageLimit) {
+			message = "OpenAI messages chat fallback first-output staging limit exceeded"
+		}
+		streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message, resp.Header)
+		streamFailoverErr.SafeToFailoverAfterWrite = true
+		_ = resp.Body.Close()
+	}
+	releaseFirstOutputStage := func() {
+		if firstOutputStage == nil || firstOutputStage.closed || firstOutputGuard == nil || firstOutputGuard.pending() {
+			return
+		}
+		if clientDisconnected {
+			_ = firstOutputStage.Close()
+			return
+		}
+		writeStreamHeaders()
+		if err := firstOutputStage.CommitTo(c.Writer); err != nil {
+			clientDisconnected = true
+			logger.L().Debug("openai messages chat fallback: client disconnected while committing first output",
+				zap.Error(err),
+				zap.String("request_id", requestID),
+			)
+		}
+	}
 
 	// 与 responses 兄弟不同：客户端断开后仍继续做事件转换（喂 anthropicState），
 	// 仅跳过写出，保证 finalize 阶段的 usage 汇总不受断开影响。
 	emitChunk := func(chunk *apicompat.ChatCompletionsChunk) {
 		// CC chunk → Anthropic events (direct, single state machine)
 		anthropicEvents := apicompat.ChatCompletionsChunkToAnthropicEvents(chunk, anthropicState)
+		if clientDisconnected || streamFailoverErr != nil {
+			return
+		}
+		releaseFirstOutputStage()
 		if clientDisconnected {
 			return
 		}
@@ -193,19 +269,41 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 			if err != nil {
 				continue
 			}
+			if firstOutputStage != nil && !firstOutputStage.closed {
+				if _, err := firstOutputStage.WriteString(sse); err != nil {
+					setFirstOutputStageError(err)
+					return
+				}
+				continue
+			}
 			writeStreamHeaders()
 			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
 				clientDisconnected = true
 				break
 			}
 		}
-		if !clientDisconnected && len(anthropicEvents) > 0 {
+		if !clientDisconnected && len(anthropicEvents) > 0 && (firstOutputStage == nil || firstOutputStage.closed) {
 			c.Writer.Flush()
 		}
 	}
 
-	scan := s.scanCCStream(resp, "openai messages chat fallback", requestID, startTime, emitChunk)
+	scan := s.scanCCStream(resp, "openai messages chat fallback", requestID, startTime, emitChunk, firstOutputGuard)
 	usage := scan.Usage
+	if firstOutputGuard != nil && firstOutputGuard.timedOut() {
+		return nil, firstOutputTimeoutError()
+	}
+	if streamFailoverErr != nil {
+		return nil, streamFailoverErr
+	}
+	if firstOutputGuard != nil && firstOutputGuard.pending() {
+		message := "OpenAI messages chat fallback ended before first semantic output"
+		if errors.Is(scan.Err, errOpenAIFirstOutputScannerLimit) {
+			message = "OpenAI messages chat fallback SSE line exceeds guarded first-output limit"
+		}
+		failoverErr := s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message, resp.Header)
+		failoverErr.SafeToFailoverAfterWrite = true
+		return nil, failoverErr
+	}
 
 	if scan.Err != nil {
 		// Broken upstream read: skip finalization so no synthetic message_stop
@@ -225,6 +323,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 			ClientDisconnect: clientDisconnected,
 		}, fmt.Errorf("stream usage incomplete: %w", scan.Err)
 	}
+	releaseFirstOutputStage()
 
 	// Finalize: close open blocks + emit message_delta/message_stop.
 	finalEvents := apicompat.FinalizeChatCompletionsAnthropicStream(anthropicState)

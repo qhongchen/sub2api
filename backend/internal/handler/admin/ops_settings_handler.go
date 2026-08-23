@@ -56,6 +56,25 @@ func (h *OpsHandler) UpdateEmailNotificationConfig(c *gin.Context) {
 	response.Success(c, updated)
 }
 
+// SendTestChannelStatusEmail sends a test email to the configured channel-status recipients.
+// POST /api/v1/admin/ops/email-notification/channel-status/test
+func (h *OpsHandler) SendTestChannelStatusEmail(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	if err := h.opsService.SendTestChannelStatusEmail(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"sent": true})
+}
+
 // GetAlertRuntimeSettings returns Ops alert evaluator runtime settings (DB-backed).
 // GET /api/v1/admin/ops/runtime/alert
 func (h *OpsHandler) GetAlertRuntimeSettings(c *gin.Context) {

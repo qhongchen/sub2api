@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './client'
-import type { Provider, MonitorStatus } from './admin/channelMonitor'
+import type { MonitorQuotaSnapshot, Provider, MonitorStatus } from './admin/channelMonitor'
 
 export type { Provider, MonitorStatus } from './admin/channelMonitor'
 
@@ -33,6 +33,7 @@ export interface UserMonitorView {
   availability_7d: number
   extra_models: UserMonitorExtraModel[]
   timeline: MonitorTimelinePoint[]
+  latest_quota?: MonitorQuotaSnapshot | null
 }
 
 export interface UserMonitorListResponse {

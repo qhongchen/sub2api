@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
@@ -60,6 +61,59 @@ func (s *OpenAIGatewayService) newStreamHeaderWriter(c *gin.Context, upstream ht
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Header().Set("X-Accel-Buffering", "no")
 		c.Writer.WriteHeader(http.StatusOK)
+	}
+}
+
+func (s *OpenAIGatewayService) newFirstOutputStreamHeaderWriters(
+	c *gin.Context,
+	upstream http.Header,
+) (writeStableHeaders func(), writeAttemptHeaders func()) {
+	headersWritten := false
+	writeHeaders := func(includeAttemptHeaders bool) {
+		if headersWritten {
+			return
+		}
+		headersWritten = true
+		if includeAttemptHeaders && s.responseHeaderFilter != nil {
+			responseheaders.WriteFilteredHeaders(c.Writer.Header(), upstream, s.responseHeaderFilter)
+		}
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("X-Accel-Buffering", "no")
+		c.Writer.WriteHeader(http.StatusOK)
+	}
+	return func() { writeHeaders(false) }, func() { writeHeaders(true) }
+}
+
+// openAIFirstOutputRequestOptions enables the account-scoped first-output
+// deadline for a streamed Chat Completions upstream request. A nil value keeps
+// the existing request behavior for compatibility fallback paths.
+type openAIFirstOutputRequestOptions struct {
+	startTime       time.Time
+	originalModel   string
+	reasoningEffort string
+	timeout         time.Duration
+}
+
+func (s *OpenAIGatewayService) openAIFirstOutputRequestOptions(
+	account *Account,
+	startTime time.Time,
+	originalModel string,
+	reasoningEffort string,
+) *openAIFirstOutputRequestOptions {
+	if account == nil || account.Platform != PlatformOpenAI {
+		return nil
+	}
+	timeout := s.openAIFirstOutputTimeoutForAccount(account, reasoningEffort)
+	if timeout <= 0 {
+		return nil
+	}
+	return &openAIFirstOutputRequestOptions{
+		startTime:       startTime,
+		originalModel:   originalModel,
+		reasoningEffort: reasoningEffort,
+		timeout:         timeout,
 	}
 }
 
@@ -177,11 +231,25 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	bearerToken string,
 	userAgent string,
 	grokCacheIdentity string,
+	firstOutputOptions *openAIFirstOutputRequestOptions,
 ) (*http.Response, error) {
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	var headerGuard *openAIFirstOutputHeaderGuard
+	if firstOutputOptions != nil && firstOutputOptions.timeout > 0 {
+		upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(
+			upstreamCtx,
+			releaseUpstreamCtx,
+			firstOutputOptions.startTime.Add(firstOutputOptions.timeout),
+		)
+	}
 	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, http.MethodPost, targetURL, bytes.NewReader(body))
-	releaseUpstreamCtx()
+	if headerGuard == nil {
+		releaseUpstreamCtx()
+	}
 	if err != nil {
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
 	upstreamReq = upstreamReq.WithContext(WithHTTPUpstreamProfile(upstreamReq.Context(), HTTPUpstreamProfileOpenAI))
@@ -221,8 +289,31 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 		proxyURL = account.Proxy.URL()
 	}
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	if headerGuard != nil && headerGuard.stopHeaderWait() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		headerGuard.close()
+		return nil, s.newOpenAIFirstOutputTimeoutError(
+			ctx,
+			c,
+			account,
+			firstOutputOptions.startTime,
+			firstOutputOptions.originalModel,
+			firstOutputOptions.reasoningEffort,
+			firstOutputOptions.timeout,
+			"response_headers",
+			nil,
+		)
+	}
 	if err != nil {
+		if headerGuard != nil {
+			headerGuard.close()
+		}
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+	}
+	if headerGuard != nil {
+		resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 	}
 	return resp, nil
 }
@@ -252,10 +343,20 @@ func (s *OpenAIGatewayService) scanCCStream(
 	requestID string,
 	startTime time.Time,
 	emit func(*apicompat.ChatCompletionsChunk),
+	firstOutputGuardOption ...*openAIFirstOutputBodyGuard,
 ) ccStreamScanState {
 	var st ccStreamScanState
 
 	scanner := s.newUpstreamSSEScanner(resp.Body)
+	var firstOutputGuard *openAIFirstOutputBodyGuard
+	if len(firstOutputGuardOption) > 0 {
+		firstOutputGuard = firstOutputGuardOption[0]
+	}
+	var firstOutputScanGuard atomic.Bool
+	if firstOutputGuard != nil {
+		firstOutputScanGuard.Store(firstOutputGuard.pending())
+		scanner.Split(openAIFirstOutputDynamicScanLines(&firstOutputScanGuard))
+	}
 	for scanner.Scan() {
 		line := scanner.Text()
 		payload, ok := extractOpenAISSEDataLine(line)
@@ -283,14 +384,26 @@ func (s *OpenAIGatewayService) scanCCStream(
 			)
 			continue
 		}
-		if st.FirstTokenMs == nil && !isOpenAIChatUsageOnlyStreamChunk(payload) && chatChunkStartsResponsesOutput(&chunk) {
+		startsVisibleOutput := chatChunkStartsVisibleOutput(&chunk)
+		if firstOutputGuard != nil && firstOutputGuard.pending() && startsVisibleOutput {
+			if !firstOutputGuard.observe() {
+				st.Err = context.DeadlineExceeded
+				break
+			}
+			firstOutputScanGuard.Store(false)
+		}
+		if st.FirstTokenMs == nil && !isOpenAIChatUsageOnlyStreamChunk(payload) && startsVisibleOutput {
 			ms := int(time.Since(startTime).Milliseconds())
 			st.FirstTokenMs = &ms
 		}
 		emit(&chunk)
 	}
 
-	if err := scanner.Err(); err != nil {
+	if firstOutputGuard != nil && firstOutputGuard.timedOut() {
+		st.Err = context.DeadlineExceeded
+		return st
+	}
+	if err := scanner.Err(); err != nil && st.Err == nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			logger.L().Warn(logPrefix+": stream read error",
 				zap.Error(err),
