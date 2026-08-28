@@ -122,6 +122,28 @@ type openAIHTTP2Settings struct {
 	fallbackTTL               time.Duration
 }
 
+type upstreamTransportPolicy struct {
+	profile                          service.HTTPUpstreamProfile
+	responseHeaderTimeoutOverride    time.Duration
+	hasResponseHeaderTimeoutOverride bool
+}
+
+func upstreamTransportPolicyFromContext(ctx context.Context) upstreamTransportPolicy {
+	policy := upstreamTransportPolicy{
+		profile: service.HTTPUpstreamProfileFromContext(ctx),
+	}
+	policy.responseHeaderTimeoutOverride, policy.hasResponseHeaderTimeoutOverride =
+		service.HTTPUpstreamResponseHeaderTimeoutOverrideFromContext(ctx)
+	return policy
+}
+
+func (p upstreamTransportPolicy) cacheKeySuffix() string {
+	if !p.hasResponseHeaderTimeoutOverride {
+		return ""
+	}
+	return "|request_header_timeout:" + p.responseHeaderTimeoutOverride.String()
+}
+
 // upstreamClientEntry 上游客户端缓存条目
 // 记录客户端实例及其元数据，用于连接池管理和淘汰策略
 type upstreamClientEntry struct {
@@ -201,13 +223,13 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 	if err := s.validateRequestHost(req); err != nil {
 		return nil, err
 	}
-	profile := service.HTTPUpstreamProfileDefault
+	policy := upstreamTransportPolicy{}
 	if req != nil {
-		profile = service.HTTPUpstreamProfileFromContext(req.Context())
+		policy = upstreamTransportPolicyFromContext(req.Context())
 	}
 
 	// 获取或创建对应的客户端，并标记请求占用
-	entry, err := s.acquireClientWithProfile(proxyURL, accountID, accountConcurrency, profile)
+	entry, err := s.acquireClientWithPolicy(proxyURL, accountID, accountConcurrency, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -217,13 +239,13 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 	client = httpClientWithGrokAccessDeniedFallback(client)
 	resp, err := servertiming.Do(client, req)
 	if err != nil {
-		s.recordOpenAIHTTP2Failure(profile, entry.protocolMode, entry.proxyKey, err)
+		s.recordOpenAIHTTP2Failure(policy.profile, entry.protocolMode, entry.proxyKey, err)
 		// 请求失败，立即减少计数
 		atomic.AddInt64(&entry.inFlight, -1)
 		atomic.StoreInt64(&entry.lastUsed, time.Now().UnixNano())
 		return nil, err
 	}
-	s.recordOpenAIHTTP2Success(profile, entry.protocolMode, entry.proxyKey)
+	s.recordOpenAIHTTP2Success(policy.profile, entry.protocolMode, entry.proxyKey)
 
 	// 如果上游返回了压缩内容，解压后再交给业务层
 	decompressResponseBody(resp)
@@ -252,9 +274,9 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 		return s.Do(req, proxyURL, accountID, accountConcurrency)
 	}
 	applyGrokCLIProxyHeaders(req)
-	upstreamProfile := service.HTTPUpstreamProfileDefault
+	policy := upstreamTransportPolicy{}
 	if req != nil {
-		upstreamProfile = service.HTTPUpstreamProfileFromContext(req.Context())
+		policy = upstreamTransportPolicyFromContext(req.Context())
 	}
 
 	targetHost := ""
@@ -271,7 +293,7 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 		return nil, err
 	}
 
-	entry, err := s.acquireClientWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile)
+	entry, err := s.acquireClientWithTLSPolicy(proxyURL, accountID, accountConcurrency, profile, policy)
 	if err != nil {
 		slog.Debug("tls_fingerprint_acquire_client_failed", "account_id", accountID, "error", err)
 		return nil, err
@@ -483,21 +505,29 @@ func isSupportedGrokCLIVersion(version string) bool {
 
 // acquireClientWithTLS 获取或创建带 TLS 指纹的客户端
 func (s *httpUpstreamService) acquireClientWithTLS(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, upstreamProfile service.HTTPUpstreamProfile) (*upstreamClientEntry, error) {
-	return s.getClientEntryWithTLS(proxyURL, accountID, accountConcurrency, profile, upstreamProfile, true, true)
+	return s.acquireClientWithTLSPolicy(proxyURL, accountID, accountConcurrency, profile, upstreamTransportPolicy{profile: upstreamProfile})
+}
+
+func (s *httpUpstreamService) acquireClientWithTLSPolicy(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, policy upstreamTransportPolicy) (*upstreamClientEntry, error) {
+	return s.getClientEntryWithTLSPolicy(proxyURL, accountID, accountConcurrency, profile, policy, true, true)
 }
 
 // getClientEntryWithTLS 获取或创建带 TLS 指纹的客户端条目
 // TLS 指纹客户端使用独立的缓存键，与普通客户端隔离
 func (s *httpUpstreamService) getClientEntryWithTLS(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, upstreamProfile service.HTTPUpstreamProfile, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
+	return s.getClientEntryWithTLSPolicy(proxyURL, accountID, accountConcurrency, profile, upstreamTransportPolicy{profile: upstreamProfile}, markInFlight, enforceLimit)
+}
+
+func (s *httpUpstreamService) getClientEntryWithTLSPolicy(proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, policy upstreamTransportPolicy, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
 	isolation := s.getIsolationMode()
 	proxyKey, parsedProxy, err := normalizeProxyURL(proxyURL)
 	if err != nil {
 		return nil, err
 	}
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
-	settings = s.applyProfilePoolSettings(settings, upstreamProfile)
+	settings = s.applyTransportPolicy(settings, policy)
 	// TLS 指纹客户端使用独立的缓存键，加 "tls:" 前缀
-	cacheKey := "tls:" + buildCacheKey(isolation, proxyKey, accountID, upstreamProtocolModeDefault)
+	cacheKey := "tls:" + buildCacheKey(isolation, proxyKey, accountID, upstreamProtocolModeDefault) + policy.cacheKeySuffix()
 	poolKey := buildPoolKey(settings, upstreamProtocolModeDefault) + ":tls"
 
 	now := time.Now()
@@ -619,7 +649,11 @@ func (s *httpUpstreamService) acquireClient(proxyURL string, accountID int64, ac
 
 // acquireClientWithProfile 获取或创建客户端，并按请求 profile 选择协议策略。
 func (s *httpUpstreamService) acquireClientWithProfile(proxyURL string, accountID int64, accountConcurrency int, profile service.HTTPUpstreamProfile) (*upstreamClientEntry, error) {
-	return s.getClientEntry(proxyURL, accountID, accountConcurrency, profile, true, true)
+	return s.acquireClientWithPolicy(proxyURL, accountID, accountConcurrency, upstreamTransportPolicy{profile: profile})
+}
+
+func (s *httpUpstreamService) acquireClientWithPolicy(proxyURL string, accountID int64, accountConcurrency int, policy upstreamTransportPolicy) (*upstreamClientEntry, error) {
+	return s.getClientEntryWithPolicy(proxyURL, accountID, accountConcurrency, policy, true, true)
 }
 
 // getOrCreateClient 获取或创建客户端
@@ -645,6 +679,10 @@ func (s *httpUpstreamService) getOrCreateClient(proxyURL string, accountID int64
 // markInFlight=true 时会标记进行中请求，用于请求路径防止被淘汰
 // enforceLimit=true 时会限制客户端数量，超限且无法淘汰时返回错误
 func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, accountConcurrency int, profile service.HTTPUpstreamProfile, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
+	return s.getClientEntryWithPolicy(proxyURL, accountID, accountConcurrency, upstreamTransportPolicy{profile: profile}, markInFlight, enforceLimit)
+}
+
+func (s *httpUpstreamService) getClientEntryWithPolicy(proxyURL string, accountID int64, accountConcurrency int, policy upstreamTransportPolicy, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
 	// 获取隔离模式
 	isolation := s.getIsolationMode()
 	// 标准化代理 URL 并解析
@@ -653,11 +691,11 @@ func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, a
 		return nil, err
 	}
 	// 根据请求 profile（例如 OpenAI）选择协议模式
-	protocolMode := s.resolveProtocolMode(profile, proxyKey, parsedProxy)
+	protocolMode := s.resolveProtocolMode(policy.profile, proxyKey, parsedProxy)
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
-	settings = s.applyProfilePoolSettings(settings, profile)
+	settings = s.applyTransportPolicy(settings, policy)
 	// 构建缓存键（根据隔离策略不同）
-	cacheKey := buildCacheKey(isolation, proxyKey, accountID, protocolMode)
+	cacheKey := buildCacheKey(isolation, proxyKey, accountID, protocolMode) + policy.cacheKeySuffix()
 	// 构建连接池配置键（用于检测配置变更）
 	poolKey := buildPoolKey(settings, protocolMode)
 
@@ -914,6 +952,14 @@ func (s *httpUpstreamService) applyProfilePoolSettings(settings poolSettings, pr
 		if s != nil && s.cfg != nil {
 			settings.responseHeaderTimeout = time.Duration(s.cfg.Gateway.GrokResponseHeaderTimeout) * time.Second
 		}
+	}
+	return settings
+}
+
+func (s *httpUpstreamService) applyTransportPolicy(settings poolSettings, policy upstreamTransportPolicy) poolSettings {
+	settings = s.applyProfilePoolSettings(settings, policy.profile)
+	if policy.hasResponseHeaderTimeoutOverride {
+		settings.responseHeaderTimeout = policy.responseHeaderTimeoutOverride
 	}
 	return settings
 }

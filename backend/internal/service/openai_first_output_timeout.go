@@ -378,6 +378,9 @@ func newOpenAIFirstOutputHeaderGuard(
 	deadline time.Time,
 ) (context.Context, *openAIFirstOutputHeaderGuard) {
 	guardedCtx, cancel := context.WithCancel(ctx)
+	// 首输出语义超时包含响应头等待阶段。此请求关闭 Transport 层响应头超时，
+	// 避免较短的全局 OpenAI 响应头超时抢先截断账号级 deadline。
+	guardedCtx = WithHTTPUpstreamResponseHeaderTimeoutOverride(guardedCtx, 0)
 	guard := &openAIFirstOutputHeaderGuard{cancel: cancel, release: release, fired: make(chan struct{})}
 	remaining := time.Until(deadline)
 	if remaining <= 0 {

@@ -385,7 +385,7 @@ const hasChannelStatusRecipient = computed(() =>
             <Toggle v-model="emailConfig.channel_status.enabled" />
           </div>
 
-          <div v-if="emailConfig.channel_status.enabled">
+          <div>
             <label class="input-label">{{ t('admin.ops.settings.channelStatusRecipients') }}</label>
             <div class="flex gap-2">
               <input
@@ -414,7 +414,7 @@ const hasChannelStatusRecipient = computed(() =>
             </p>
           </div>
 
-          <div v-if="emailConfig.channel_status.enabled">
+          <div>
             <label class="input-label">{{ t('admin.ops.settings.consecutiveThreshold') }}</label>
             <input
               v-model.number="emailConfig.channel_status.consecutive_threshold"
@@ -426,7 +426,7 @@ const hasChannelStatusRecipient = computed(() =>
             <p class="mt-1 text-xs text-gray-500">{{ t('admin.ops.settings.consecutiveThresholdHint') }}</p>
           </div>
 
-          <div v-if="emailConfig.channel_status.enabled" class="flex items-center justify-between gap-4">
+          <div class="flex items-center justify-between gap-4">
             <p class="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.settings.channelStatusTestHint') }}</p>
             <button
               data-testid="channel-status-test-email"

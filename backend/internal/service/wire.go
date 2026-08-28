@@ -53,6 +53,13 @@ func ProvideEmailQueueService(emailService *EmailService) *EmailQueueService {
 	return NewEmailQueueService(emailService, 3)
 }
 
+// ProvideNotificationEmailService 注入跨实例投递锁。
+func ProvideNotificationEmailService(settingRepo SettingRepository, emailService *EmailService, lockCache LeaderLockCache, db *sql.DB) *NotificationEmailService {
+	svc := NewNotificationEmailService(settingRepo, emailService)
+	svc.SetLeaderLock(lockCache, db)
+	return svc
+}
+
 // ProvideAuthService wires the optional captcha providers into AuthService while
 // keeping NewAuthService's public constructor compatible with existing tests.
 func ProvideAuthService(
@@ -867,7 +874,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpsCleanupService,
 	ProvideOpsScheduledReportService,
 	NewEmailService,
-	NewNotificationEmailService,
+	ProvideNotificationEmailService,
 	ProvideEmailQueueService,
 	NewTurnstileService,
 	NewTencentCaptchaService,
@@ -984,7 +991,10 @@ func ProvideChannelMonitorRunner(
 	settingService *SettingService,
 	quotaFetcher *ChannelMonitorQuotaFetcher,
 	emailService *EmailService,
+	emailQueue *EmailQueueService,
 	opsService *OpsService,
+	lockCache LeaderLockCache,
+	db *sql.DB,
 ) *ChannelMonitorRunner {
 	r := NewChannelMonitorRunner(svc, settingService)
 	if svc != nil {
@@ -994,7 +1004,9 @@ func ProvideChannelMonitorRunner(
 		svc.SetScheduler(r)
 		svc.SetQuotaFetcher(quotaFetcher)
 		svc.SetEmailService(emailService)
+		svc.SetEmailQueue(emailQueue)
 		svc.SetOpsService(opsService)
+		svc.SetLeaderLock(lockCache, db)
 	}
 	r.Start()
 	return r

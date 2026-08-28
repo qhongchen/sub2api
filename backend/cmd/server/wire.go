@@ -267,10 +267,6 @@ func provideCleanup(
 				pricing.Stop()
 				return nil
 			}},
-			{"EmailQueueService", func() error {
-				emailQueue.Stop()
-				return nil
-			}},
 			{"BillingCacheService", func() error {
 				billingCache.Stop()
 				return nil
@@ -328,12 +324,12 @@ func provideCleanup(
 				return nil
 			}},
 			{"ChannelMonitorV2Aggregator", func() error {
-			if channelMonitorV2Aggregator != nil {
-				channelMonitorV2Aggregator.Stop()
-			}
-			return nil
-		}},
-		{"ChannelMonitorRunner", func() error {
+				if channelMonitorV2Aggregator != nil {
+					channelMonitorV2Aggregator.Stop()
+				}
+				return nil
+			}},
+			{"ChannelMonitorRunner", func() error {
 				if channelMonitorRunner != nil {
 					channelMonitorRunner.Stop()
 				}
@@ -354,6 +350,14 @@ func provideCleanup(
 			{"OllamaCloudUsageService", func() error {
 				if ollamaCloudUsage != nil {
 					ollamaCloudUsage.Stop()
+				}
+				return nil
+			}},
+		}
+		queueStopSteps := []cleanupStep{
+			{"EmailQueueService", func() error {
+				if emailQueue != nil {
+					emailQueue.Stop()
 				}
 				return nil
 			}},
@@ -403,6 +407,8 @@ func provideCleanup(
 		}
 
 		runParallel(parallelSteps)
+		// 所有邮件生产者停止后再排空队列，避免退出时丢失已入队的告警。
+		runSequential(queueStopSteps)
 		runSequential(infraSteps)
 
 		// Check if context timed out

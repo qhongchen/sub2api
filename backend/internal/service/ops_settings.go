@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"fmt"
+	"net/mail"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
 
 const (
@@ -100,11 +103,11 @@ func (s *OpsService) UpdateEmailNotificationConfig(ctx context.Context, req *Ops
 		cfg.ChannelStatus.ConsecutiveThreshold = req.ChannelStatus.ConsecutiveThreshold
 	}
 
+	normalizeOpsEmailNotificationConfig(cfg)
 	if err := validateOpsEmailNotificationConfig(cfg); err != nil {
 		return nil, err
 	}
 
-	normalizeOpsEmailNotificationConfig(cfg)
 	raw, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err
@@ -150,19 +153,29 @@ func (s *OpsService) SendTestChannelStatusEmail(ctx context.Context) error {
 		"triggered_at":      triggeredAt.Format(time.RFC3339),
 	}
 	sourceID := triggeredAt.Format(time.RFC3339Nano)
+	fallbackSubject := fmt.Sprintf("[渠道状态变更] Channel status notification test / test-model - %s", MonitorStatusOperational)
+	fallbackBody := fmt.Sprintf(
+		"<p><strong>渠道名称</strong>：Channel status notification test</p><p><strong>模型</strong>：test-model</p><p><strong>之前状态</strong>：%s</p><p><strong>当前状态</strong>：%s</p><p><strong>连续次数</strong>：1</p><p><strong>触发时间</strong>：%s</p>",
+		MonitorStatusFailed,
+		MonitorStatusOperational,
+		triggeredAt.Format(time.RFC3339),
+	)
+	var firstErr error
 	for _, recipient := range recipients {
-		if err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+		if err := s.notificationEmailService.SendWithFallback(ctx, NotificationEmailSendInput{
 			Event:          NotificationEmailEventOpsChannelStatus,
 			RecipientEmail: recipient,
 			RecipientName:  emailRecipientName(recipient),
 			SourceType:     "ops_channel_status_test",
 			SourceID:       sourceID,
 			Variables:      variables,
-		}); err != nil {
-			return err
+		}, fallbackSubject, fallbackBody); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func defaultOpsEmailNotificationConfig() *OpsEmailNotificationConfig {
@@ -210,6 +223,7 @@ func normalizeOpsEmailNotificationConfig(cfg *OpsEmailNotificationConfig) {
 	if cfg.ChannelStatus.Recipients == nil {
 		cfg.ChannelStatus.Recipients = []string{}
 	}
+	cfg.ChannelStatus.Recipients = normalizeOpsEmailRecipients(cfg.ChannelStatus.Recipients)
 
 	cfg.Alert.MinSeverity = strings.TrimSpace(cfg.Alert.MinSeverity)
 	cfg.Report.DailySummarySchedule = strings.TrimSpace(cfg.Report.DailySummarySchedule)
@@ -257,6 +271,49 @@ func validateOpsEmailNotificationConfig(cfg *OpsEmailNotificationConfig) error {
 	}
 	if cfg.ChannelStatus.ConsecutiveThreshold < 1 {
 		return errors.New("channel_status.consecutive_threshold must be >= 1")
+	}
+	if cfg.ChannelStatus.ConsecutiveThreshold > 100 {
+		return errors.New("channel_status.consecutive_threshold must be <= 100")
+	}
+	for _, recipient := range cfg.ChannelStatus.Recipients {
+		if err := validateOpsEmailRecipient(recipient); err != nil {
+			return fmt.Errorf("channel_status.recipients contains invalid email: %w", err)
+		}
+	}
+	return nil
+}
+
+func normalizeOpsEmailRecipients(recipients []string) []string {
+	if len(recipients) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(recipients))
+	out := make([]string, 0, len(recipients))
+	for _, raw := range recipients {
+		value := strings.ToLower(strings.TrimSpace(raw))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func validateOpsEmailRecipient(raw string) error {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.ContainsAny(value, "\r\n") {
+		return errors.New("address is empty or contains a line break")
+	}
+	parsed, err := mail.ParseAddress(value)
+	if err != nil || parsed.Address != value {
+		if err == nil {
+			err = errors.New("address must be a plain email address")
+		}
+		return err
 	}
 	return nil
 }

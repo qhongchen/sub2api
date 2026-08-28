@@ -336,10 +336,14 @@ func capturedRequestRecordErrorMessage(c *gin.Context) string {
 		return ""
 	}
 	w, ok := c.Writer.(*opsCaptureWriter)
-	if !ok || w == nil || w.buf.Len() == 0 {
+	if !ok || w == nil {
 		return ""
 	}
-	parsed := parseOpsErrorResponse(w.buf.Bytes())
+	body := w.capturedBytes()
+	if len(body) == 0 {
+		return ""
+	}
+	parsed := parseOpsErrorResponse(body)
 	return strings.TrimSpace(parsed.Message)
 }
 

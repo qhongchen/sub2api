@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -16,7 +17,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -46,6 +50,13 @@ const (
 	notificationEmailMaxSubjectLength     = 200
 	notificationEmailMaxHTMLLength        = 30000
 	notificationEmailUnsubscribeTTL       = 365 * 24 * time.Hour
+	// 投递 worker 在整个任务超时内持有锁，额外宽限避免临近截止时新 owner
+	// 与旧任务重叠。
+	notificationEmailDeliveryLockTTL  = notificationEmailTaskTimeout + 30*time.Second
+	notificationEmailDeliveryLockPoll = 100 * time.Millisecond
+	// 渠道状态通知按 (监控目标, 收件人) 保存持久游标。游标记录最后一次已
+	// claim 的可用性状态，同状态重复评估不会再次投递，反向变化仍可通知。
+	notificationEmailChannelStatusMarkerVersion = "channel-status-v1"
 )
 
 var (
@@ -82,6 +93,11 @@ var (
 type NotificationEmailService struct {
 	settingRepo  SettingRepository
 	emailService *EmailService
+	deliveryMu   sync.Mutex
+	deliveryDone map[string]chan struct{}
+	lockCache    LeaderLockCache
+	db           *sql.DB
+	instanceID   string
 }
 
 type NotificationEmailEventInfo struct {
@@ -189,7 +205,12 @@ type notificationEmailUnsubscribeClaims struct {
 }
 
 func NewNotificationEmailService(settingRepo SettingRepository, emailService *EmailService) *NotificationEmailService {
-	svc := &NotificationEmailService{settingRepo: settingRepo, emailService: emailService}
+	svc := &NotificationEmailService{
+		settingRepo:  settingRepo,
+		emailService: emailService,
+		deliveryDone: make(map[string]chan struct{}),
+		instanceID:   uuid.NewString(),
+	}
 	if emailService != nil {
 		emailService.SetNotificationEmailService(svc)
 	}
@@ -232,6 +253,10 @@ func shouldFallbackNotificationEmail(err error) bool {
 func isNotificationEmailDeliveryError(err error) bool {
 	var deliveryErr notificationEmailDeliveryError
 	return errors.As(err, &deliveryErr)
+}
+
+func isNotificationEmailDeliveryBeforeDataError(err error) bool {
+	return isNotificationEmailDeliveryError(err) && smtpSendFailedBeforeData(err)
 }
 
 func (s *NotificationEmailService) ListEventInfos() []NotificationEmailEventInfo {
@@ -374,6 +399,9 @@ func (s *NotificationEmailService) PreviewTemplate(ctx context.Context, input No
 }
 
 func (s *NotificationEmailService) Send(ctx context.Context, input NotificationEmailSendInput) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	info, normalizedEvent, err := s.eventInfo(input.Event)
 	if err != nil {
 		return notificationEmailTemplateErr(err)
@@ -407,27 +435,326 @@ func (s *NotificationEmailService) Send(ctx context.Context, input NotificationE
 		return notificationEmailTemplateErr(err)
 	}
 
+	return s.sendRendered(ctx, input, recipient, rendered.Subject, rendered.HTML)
+}
+
+// sendRendered 让模板邮件与兜底邮件共用同一套本地及跨实例投递锁。
+func (s *NotificationEmailService) sendRendered(ctx context.Context, input NotificationEmailSendInput, recipient, subject, htmlBody string) error {
+	normalizedEvent := strings.ToLower(strings.TrimSpace(input.Event))
+	if isChannelStatusDelivery(input) {
+		return s.sendChannelStatusRendered(ctx, input, recipient, subject, htmlBody)
+	}
+
 	deliveryKey := notificationEmailDeliveryKey(normalizedEvent, input.SourceType, input.SourceID, recipient, input.ReminderKey)
-	if deliveryKey != "" {
-		sent, err := s.deliveryExists(ctx, deliveryKey, legacyNotificationEmailDeliveryKey(normalizedEvent, input.SourceType, input.SourceID, recipient, input.ReminderKey))
+	legacyDeliveryKey := legacyNotificationEmailDeliveryKey(normalizedEvent, input.SourceType, input.SourceID, recipient, input.ReminderKey)
+	return s.withDeliveryClaim(ctx, deliveryKey, legacyDeliveryKey, func() error {
+		if s.emailService == nil {
+			return notificationEmailConfigErr(errors.New("email service is not configured"))
+		}
+
+		err := s.emailService.SendEmail(ctx, recipient, subject, htmlBody)
 		if err != nil {
-			return err
+			return notificationEmailDeliveryErr(err)
 		}
-		if sent {
-			return nil
+		if deliveryKey != "" {
+			if err := s.settingRepo.Set(ctx, deliveryKey, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+				return err
+			}
 		}
+		return nil
+	})
+}
+
+// sendChannelStatusRendered delivers a channel-status message with a durable
+// availability-state cursor. The cursor is claimed before SMTP DATA starts;
+// a pre-DATA failure restores the previous cursor, while an unknown result
+// keeps the claim to prevent an unsafe retry.
+func (s *NotificationEmailService) sendChannelStatusRendered(ctx context.Context, input NotificationEmailSendInput, recipient, subject, htmlBody string) error {
+	if s == nil || s.settingRepo == nil {
+		return errors.New("setting repository is not configured")
+	}
+
+	normalizedEvent := strings.ToLower(strings.TrimSpace(input.Event))
+	deliveryKey := notificationEmailDeliveryKey(normalizedEvent, input.SourceType, input.SourceID, recipient, "")
+	if deliveryKey == "" {
+		return notificationEmailConfigErr(errors.New("channel status notification source identity is missing"))
+	}
+
+	release, err := s.acquireDeliveryClaim(ctx, deliveryKey)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	previous, previousExists, err := s.loadChannelStatusMarker(ctx, deliveryKey)
+	if err != nil {
+		return err
+	}
+	state := notificationEmailChannelStatusState(input)
+	if previousExists && notificationEmailChannelStatusMarkerState(previous) == state {
+		slog.Info("notification email: channel status duplicate suppressed",
+			"event", normalizedEvent,
+			"source_id", input.SourceID,
+			"state", state,
+			"recipient_hash", notificationEmailHash(recipient))
+		return nil
 	}
 
 	if s.emailService == nil {
 		return notificationEmailConfigErr(errors.New("email service is not configured"))
 	}
-	if err := s.emailService.SendEmail(ctx, recipient, rendered.Subject, rendered.HTML); err != nil {
-		return notificationEmailDeliveryErr(err)
+	// Read the SMTP configuration before consuming the event. An unconfigured
+	// SMTP service must not permanently suppress the first real notification.
+	config, err := s.emailService.GetSMTPConfig(ctx)
+	if err != nil {
+		return err
 	}
-	if deliveryKey != "" {
-		if err := s.settingRepo.Set(ctx, deliveryKey, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+
+	attempted := notificationEmailChannelStatusMarker(state, "attempted", s.instanceID)
+	if err := s.settingRepo.Set(ctx, deliveryKey, attempted); err != nil {
+		return err
+	}
+	slog.Info("notification email: channel status delivery claimed",
+		"event", normalizedEvent,
+		"source_id", input.SourceID,
+		"state", state,
+		"recipient_hash", notificationEmailHash(recipient))
+
+	if err := s.emailService.SendEmailWithConfig(config, recipient, subject, htmlBody); err != nil {
+		deliveryErr := notificationEmailDeliveryErr(err)
+		if isNotificationEmailDeliveryBeforeDataError(deliveryErr) {
+			// Before DATA the server cannot have accepted the message. Restore the
+			// previous state so the queue may retry safely. If restoration fails,
+			// retain the attempted marker and prefer suppressing a duplicate.
+			if restoreErr := s.restoreChannelStatusMarker(ctx, deliveryKey, previous, previousExists); restoreErr != nil {
+				slog.Warn("notification email: failed to restore pre-data channel-status marker",
+					"delivery_key_hash", notificationEmailHash(deliveryKey),
+					"error", restoreErr)
+			}
+		}
+		return deliveryErr
+	}
+
+	// The attempted marker already protects against duplicates. If this final
+	// bookkeeping write fails, keep the attempted marker and report success:
+	// returning an error here could make a caller retry a message already
+	// accepted by SMTP.
+	if err := s.settingRepo.Set(ctx, deliveryKey, notificationEmailChannelStatusMarker(state, "sent", s.instanceID)); err != nil {
+		slog.Warn("notification email: failed to finalize channel-status marker",
+			"delivery_key_hash", notificationEmailHash(deliveryKey),
+			"error", err)
+	}
+	slog.Info("notification email: channel status delivered",
+		"event", normalizedEvent,
+		"source_id", input.SourceID,
+		"state", state,
+		"recipient_hash", notificationEmailHash(recipient))
+	return nil
+}
+
+func (s *NotificationEmailService) loadChannelStatusMarker(ctx context.Context, deliveryKey string) (string, bool, error) {
+	value, err := s.settingRepo.GetValue(ctx, deliveryKey)
+	if err == nil {
+		return value, true, nil
+	}
+	if errors.Is(err, ErrSettingNotFound) {
+		return "", false, nil
+	}
+	return "", false, err
+}
+
+func (s *NotificationEmailService) restoreChannelStatusMarker(ctx context.Context, deliveryKey, previous string, previousExists bool) error {
+	if previousExists {
+		return s.settingRepo.Set(ctx, deliveryKey, previous)
+	}
+	err := s.settingRepo.Delete(ctx, deliveryKey)
+	if errors.Is(err, ErrSettingNotFound) {
+		return nil
+	}
+	return err
+}
+
+func notificationEmailChannelStatusMarker(state, stage, owner string) string {
+	return strings.Join([]string{
+		notificationEmailChannelStatusMarkerVersion,
+		state,
+		stage,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		strings.TrimSpace(owner),
+	}, "|")
+}
+
+func notificationEmailChannelStatusMarkerState(value string) string {
+	parts := strings.Split(value, "|")
+	if len(parts) < 3 || parts[0] != notificationEmailChannelStatusMarkerVersion {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
+}
+
+func notificationEmailChannelStatusState(input NotificationEmailSendInput) string {
+	state := strings.ToLower(strings.TrimSpace(input.Variables["current_state"]))
+	switch state {
+	case "operational", "degraded":
+		return "available"
+	case "failed", "error":
+		return "unavailable"
+	default:
+		if state == "" {
+			return "unknown"
+		}
+		return state
+	}
+}
+
+func isChannelStatusDelivery(input NotificationEmailSendInput) bool {
+	return strings.EqualFold(strings.TrimSpace(input.Event), NotificationEmailEventOpsChannelStatus) &&
+		strings.EqualFold(strings.TrimSpace(input.SourceType), "ops_channel_status")
+}
+
+// acquireDelivery 把同一投递键在本进程内串行化。发送完成前到达的重复任务
+// 等待首个任务写入 deliveryKey，随后会被 deliveryExists 拦截。
+func (s *NotificationEmailService) acquireDelivery(deliveryKey string) (chan struct{}, bool) {
+	if s == nil {
+		return closedDeliveryChannel(), false
+	}
+	s.deliveryMu.Lock()
+	defer s.deliveryMu.Unlock()
+	if s.deliveryDone == nil {
+		s.deliveryDone = make(map[string]chan struct{})
+	}
+	if done, ok := s.deliveryDone[deliveryKey]; ok {
+		return done, false
+	}
+	done := make(chan struct{})
+	s.deliveryDone[deliveryKey] = done
+	return done, true
+}
+
+func closedDeliveryChannel() chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
+}
+
+func (s *NotificationEmailService) releaseDelivery(deliveryKey string, done chan struct{}) {
+	s.deliveryMu.Lock()
+	current, ok := s.deliveryDone[deliveryKey]
+	if ok && current == done {
+		delete(s.deliveryDone, deliveryKey)
+		close(current)
+	}
+	s.deliveryMu.Unlock()
+}
+
+// withDeliveryClaim 串行化同一投递键，并在真正发信前检查持久化发送标记。
+func (s *NotificationEmailService) withDeliveryClaim(ctx context.Context, deliveryKey, legacyDeliveryKey string, send func() error) error {
+	if strings.TrimSpace(deliveryKey) == "" {
+		return send()
+	}
+
+	release, err := s.acquireDeliveryClaim(ctx, deliveryKey)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	sent, err := s.deliveryExists(ctx, deliveryKey, legacyDeliveryKey)
+	if err != nil {
+		return err
+	}
+	if sent {
+		return nil
+	}
+	return send()
+}
+
+// acquireDeliveryClaim 先合并本进程内的并发调用，再复用 Redis/PostgreSQL 锁
+// 串行化多实例投递。竞争者等待当前发送完成，不会在 SMTP 事务中途重复发送。
+func (s *NotificationEmailService) acquireDeliveryClaim(ctx context.Context, deliveryKey string) (func(), error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		done, owner := s.acquireDelivery(deliveryKey)
+		if !owner {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-done:
+			}
+			continue
+		}
+
+		remoteRelease, acquired, lockErr := tryAcquireCriticalLeaderLock(
+			ctx,
+			s.lockCache,
+			s.db,
+			"notification-email-delivery:"+deliveryKey,
+			s.instanceID,
+			notificationEmailDeliveryLockTTL,
+		)
+		if lockErr != nil {
+			s.releaseDelivery(deliveryKey, done)
+			return nil, fmt.Errorf("acquire notification delivery lock: %w", lockErr)
+		}
+		if acquired {
+			if remoteRelease == nil {
+				remoteRelease = func() {}
+			}
+			return func() {
+				remoteRelease()
+				s.releaseDelivery(deliveryKey, done)
+			}, nil
+		}
+
+		s.releaseDelivery(deliveryKey, done)
+		timer := time.NewTimer(notificationEmailDeliveryLockPoll)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+// SetLeaderLock 注入跨实例通知投递锁。
+func (s *NotificationEmailService) SetLeaderLock(lockCache LeaderLockCache, db *sql.DB) {
+	if s == nil {
+		return
+	}
+	s.lockCache = lockCache
+	s.db = db
+}
+
+// SendWithFallback 优先发送模板通知，仅在模板或通知配置无效时使用原始邮件兜底。
+// 实际投递失败直接返回，由调用方决定是否重试。
+func (s *NotificationEmailService) SendWithFallback(ctx context.Context, input NotificationEmailSendInput, fallbackSubject, fallbackBody string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s == nil {
+		return notificationEmailConfigErr(errors.New("notification email service is not configured"))
+	}
+	if err := s.Send(ctx, input); err != nil {
+		if !shouldFallbackNotificationEmail(err) || s.emailService == nil {
 			return err
 		}
+		recipient := strings.TrimSpace(input.RecipientEmail)
+		if recipient == "" {
+			return nil
+		}
+		return s.sendRendered(ctx, input, recipient, fallbackSubject, fallbackBody)
 	}
 	return nil
 }
@@ -673,6 +1000,9 @@ func (s *NotificationEmailService) unsubscribeSecret(ctx context.Context) (strin
 }
 
 func (s *NotificationEmailService) deliveryExists(ctx context.Context, keys ...string) (bool, error) {
+	if s == nil || s.settingRepo == nil {
+		return false, errors.New("setting repository is not configured")
+	}
 	for _, key := range keys {
 		if strings.TrimSpace(key) == "" {
 			continue
@@ -1449,7 +1779,7 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 	},
 	NotificationEmailEventOpsChannelStatus: {
 		notificationEmailDefaultLocale: {
-			Subject: "[Ops Channel Status] {{channel_name}} - {{current_state}}",
+			Subject: "[Ops Channel Status] {{channel_name}} / {{model}} - {{current_state}}",
 			HTML: notificationEmailCard("#3b82f6", "Channel Status Change", `
 <p><strong>Channel</strong>: {{channel_name}}</p>
 <p><strong>Model</strong>: {{model}}</p>
@@ -1459,7 +1789,7 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 <p><strong>Triggered At</strong>: {{triggered_at}}</p>`),
 		},
 		notificationEmailLocaleChinese: {
-			Subject: "[渠道状态变更] {{channel_name}} - {{current_state}}",
+			Subject: "[渠道状态变更] {{channel_name}} / {{model}} - {{current_state}}",
 			HTML: notificationEmailCard("#3b82f6", "渠道状态变更", `
 <p><strong>渠道名称</strong>：{{channel_name}}</p>
 <p><strong>模型</strong>：{{model}}</p>

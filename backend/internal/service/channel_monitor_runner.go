@@ -314,6 +314,11 @@ func (r *ChannelMonitorRunner) runOne(id int64, name string) {
 		if errors.Is(err, ErrChannelMonitorAPIKeyDecryptFailed) {
 			r.Unschedule(id)
 		}
+		if errors.Is(err, ErrChannelMonitorCheckInProgress) {
+			slog.Debug("channel_monitor: skip check owned by another instance",
+				"monitor_id", id, "name", name)
+			return
+		}
 		slog.Warn("channel_monitor: run check failed",
 			"monitor_id", id, "name", name, "error", err)
 	}

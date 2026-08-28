@@ -126,6 +126,9 @@ const (
 
 	// monitorRunOneBuffer runOne 的总超时缓冲（除请求超时与 ping 超时外的额外裕量）。
 	monitorRunOneBuffer = 10 * time.Second
+	// monitorRunLockTTL 跨实例单次检测锁的崩溃兜底时间，需覆盖完整探测周期，
+	// 并额外留出 15 秒，避免任务上下文与锁同时到期造成并发检测。
+	monitorRunLockTTL = monitorRequestTimeout + monitorPingTimeout + monitorRunOneBuffer + 15*time.Second
 
 	// monitorIdleConnTimeout HTTP transport 空闲连接关闭超时。
 	monitorIdleConnTimeout = 30 * time.Second
@@ -197,6 +200,9 @@ var (
 	)
 	ErrChannelMonitorAPIKeyDecryptFailed = infraerrors.InternalServer(
 		"CHANNEL_MONITOR_KEY_DECRYPT_FAILED", "api key decryption failed; please re-edit the monitor with a fresh key",
+	)
+	ErrChannelMonitorCheckInProgress = infraerrors.Conflict(
+		"CHANNEL_MONITOR_CHECK_IN_PROGRESS", "channel monitor check is already in progress",
 	)
 )
 

@@ -102,6 +102,33 @@ type EmailService struct {
 	notificationEmailService *NotificationEmailService
 }
 
+// smtpSendError 记录失败前是否已进入 SMTP DATA 阶段。进入 DATA 后，服务端
+// 可能已经接收部分或全部邮件，调用方必须把结果视为未知，不能盲目重试。
+type smtpSendError struct {
+	err         error
+	dataStarted bool
+}
+
+func (e smtpSendError) Error() string {
+	return e.err.Error()
+}
+
+func (e smtpSendError) Unwrap() error {
+	return e.err
+}
+
+func wrapSMTPSendError(err error, dataStarted bool) error {
+	if err == nil {
+		return nil
+	}
+	return smtpSendError{err: err, dataStarted: dataStarted}
+}
+
+func smtpSendFailedBeforeData(err error) bool {
+	var sendErr smtpSendError
+	return errors.As(err, &sendErr) && !sendErr.dataStarted
+}
+
 // NewEmailService 创建邮件服务实例
 func NewEmailService(settingRepo SettingRepository, cache EmailCache) *EmailService {
 	return &EmailService{
@@ -190,34 +217,34 @@ const smtpIOTimeout = 20 * time.Second
 func (s *EmailService) SendEmailWithConfig(config *SMTPConfig, to, subject, body string) error {
 	message, err := buildSMTPMessage(config, to, subject, body)
 	if err != nil {
-		return err
+		return wrapSMTPSendError(err, false)
 	}
 
 	client, err := s.connectSMTP(config)
 	if err != nil {
-		return err
+		return wrapSMTPSendError(err, false)
 	}
 	defer func() { _ = client.Close() }()
 
 	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
 	if err = client.Auth(auth); err != nil {
-		return fmt.Errorf("smtp auth: %w", err)
+		return wrapSMTPSendError(fmt.Errorf("smtp auth: %w", err), false)
 	}
 	if err = client.Mail(message.envelopeFrom); err != nil {
-		return fmt.Errorf("smtp mail: %w", err)
+		return wrapSMTPSendError(fmt.Errorf("smtp mail: %w", err), false)
 	}
 	if err = client.Rcpt(message.envelopeTo); err != nil {
-		return fmt.Errorf("smtp rcpt: %w", err)
+		return wrapSMTPSendError(fmt.Errorf("smtp rcpt: %w", err), false)
 	}
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("smtp data: %w", err)
+		return wrapSMTPSendError(fmt.Errorf("smtp data: %w", err), false)
 	}
 	if _, err = w.Write(message.data); err != nil {
-		return fmt.Errorf("write msg: %w", err)
+		return wrapSMTPSendError(fmt.Errorf("write msg: %w", err), true)
 	}
 	if err = w.Close(); err != nil {
-		return fmt.Errorf("close writer: %w", err)
+		return wrapSMTPSendError(fmt.Errorf("close writer: %w", err), true)
 	}
 	// Email is sent successfully after w.Close(), ignore Quit errors
 	// Some SMTP servers return non-standard responses on QUIT

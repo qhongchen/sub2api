@@ -275,7 +275,10 @@ func (r *channelMonitorRepository) ListHistory(ctx context.Context, monitorID in
 		q = q.Where(channelmonitorhistory.ModelEQ(model))
 	}
 	rows, err := q.
-		Order(dbent.Desc(channelmonitorhistory.FieldCheckedAt)).
+		Order(
+			dbent.Desc(channelmonitorhistory.FieldCheckedAt),
+			dbent.Desc(channelmonitorhistory.FieldID),
+		).
 		Limit(limit).
 		All(ctx)
 	if err != nil {

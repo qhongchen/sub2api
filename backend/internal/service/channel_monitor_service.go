@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -87,6 +90,12 @@ type ChannelMonitorService struct {
 	emailService *EmailService
 	// opsService 由 wire 通过 SetOpsService 注入，用于读取渠道状态通知配置。
 	opsService *OpsService
+	// emailQueue 由 wire 注入，使状态邮件不阻塞渠道检测任务。
+	emailQueue *EmailQueueService
+	// 跨实例检测锁在生产环境使用 PostgreSQL advisory lock 作为唯一协调边界。
+	lockCache  LeaderLockCache
+	db         *sql.DB
+	instanceID string
 }
 
 const maxChannelMonitorNameRunes = 100
@@ -99,7 +108,7 @@ const ChannelMonitorDuplicateOperationIDMetadataKey = "sub2api:duplicate_operati
 
 // NewChannelMonitorService 创建渠道监控服务实例。
 func NewChannelMonitorService(repo ChannelMonitorRepository, encryptor SecretEncryptor) *ChannelMonitorService {
-	return &ChannelMonitorService{repo: repo, encryptor: encryptor}
+	return &ChannelMonitorService{repo: repo, encryptor: encryptor, instanceID: uuid.NewString()}
 }
 
 // SetRuntimeReader injects the settings reader used to gate active probes.
@@ -615,6 +624,22 @@ func (s *ChannelMonitorService) RunCheck(ctx context.Context, id int64) ([]*Chec
 	if !rt.ActiveProbesAllowed() {
 		return nil, ErrChannelMonitorActiveProbesRetired
 	}
+	release, acquired, lockErr := tryAcquireCriticalLeaderLock(
+		ctx,
+		s.lockCache,
+		s.db,
+		fmt.Sprintf("channel-monitor-v1-run:%d", id),
+		s.instanceID,
+		monitorRunLockTTL,
+	)
+	if lockErr != nil {
+		return nil, fmt.Errorf("acquire channel monitor run lock: %w", lockErr)
+	}
+	if !acquired {
+		return nil, ErrChannelMonitorCheckInProgress
+	}
+	defer release()
+
 	m, err := s.Get(ctx, id) // 已解密 APIKey
 	if err != nil {
 		return nil, err
@@ -634,8 +659,9 @@ func (s *ChannelMonitorService) RunCheck(ctx context.Context, id int64) ([]*Chec
 	default:
 		results = s.runChecksConcurrent(ctx, m)
 	}
-	s.persistCheckResults(ctx, m, results)
-	s.detectAndNotifyChannelStatusChange(ctx, m, results)
+	if s.persistCheckResults(ctx, m, results) {
+		s.detectAndNotifyChannelStatusChange(ctx, m, results)
+	}
 	return results, nil
 }
 
@@ -673,9 +699,9 @@ func attachQuotaSnapshot(results []*CheckResult, snapshot *domain.MonitorQuotaSn
 	}
 }
 
-// persistCheckResults 写入本次检测的历史记录并更新 last_checked_at。
-// 任一写库失败都只记日志，不影响调用方拿到 results（与 MVP 期望一致：宁可漏记历史也要先返回结果）。
-func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *ChannelMonitor, results []*CheckResult) {
+	// persistCheckResults 写入本次检测的历史记录并更新 last_checked_at。
+	// 历史写入失败时跳过状态通知，避免基于旧历史重复发送邮件。
+func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *ChannelMonitor, results []*CheckResult) bool {
 	rows := make([]*ChannelMonitorHistoryRow, 0, len(results))
 	for _, r := range results {
 		rows = append(rows, &ChannelMonitorHistoryRow{
@@ -689,26 +715,34 @@ func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *Chan
 			Quota:         r.Quota,
 		})
 	}
+	historyPersisted := true
 	if err := s.repo.InsertHistoryBatch(ctx, rows); err != nil {
 		slog.Error("channel_monitor: insert history failed",
 			"monitor_id", m.ID, "name", m.Name, "error", err)
+		historyPersisted = false
 	}
 	if err := s.repo.MarkChecked(ctx, m.ID, time.Now()); err != nil {
 		slog.Error("channel_monitor: mark checked failed",
 			"monitor_id", m.ID, "error", err)
 	}
+	return historyPersisted
 }
 
 // detectAndNotifyChannelStatusChange 检测渠道状态变化并发送通知邮件。
 // 对每个模型：查询最近 threshold+1 条历史记录（含刚写入的本次），
 // 如果最近 threshold 条全部为同一状态，且前一条为相反状态，则判定为状态翻转。
 func (s *ChannelMonitorService) detectAndNotifyChannelStatusChange(ctx context.Context, m *ChannelMonitor, results []*CheckResult) {
-	if s == nil || s.emailService == nil || s.opsService == nil {
+	if s == nil || s.emailService == nil || s.emailService.notificationEmailService == nil || s.opsService == nil {
 		return
 	}
 
 	emailCfg, err := s.opsService.GetEmailNotificationConfig(ctx)
-	if err != nil || emailCfg == nil || !emailCfg.ChannelStatus.Enabled {
+	if err != nil {
+		slog.Error("channel_monitor: load channel status email config failed",
+			"monitor_id", m.ID, "error", err)
+		return
+	}
+	if emailCfg == nil || !emailCfg.ChannelStatus.Enabled {
 		return
 	}
 	if len(emailCfg.ChannelStatus.Recipients) == 0 {
@@ -718,6 +752,8 @@ func (s *ChannelMonitorService) detectAndNotifyChannelStatusChange(ctx context.C
 	threshold := emailCfg.ChannelStatus.ConsecutiveThreshold
 	if threshold < 1 {
 		threshold = 5
+	} else if threshold > 100 {
+		threshold = 100
 	}
 
 	for _, r := range results {
@@ -729,7 +765,12 @@ func (s *ChannelMonitorService) detectAndNotifyChannelStatusChange(ctx context.C
 func (s *ChannelMonitorService) checkModelStatusTransition(ctx context.Context, m *ChannelMonitor, r *CheckResult, threshold int, recipients []string) {
 	// 查询最近 threshold+1 条历史（含刚写入的本次检测），按 checked_at DESC 排序。
 	history, err := s.repo.ListHistory(ctx, m.ID, r.Model, threshold+1)
-	if err != nil || len(history) < threshold+1 {
+	if err != nil {
+		slog.Error("channel_monitor: load history for status transition failed",
+			"monitor_id", m.ID, "model", r.Model, "error", err)
+		return
+	}
+	if len(history) < threshold+1 {
 		return
 	}
 
@@ -752,6 +793,8 @@ func (s *ChannelMonitorService) checkModelStatusTransition(ctx context.Context, 
 		}
 	}
 
+	// 投递去重不使用历史行 ID：同一状态事件被重复评估时，滑动窗口的边界
+	// 可能变化。通知服务会按监控、模型和成功/失败语义状态做持久化去重。
 	s.sendChannelStatusEmail(ctx, m, r.Model, prevState, currentState, threshold, recipients)
 }
 
@@ -771,35 +814,77 @@ func (s *ChannelMonitorService) sendChannelStatusEmail(ctx context.Context, m *C
 		"triggered_at":      time.Now().UTC().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf("[渠道状态变更] %s - %s", m.Name, currentState)
-	body := fmt.Sprintf("渠道：%s\n模型：%s\n之前状态：%s\n当前状态：%s\n连续次数：%d\n触发时间：%s",
-		m.Name, model, prevState, currentState, consecutiveCount, vars["triggered_at"])
+	subject := fmt.Sprintf("[渠道状态变更] %s / %s - %s", m.Name, model, currentState)
+	body := fmt.Sprintf(
+		"<p><strong>渠道名称</strong>：%s</p><p><strong>模型</strong>：%s</p><p><strong>之前状态</strong>：%s</p><p><strong>当前状态</strong>：%s</p><p><strong>连续次数</strong>：%d</p><p><strong>触发时间</strong>：%s</p>",
+		html.EscapeString(m.Name),
+		html.EscapeString(model),
+		html.EscapeString(prevState),
+		html.EscapeString(currentState),
+		consecutiveCount,
+		html.EscapeString(vars["triggered_at"]),
+	)
+	// SourceID 绑定具体监控行和模型，避免不同监控因名称/端点相同而共享
+	// 状态游标；同一监控的反向状态变化仍可再次通知。
+	sourceID := channelStatusNotificationSourceID(m, model)
+	seenRecipients := make(map[string]struct{}, len(recipients))
 
 	for _, to := range recipients {
 		addr := strings.TrimSpace(to)
 		if addr == "" {
 			continue
 		}
-		if s.emailService.notificationEmailService != nil {
-			if err := s.emailService.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-				Event:          NotificationEmailEventOpsChannelStatus,
-				RecipientEmail: addr,
-				RecipientName:  emailRecipientName(addr),
-				SourceType:     "ops_channel_status",
-				SourceID:       fmt.Sprintf("%d", m.ID),
-				Variables:      vars,
-			}); err == nil {
+		recipientKey := strings.ToLower(addr)
+		if _, exists := seenRecipients[recipientKey]; exists {
+			continue
+		}
+		seenRecipients[recipientKey] = struct{}{}
+		input := NotificationEmailSendInput{
+			Event:          NotificationEmailEventOpsChannelStatus,
+			RecipientEmail: addr,
+			RecipientName:  emailRecipientName(addr),
+			SourceType:     "ops_channel_status",
+			SourceID:       sourceID,
+			Variables:      vars,
+		}
+		if s.emailQueue != nil {
+			if err := s.emailQueue.EnqueueNotification(input, subject, body); err == nil {
+				slog.Info("channel_monitor: channel status email enqueued",
+					"monitor_id", m.ID,
+					"model", model,
+					"state", notificationEmailChannelStatusState(input),
+					"source_id", sourceID,
+					"recipient_hash", notificationEmailHash(addr))
 				continue
-			} else if !shouldFallbackNotificationEmail(err) {
-				continue
+			} else {
+				slog.Warn("channel_monitor: enqueue channel status email failed; falling back to synchronous delivery",
+					"monitor_id", m.ID,
+					"model", model,
+					"recipient_hash", notificationEmailHash(addr),
+					"error", err)
 			}
 		}
-		if err := s.emailService.SendEmail(ctx, addr, subject, body); err != nil {
+
+		err := s.emailService.notificationEmailService.SendWithFallback(ctx, input, subject, body)
+		if err != nil {
 			slog.Error("channel_monitor: send channel status email failed",
-				"monitor_id", m.ID, "recipient", addr, "error", err)
+				"monitor_id", m.ID,
+				"model", model,
+				"recipient_hash", notificationEmailHash(addr),
+				"error", err)
 			continue
 		}
 	}
+}
+
+func channelStatusNotificationSourceID(m *ChannelMonitor, model string) string {
+	if m == nil {
+		return ""
+	}
+	// The monitor row is the stable identity. Target attributes such as endpoint,
+	// headers, body overrides, and credentials can differ even when the display
+	// name is the same, so they must not share a notification cursor.
+	return fmt.Sprintf("monitor:%d:model:%s", m.ID, strings.ToLower(strings.TrimSpace(model)))
 }
 
 // runChecksConcurrent 对 primary + extra 模型并发执行检测。
@@ -858,6 +943,23 @@ func (s *ChannelMonitorService) SetEmailService(emailService *EmailService) {
 		return
 	}
 	s.emailService = emailService
+}
+
+// SetEmailQueue 注入后台邮件队列，避免 SMTP 延迟占用监控 worker。
+func (s *ChannelMonitorService) SetEmailQueue(emailQueue *EmailQueueService) {
+	if s == nil {
+		return
+	}
+	s.emailQueue = emailQueue
+}
+
+// SetLeaderLock 注入跨实例检测锁，防止多个实例重复探测同一监控。
+func (s *ChannelMonitorService) SetLeaderLock(lockCache LeaderLockCache, db *sql.DB) {
+	if s == nil {
+		return
+	}
+	s.lockCache = lockCache
+	s.db = db
 }
 
 // SetOpsService 由 wire 注入运维服务，用于读取渠道状态通知配置。

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -65,4 +66,44 @@ func tryAcquireSingletonLeaderLock(ctx context.Context, cache LeaderLockCache, d
 
 	// No coordination backend available: run without gating.
 	return func() {}, true
+}
+
+// tryAcquireCriticalLeaderLock 用于不能接受重复执行的任务。生产环境固定以
+// PostgreSQL advisory lock 为唯一协调边界，避免部分实例使用 Redis、另一些
+// 实例因 Redis 故障回退 PostgreSQL 时同时成为 owner。
+func tryAcquireCriticalLeaderLock(
+	ctx context.Context,
+	cache LeaderLockCache,
+	db *sql.DB,
+	key string,
+	owner string,
+	ttl time.Duration,
+) (func(), bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if db != nil {
+		return tryAcquireDBAdvisoryLockWithError(ctx, db, hashAdvisoryLockID(key))
+	}
+
+	if cache != nil {
+		acquired, err := cache.TryAcquireLeaderLock(ctx, key, owner, ttl)
+		if err != nil {
+			return nil, false, fmt.Errorf("acquire critical Redis leader lock: %w", err)
+		}
+		if !acquired {
+			return nil, false, nil
+		}
+		release := func() {
+			ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_ = cache.ReleaseLeaderLock(ctx2, key, owner)
+		}
+		return release, true, nil
+	}
+
+	// 单实例或测试环境没有跨进程协调后端，由调用方的进程内 singleflight
+	// 保证本实例内互斥。
+	return func() {}, true, nil
 }
