@@ -162,8 +162,12 @@ func (s *OpsService) SendTestChannelStatusEmail(ctx context.Context) error {
 	)
 	var firstErr error
 	for _, recipient := range recipients {
+		locale := s.notificationEmailService.ResolveRecipientLocaleForEvent(
+			ctx, 0, recipient, NotificationEmailEventOpsChannelStatus,
+		)
 		if err := s.notificationEmailService.SendWithFallback(ctx, NotificationEmailSendInput{
 			Event:          NotificationEmailEventOpsChannelStatus,
+			Locale:         locale,
 			RecipientEmail: recipient,
 			RecipientName:  emailRecipientName(recipient),
 			SourceType:     "ops_channel_status_test",

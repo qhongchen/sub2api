@@ -119,11 +119,18 @@
           :platform="platform"
           :group-id="groupId"
           :error-type="errorDetailsType"
+          :resume-state="resumeListState"
           @update:show="showErrorDetails = $event"
           @openErrorDetail="openError"
         />
 
-        <OpsErrorDetailModal v-model:show="showErrorModal" :error-id="selectedErrorId" :error-type="errorDetailsType" />
+        <OpsErrorDetailModal
+          v-model:show="showErrorModal"
+          :error-id="selectedErrorId"
+          :error-type="errorDetailsType"
+          :back-to-list="detailReturnTarget !== null"
+          @back="handleBackToList"
+        />
 
         <OpsRequestDetailsModal
           v-model="showRequestDetails"
@@ -131,6 +138,7 @@
           :preset="requestDetailsPreset"
           :platform="platform"
           :group-id="groupId"
+          :resume-state="resumeListState"
           @openErrorDetail="openError"
         />
       </template>
@@ -377,6 +385,10 @@ const requestDetailsPreset = ref<OpsRequestDetailsPreset>({
   sort: 'created_at_desc'
 })
 
+type DetailReturnTarget = 'errorList' | 'requestList' | null
+const detailReturnTarget = ref<DetailReturnTarget>(null)
+const resumeListState = ref(false)
+
 const showSettingsDialog = ref(false)
 const showAlertRulesCard = ref(false)
 
@@ -508,10 +520,29 @@ function onQueryModeChange(v: string | number | boolean | null) {
 
 function openError(id: number) {
   selectedErrorId.value = id
+  detailReturnTarget.value = showRequestDetails.value ? 'requestList' : showErrorDetails.value ? 'errorList' : null
   // Ensure only one modal visible at a time.
   showErrorDetails.value = false
   showRequestDetails.value = false
   showErrorModal.value = true
+}
+
+function handleBackToList() {
+  const target = detailReturnTarget.value
+  resumeListState.value = true
+  if (target === 'requestList') {
+    showErrorModal.value = false
+    showErrorDetails.value = false
+    showRequestDetails.value = true
+  } else if (target === 'errorList') {
+    showErrorModal.value = false
+    showRequestDetails.value = false
+    showErrorDetails.value = true
+  }
+  detailReturnTarget.value = null
+  window.setTimeout(() => {
+    resumeListState.value = false
+  }, 0)
 }
 
 function buildApiParams() {

@@ -411,8 +411,12 @@ func (s *BalanceNotifyService) sendQuotaAlertEmails(adminEmails []string, accoun
 		fallbackRecipients := make([]string, 0, len(adminEmails))
 		for _, to := range adminEmails {
 			ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
+			locale := s.notificationEmailService.ResolveRecipientLocaleForEvent(
+				ctx, 0, to, NotificationEmailEventAccountQuotaAlert,
+			)
 			err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
 				Event:          NotificationEmailEventAccountQuotaAlert,
+				Locale:         locale,
 				RecipientEmail: to,
 				RecipientName:  emailRecipientName(to),
 				SourceType:     "account_quota",

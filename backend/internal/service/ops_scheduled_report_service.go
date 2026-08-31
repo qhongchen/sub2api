@@ -350,7 +350,7 @@ func (s *OpsScheduledReportService) runReport(ctx context.Context, report *opsSc
 		attempts++
 		locale := ""
 		if s.emailService.notificationEmailService != nil {
-			locale = s.emailService.notificationEmailService.ResolveRecipientLocale(ctx, 0, addr)
+			locale = s.emailService.notificationEmailService.ResolveRecipientLocaleForEvent(ctx, 0, addr, NotificationEmailEventOpsScheduledReport)
 			templateVariables := opsScheduledReportLocalizedEmailVariables(report, now, locale)
 			rawHTMLVariables := map[string]string{"report_html": content.html}
 			if isOpsSummaryReport(report) {

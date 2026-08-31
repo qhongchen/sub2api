@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -90,6 +91,9 @@ type ChannelMonitorService struct {
 	emailService *EmailService
 	// opsService 由 wire 通过 SetOpsService 注入，用于读取渠道状态通知配置。
 	opsService *OpsService
+	// channelStatusStateRepo 持久化每个监控模型已确认的可用性状态。
+	// 状态必须跨进程和重启保留，避免瞬时波动被误判为状态翻转。
+	channelStatusStateRepo SettingRepository
 	// emailQueue 由 wire 注入，使状态邮件不阻塞渠道检测任务。
 	emailQueue *EmailQueueService
 	// 跨实例检测锁在生产环境使用 PostgreSQL advisory lock 作为唯一协调边界。
@@ -98,7 +102,17 @@ type ChannelMonitorService struct {
 	instanceID string
 }
 
-const maxChannelMonitorNameRunes = 100
+const (
+	maxChannelMonitorNameRunes            = 100
+	channelMonitorStatusStateKeyPrefix    = "channel_monitor_state:v2:"
+	channelMonitorAvailabilityAvailable   = "available"
+	channelMonitorAvailabilityUnavailable = "unavailable"
+)
+
+type channelMonitorConfirmedState struct {
+	Availability string `json:"availability"`
+	Status       string `json:"status"`
+}
 
 // ChannelMonitorDuplicateOperationIDMetadataKey is stored in the existing
 // extra_headers JSON column to avoid a schema migration. The colon makes it an
@@ -699,8 +713,8 @@ func attachQuotaSnapshot(results []*CheckResult, snapshot *domain.MonitorQuotaSn
 	}
 }
 
-	// persistCheckResults 写入本次检测的历史记录并更新 last_checked_at。
-	// 历史写入失败时跳过状态通知，避免基于旧历史重复发送邮件。
+// persistCheckResults 写入本次检测的历史记录并更新 last_checked_at。
+// 历史写入失败时跳过状态通知，避免基于旧历史重复发送邮件。
 func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *ChannelMonitor, results []*CheckResult) bool {
 	rows := make([]*ChannelMonitorHistoryRow, 0, len(results))
 	for _, r := range results {
@@ -729,10 +743,10 @@ func (s *ChannelMonitorService) persistCheckResults(ctx context.Context, m *Chan
 }
 
 // detectAndNotifyChannelStatusChange 检测渠道状态变化并发送通知邮件。
-// 对每个模型：查询最近 threshold+1 条历史记录（含刚写入的本次），
-// 如果最近 threshold 条全部为同一状态，且前一条为相反状态，则判定为状态翻转。
+// 每个模型先用连续 threshold 条同类历史确认候选状态，再与持久化的已确认状态比较。
+// 首次达到阈值只建立基线；之后仅在候选状态与已确认状态相反时判定为状态翻转。
 func (s *ChannelMonitorService) detectAndNotifyChannelStatusChange(ctx context.Context, m *ChannelMonitor, results []*CheckResult) {
-	if s == nil || s.emailService == nil || s.emailService.notificationEmailService == nil || s.opsService == nil {
+	if s == nil || s.emailService == nil || s.emailService.notificationEmailService == nil || s.opsService == nil || s.channelStatusStateRepo == nil {
 		return
 	}
 
@@ -763,44 +777,132 @@ func (s *ChannelMonitorService) detectAndNotifyChannelStatusChange(ctx context.C
 
 // checkModelStatusTransition 检查单个模型的状态翻转并发送邮件。
 func (s *ChannelMonitorService) checkModelStatusTransition(ctx context.Context, m *ChannelMonitor, r *CheckResult, threshold int, recipients []string) {
-	// 查询最近 threshold+1 条历史（含刚写入的本次检测），按 checked_at DESC 排序。
-	history, err := s.repo.ListHistory(ctx, m.ID, r.Model, threshold+1)
+	// 查询最近 threshold 条历史（含刚写入的本次检测），按 checked_at DESC 排序。
+	history, err := s.repo.ListHistory(ctx, m.ID, r.Model, threshold)
 	if err != nil {
 		slog.Error("channel_monitor: load history for status transition failed",
 			"monitor_id", m.ID, "model", r.Model, "error", err)
 		return
 	}
-	if len(history) < threshold+1 {
+	if len(history) < threshold {
 		return
 	}
 
-	// history[0] 是最新（本次），history[threshold] 是翻转前的最后一条
+	// 最近 threshold 条必须全部属于同一可用性状态。
 	currentState := history[0].Status
-	prevState := history[threshold].Status
-
-	currentIsSuccess := isMonitorStatusSuccess(currentState)
-	prevIsSuccess := isMonitorStatusSuccess(prevState)
-
-	// 状态未翻转则不通知
-	if currentIsSuccess == prevIsSuccess {
-		return
-	}
-
-	// 最近 threshold 条（history[0..threshold-1]）必须全部为同一状态
-	for i := 0; i < threshold; i++ {
-		if isMonitorStatusSuccess(history[i].Status) != currentIsSuccess {
+	currentAvailability := monitorStatusAvailability(currentState)
+	for i := 1; i < threshold; i++ {
+		if monitorStatusAvailability(history[i].Status) != currentAvailability {
 			return
 		}
 	}
 
-	// 投递去重不使用历史行 ID：同一状态事件被重复评估时，滑动窗口的边界
-	// 可能变化。通知服务会按监控、模型和成功/失败语义状态做持久化去重。
-	s.sendChannelStatusEmail(ctx, m, r.Model, prevState, currentState, threshold, recipients)
+	confirmed, exists, err := s.loadChannelMonitorConfirmedState(ctx, m, r.Model)
+	if err != nil {
+		slog.Error("channel_monitor: load confirmed notification state failed",
+			"monitor_id", m.ID, "model", r.Model, "error", err)
+		return
+	}
+
+	if !exists {
+		if err := s.saveChannelMonitorConfirmedState(ctx, m, r.Model, channelMonitorConfirmedState{
+			Availability: currentAvailability,
+			Status:       currentState,
+		}); err != nil {
+			slog.Error("channel_monitor: establish notification state baseline failed",
+				"monitor_id", m.ID, "model", r.Model, "state", currentAvailability, "error", err)
+			return
+		}
+		slog.Info("channel_monitor: notification state baseline established",
+			"monitor_id", m.ID, "model", r.Model, "state", currentAvailability, "threshold", threshold)
+		return
+	}
+
+	if confirmed.Availability == currentAvailability {
+		return
+	}
+
+	previousState := strings.TrimSpace(confirmed.Status)
+	if previousState == "" {
+		previousState = confirmed.Availability
+	}
+	if err := s.saveChannelMonitorConfirmedState(ctx, m, r.Model, channelMonitorConfirmedState{
+		Availability: currentAvailability,
+		Status:       currentState,
+	}); err != nil {
+		slog.Error("channel_monitor: persist confirmed notification transition failed",
+			"monitor_id", m.ID,
+			"model", r.Model,
+			"previous_state", confirmed.Availability,
+			"current_state", currentAvailability,
+			"error", err)
+		return
+	}
+
+	slog.Info("channel_monitor: notification state transition confirmed",
+		"monitor_id", m.ID,
+		"model", r.Model,
+		"previous_state", confirmed.Availability,
+		"current_state", currentAvailability,
+		"threshold", threshold)
+	s.sendChannelStatusEmail(ctx, m, r.Model, previousState, currentState, threshold, recipients)
 }
 
 // isMonitorStatusSuccess 判断监控状态是否为"成功"（operational/degraded）。
 func isMonitorStatusSuccess(status string) bool {
 	return status == MonitorStatusOperational || status == MonitorStatusDegraded
+}
+
+func monitorStatusAvailability(status string) string {
+	if isMonitorStatusSuccess(status) {
+		return channelMonitorAvailabilityAvailable
+	}
+	return channelMonitorAvailabilityUnavailable
+}
+
+func (s *ChannelMonitorService) loadChannelMonitorConfirmedState(ctx context.Context, m *ChannelMonitor, model string) (channelMonitorConfirmedState, bool, error) {
+	key := channelMonitorStatusStateKey(m, model)
+	if key == "" {
+		return channelMonitorConfirmedState{}, false, errors.New("channel monitor notification state identity is missing")
+	}
+	raw, err := s.channelStatusStateRepo.GetValue(ctx, key)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return channelMonitorConfirmedState{}, false, nil
+		}
+		return channelMonitorConfirmedState{}, false, err
+	}
+
+	var state channelMonitorConfirmedState
+	if err := json.Unmarshal([]byte(raw), &state); err != nil {
+		return channelMonitorConfirmedState{}, false, fmt.Errorf("decode channel monitor notification state: %w", err)
+	}
+	state.Availability = strings.ToLower(strings.TrimSpace(state.Availability))
+	state.Status = strings.ToLower(strings.TrimSpace(state.Status))
+	if state.Availability != channelMonitorAvailabilityAvailable && state.Availability != channelMonitorAvailabilityUnavailable {
+		return channelMonitorConfirmedState{}, false, fmt.Errorf("invalid channel monitor notification availability %q", state.Availability)
+	}
+	return state, true, nil
+}
+
+func (s *ChannelMonitorService) saveChannelMonitorConfirmedState(ctx context.Context, m *ChannelMonitor, model string, state channelMonitorConfirmedState) error {
+	key := channelMonitorStatusStateKey(m, model)
+	if key == "" {
+		return errors.New("channel monitor notification state identity is missing")
+	}
+	payload, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("encode channel monitor notification state: %w", err)
+	}
+	return s.channelStatusStateRepo.Set(ctx, key, string(payload))
+}
+
+func channelMonitorStatusStateKey(m *ChannelMonitor, model string) string {
+	sourceID := channelStatusNotificationSourceID(m, model)
+	if sourceID == "" {
+		return ""
+	}
+	return channelMonitorStatusStateKeyPrefix + notificationEmailHash(sourceID)
 }
 
 // sendChannelStatusEmail 发送渠道状态变化通知邮件。
@@ -839,8 +941,12 @@ func (s *ChannelMonitorService) sendChannelStatusEmail(ctx context.Context, m *C
 			continue
 		}
 		seenRecipients[recipientKey] = struct{}{}
+		locale := s.emailService.notificationEmailService.ResolveRecipientLocaleForEvent(
+			ctx, 0, addr, NotificationEmailEventOpsChannelStatus,
+		)
 		input := NotificationEmailSendInput{
 			Event:          NotificationEmailEventOpsChannelStatus,
+			Locale:         locale,
 			RecipientEmail: addr,
 			RecipientName:  emailRecipientName(addr),
 			SourceType:     "ops_channel_status",
@@ -884,7 +990,7 @@ func channelStatusNotificationSourceID(m *ChannelMonitor, model string) string {
 	// The monitor row is the stable identity. Target attributes such as endpoint,
 	// headers, body overrides, and credentials can differ even when the display
 	// name is the same, so they must not share a notification cursor.
-	return fmt.Sprintf("monitor:%d:model:%s", m.ID, strings.ToLower(strings.TrimSpace(model)))
+	return fmt.Sprintf("monitor:%d:model:%s:transition:v2", m.ID, strings.ToLower(strings.TrimSpace(model)))
 }
 
 // runChecksConcurrent 对 primary + extra 模型并发执行检测。
@@ -968,6 +1074,10 @@ func (s *ChannelMonitorService) SetOpsService(opsService *OpsService) {
 		return
 	}
 	s.opsService = opsService
+	s.channelStatusStateRepo = nil
+	if opsService != nil {
+		s.channelStatusStateRepo = opsService.settingRepo
+	}
 }
 
 // ListEnabledMonitors 返回所有 enabled=true 的监控（解密后），供 runner 启动时建立任务表。

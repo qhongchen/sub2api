@@ -29,6 +29,7 @@ export interface ChannelTimePricingPeriod {
 
 export interface ChannelTimePricing {
   timezone: string
+  weekdays_only?: boolean
   periods: ChannelTimePricingPeriod[]
 }
 

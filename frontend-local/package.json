@@ -21,7 +21,7 @@
     "@vueuse/core": "^10.7.0",
     "axios": "^1.18.1",
     "chart.js": "^4.4.1",
-    "dompurify": "^3.3.1",
+    "dompurify": "^3.4.14",
     "driver.js": "^1.4.0",
     "file-saver": "^2.0.5",
     "marked": "^17.0.1",
@@ -59,6 +59,9 @@
   },
   "pnpm": {
     "overrides": {
+      "js-cookie": "3.0.7",
+      "form-data@<4.0.6": ">=4.0.6",
+      "dompurify@<3.4.14": ">=3.4.14",
       "postcss@<8.5.18": ">=8.5.18"
     }
   }

@@ -146,7 +146,18 @@ func (h *SettingHandler) SendTestEmail(c *gin.Context) {
 	}
 
 	siteName := h.settingService.GetSiteName(c.Request.Context())
-	subject := "[" + siteName + "] Test Email"
+	localeChinese := requestPrefersChineseEmail(c.GetHeader("Accept-Language"))
+	subjectLabel := "Test Email"
+	testTitle := "Email Configuration Successful!"
+	testDescription := "This is a test email to verify your SMTP settings are working correctly."
+	testFooter := "This is an automated test message."
+	if localeChinese {
+		subjectLabel = "邮件配置测试"
+		testTitle = "邮件配置成功！"
+		testDescription = "这是一封用于验证 SMTP 设置是否正常工作的测试邮件。"
+		testFooter = "这是一封自动发送的测试邮件。"
+	}
+	subject := "[" + siteName + "] " + subjectLabel
 	body := `
 <!DOCTYPE html>
 <html>
@@ -168,11 +179,11 @@ func (h *SettingHandler) SendTestEmail(c *gin.Context) {
         </div>
         <div class="content">
             <div class="success">✓</div>
-            <h2>Email Configuration Successful!</h2>
-            <p>This is a test email to verify your SMTP settings are working correctly.</p>
+            <h2>` + html.EscapeString(testTitle) + `</h2>
+            <p>` + html.EscapeString(testDescription) + `</p>
         </div>
         <div class="footer">
-            <p>This is an automated test message.</p>
+            <p>` + html.EscapeString(testFooter) + `</p>
         </div>
     </div>
 </body>
@@ -184,7 +195,24 @@ func (h *SettingHandler) SendTestEmail(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"message": "Test email sent successfully"})
+	successMessage := "Test email sent successfully"
+	if localeChinese {
+		successMessage = "测试邮件发送成功"
+	}
+	response.Success(c, gin.H{"message": successMessage})
+}
+
+func requestPrefersChineseEmail(raw string) bool {
+	for _, part := range strings.Split(strings.ToLower(strings.TrimSpace(raw)), ",") {
+		tag := strings.TrimSpace(strings.SplitN(part, ";", 2)[0])
+		if strings.HasPrefix(tag, "zh") || tag == "cn" {
+			return true
+		}
+		if strings.HasPrefix(tag, "en") {
+			return false
+		}
+	}
+	return false
 }
 
 // ListEmailTemplates returns all editable notification email templates.

@@ -149,6 +149,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { accountsAPI } from '@/api/admin/accounts'
+import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import { useClipboard } from '@/composables/useClipboard'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -161,10 +162,12 @@ const props = defineProps<{
   platform?: string
   platforms?: string[]
   accountId?: number
+  syncCredentials?: SyncUpstreamPreviewParams
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
+  'upstream-synced': []
 }>()
 
 const appStore = useAppStore()
@@ -203,9 +206,14 @@ const upstreamSyncPlatforms = new Set([
   'deepseek'
 ])
 const canSyncUpstream = computed(() => {
-  if (!props.accountId) return false
-  if (normalizedPlatforms.value.length === 0) return true
-  return normalizedPlatforms.value.some(platform => upstreamSyncPlatforms.has(platform.toLowerCase()))
+  if (props.accountId) {
+    if (normalizedPlatforms.value.length === 0) return true
+    return normalizedPlatforms.value.some(platform => upstreamSyncPlatforms.has(platform.toLowerCase()))
+  }
+  if (props.syncCredentials) {
+    return upstreamSyncPlatforms.has(props.syncCredentials.platform.toLowerCase())
+  }
+  return false
 })
 
 const availableOptions = computed(() => {
@@ -280,11 +288,13 @@ const fillRelated = () => {
 }
 
 const syncUpstreamModels = async () => {
-  if (!props.accountId || isSyncingUpstream.value) return
+  if ((!props.accountId && !props.syncCredentials) || isSyncingUpstream.value) return
 
   isSyncingUpstream.value = true
   try {
-    const result = await accountsAPI.syncUpstreamModels(props.accountId)
+    const result = props.accountId
+      ? await accountsAPI.syncUpstreamModels(props.accountId)
+      : await accountsAPI.syncUpstreamModelsPreview(props.syncCredentials as SyncUpstreamPreviewParams)
     const upstreamModels = result.models.map(model => model.trim()).filter(Boolean)
     if (upstreamModels.length === 0) {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsEmpty'))
@@ -301,6 +311,11 @@ const syncUpstreamModels = async () => {
     }
 
     emit('update:modelValue', newModels)
+    if (!props.accountId) emit('upstream-synced')
+    if (result.warnings?.some(warning => warning.code === 'upstream_model_metadata_incomplete')) {
+      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataIncomplete'))
+      return
+    }
     if (addedCount > 0) {
       appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.length }))
     } else {

@@ -720,8 +720,12 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 			continue
 		}
 		if s.emailService.notificationEmailService != nil {
+			locale := s.emailService.notificationEmailService.ResolveRecipientLocaleForEvent(
+				ctx, 0, addr, NotificationEmailEventOpsAlert,
+			)
 			if err := s.emailService.notificationEmailService.Send(ctx, NotificationEmailSendInput{
 				Event:          NotificationEmailEventOpsAlert,
+				Locale:         locale,
 				RecipientEmail: addr,
 				RecipientName:  emailRecipientName(addr),
 				SourceType:     "ops_alert",

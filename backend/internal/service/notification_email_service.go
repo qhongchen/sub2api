@@ -40,6 +40,7 @@ const (
 	NotificationEmailEventOpsChannelStatus            = "ops.channel_status"
 
 	notificationEmailTemplateKeyPrefix    = "notification_email_template:"
+	notificationEmailEventLocaleKeyPrefix = "notification_email_event_locale:"
 	notificationEmailPreferenceKeyPrefix  = "notification_email_preference:"
 	notificationEmailDeliveryKeyPrefix    = "notification_email_delivery:"
 	notificationEmailLocaleUserKeyPrefix  = "notification_email_locale:user:"
@@ -302,7 +303,7 @@ func (s *NotificationEmailService) GetTemplate(ctx context.Context, event, local
 		Event:        normalizedEvent,
 		Locale:       normalizedLocale,
 		Subject:      official.Subject,
-		HTML:         official.HTML,
+		HTML:         normalizeNotificationEmailHTML(normalizedLocale, official.HTML),
 		Placeholders: append([]string(nil), info.Placeholders...),
 	}
 
@@ -321,11 +322,12 @@ func (s *NotificationEmailService) GetTemplate(ctx context.Context, event, local
 	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
 		return NotificationEmailTemplate{}, fmt.Errorf("decode email template override: %w", err)
 	}
-	if err := validateNotificationEmailTemplate(normalizedEvent, stored.Subject, stored.HTML); err != nil {
+	storedHTML := normalizeNotificationEmailHTML(normalizedLocale, stored.HTML)
+	if err := validateNotificationEmailTemplate(normalizedEvent, stored.Subject, storedHTML); err != nil {
 		return NotificationEmailTemplate{}, err
 	}
 	tmpl.Subject = stored.Subject
-	tmpl.HTML = stored.HTML
+	tmpl.HTML = storedHTML
 	tmpl.IsCustom = true
 	updatedAt := stored.UpdatedAt
 	tmpl.UpdatedAt = &updatedAt
@@ -353,6 +355,11 @@ func (s *NotificationEmailService) UpdateTemplate(ctx context.Context, event, lo
 	if err := s.settingRepo.Set(ctx, notificationEmailTemplateKey(normalizedEvent, normalizedLocale), string(payload)); err != nil {
 		return NotificationEmailTemplate{}, err
 	}
+	if isAdminNotificationEmailEvent(normalizedEvent) {
+		if err := s.settingRepo.Set(ctx, notificationEmailEventLocaleKey(normalizedEvent), normalizedLocale); err != nil {
+			return NotificationEmailTemplate{}, fmt.Errorf("save email event locale: %w", err)
+		}
+	}
 	return s.GetTemplate(ctx, normalizedEvent, normalizedLocale)
 }
 
@@ -364,6 +371,11 @@ func (s *NotificationEmailService) RestoreOfficialTemplate(ctx context.Context, 
 	normalizedLocale := normalizeNotificationLocale(locale)
 	if err := s.settingRepo.Delete(ctx, notificationEmailTemplateKey(normalizedEvent, normalizedLocale)); err != nil && !errors.Is(err, ErrSettingNotFound) {
 		return NotificationEmailTemplate{}, err
+	}
+	if isAdminNotificationEmailEvent(normalizedEvent) {
+		if err := s.settingRepo.Set(ctx, notificationEmailEventLocaleKey(normalizedEvent), normalizedLocale); err != nil {
+			return NotificationEmailTemplate{}, fmt.Errorf("save email event locale: %w", err)
+		}
 	}
 	return s.GetTemplate(ctx, normalizedEvent, normalizedLocale)
 }
@@ -388,6 +400,7 @@ func (s *NotificationEmailService) PreviewTemplate(ctx context.Context, input No
 			htmlBody = tmpl.HTML
 		}
 	}
+	htmlBody = normalizeNotificationEmailHTML(normalizedLocale, htmlBody)
 	if err := validateNotificationEmailTemplate(normalizedEvent, subject, htmlBody); err != nil {
 		return NotificationEmailPreview{}, err
 	}
@@ -423,7 +436,7 @@ func (s *NotificationEmailService) Send(ctx context.Context, input NotificationE
 
 	locale := normalizeNotificationLocale(input.Locale)
 	if strings.TrimSpace(input.Locale) == "" {
-		locale = s.ResolveRecipientLocale(ctx, input.UserID, recipient)
+		locale = s.ResolveRecipientLocaleForEvent(ctx, input.UserID, recipient, normalizedEvent)
 	}
 	tmpl, err := s.GetTemplate(ctx, normalizedEvent, locale)
 	if err != nil {
@@ -773,18 +786,81 @@ func (s *NotificationEmailService) RememberRecipientLocale(ctx context.Context, 
 }
 
 func (s *NotificationEmailService) ResolveRecipientLocale(ctx context.Context, userID int64, email string) string {
+	if locale, ok := s.lookupRecipientLocale(ctx, userID, email); ok {
+		return locale
+	}
+	return notificationEmailDefaultLocale
+}
+
+// ResolveRecipientLocaleForEvent resolves an explicit recipient preference first,
+// then falls back to the most recently selected locale for an admin notification event.
+// Operational recipients are configured as plain email addresses, so they do not
+// have a user profile from which a language can always be inferred.
+func (s *NotificationEmailService) ResolveRecipientLocaleForEvent(ctx context.Context, userID int64, email, event string) string {
+	if locale, ok := s.lookupRecipientLocale(ctx, userID, email); ok {
+		return locale
+	}
+	return s.resolveEventLocale(ctx, event)
+}
+
+func (s *NotificationEmailService) lookupRecipientLocale(ctx context.Context, userID int64, email string) (string, bool) {
 	if s == nil || s.settingRepo == nil {
-		return notificationEmailDefaultLocale
+		return "", false
 	}
 	if userID > 0 {
 		if locale, err := s.settingRepo.GetValue(ctx, notificationEmailLocaleUserKeyPrefix+strconv.FormatInt(userID, 10)); err == nil && strings.TrimSpace(locale) != "" {
-			return normalizeNotificationLocale(locale)
+			return normalizeNotificationLocale(locale), true
 		}
 	}
 	if emailHash := notificationEmailHash(email); emailHash != "" {
 		if locale, err := s.settingRepo.GetValue(ctx, notificationEmailLocaleEmailKeyPrefix+emailHash); err == nil && strings.TrimSpace(locale) != "" {
-			return normalizeNotificationLocale(locale)
+			return normalizeNotificationLocale(locale), true
 		}
+	}
+	return "", false
+}
+
+// ResolveEventLocale returns the configured default locale for an admin
+// notification event. Older installations have no event-locale key, so a single customized
+// locale (or the most recently customized one) is used as a compatibility fallback.
+func (s *NotificationEmailService) ResolveEventLocale(ctx context.Context, event string) string {
+	return s.resolveEventLocale(ctx, event)
+}
+
+func (s *NotificationEmailService) resolveEventLocale(ctx context.Context, event string) string {
+	if s == nil || s.settingRepo == nil || !isAdminNotificationEmailEvent(event) {
+		return notificationEmailDefaultLocale
+	}
+	normalizedEvent := strings.ToLower(strings.TrimSpace(event))
+	if raw, err := s.settingRepo.GetValue(ctx, notificationEmailEventLocaleKey(normalizedEvent)); err == nil && strings.TrimSpace(raw) != "" {
+		return normalizeNotificationLocale(raw)
+	}
+
+	// The event-locale key was added after templates were already persisted. Infer
+	// the intended locale from those existing overrides until the next save.
+	var latestLocale string
+	var latestUpdatedAt time.Time
+	customLocales := make([]string, 0, len(notificationEmailLocales))
+	for _, locale := range notificationEmailLocales {
+		raw, err := s.settingRepo.GetValue(ctx, notificationEmailTemplateKey(normalizedEvent, locale))
+		if err != nil || strings.TrimSpace(raw) == "" {
+			continue
+		}
+		var stored notificationEmailStoredTemplate
+		if err := json.Unmarshal([]byte(raw), &stored); err != nil {
+			continue
+		}
+		customLocales = append(customLocales, locale)
+		if latestLocale == "" || stored.UpdatedAt.After(latestUpdatedAt) {
+			latestLocale = locale
+			latestUpdatedAt = stored.UpdatedAt
+		}
+	}
+	if len(customLocales) == 1 {
+		return customLocales[0]
+	}
+	if latestLocale != "" {
+		return latestLocale
 	}
 	return notificationEmailDefaultLocale
 }
@@ -1143,6 +1219,39 @@ func normalizeNotificationLocale(raw string) string {
 
 func notificationEmailTemplateKey(event, locale string) string {
 	return notificationEmailTemplateKeyPrefix + event + ":" + locale
+}
+
+func notificationEmailEventLocaleKey(event string) string {
+	return notificationEmailEventLocaleKeyPrefix + strings.ToLower(strings.TrimSpace(event))
+}
+
+func isAdminNotificationEmailEvent(event string) bool {
+	switch strings.ToLower(strings.TrimSpace(event)) {
+	case NotificationEmailEventAccountQuotaAlert,
+		NotificationEmailEventOpsAlert,
+		NotificationEmailEventOpsScheduledReport,
+		NotificationEmailEventOpsChannelStatus:
+		return true
+	default:
+		return false
+	}
+}
+
+// Card templates generated by older versions contain a fixed English footer.
+// Replace only that exact generated text for Chinese rendering; arbitrary
+// user-authored content remains untouched.
+func normalizeNotificationEmailHTML(locale, htmlBody string) string {
+	if normalizeNotificationLocale(locale) != notificationEmailLocaleChinese {
+		return htmlBody
+	}
+	replacements := []string{
+		`This email was sent by {{site_name}}. Please do not reply directly.`,
+		`This email was sent automatically by {{site_name}}. Please do not reply directly.`,
+	}
+	for _, english := range replacements {
+		htmlBody = strings.ReplaceAll(htmlBody, english, `此邮件由 {{site_name}} 自动发送，请勿直接回复。`)
+	}
+	return htmlBody
 }
 
 func notificationEmailPreferenceKey(event, email string) string {
