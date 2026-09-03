@@ -521,7 +521,7 @@ func TestGatewayServiceRecordUsageWithLongContext_BillingUsesDetachedContext(t *
 	require.NoError(t, quotaSvc.lastQuotaCtxErr)
 }
 
-func TestGatewayServiceRecordUsage_UsesContextRequestIDForUsageLog(t *testing.T) {
+func TestGatewayServiceRecordUsage_UsesFallbackRequestIDForUsageLog(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
