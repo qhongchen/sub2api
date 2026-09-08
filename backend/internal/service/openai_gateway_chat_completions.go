@@ -345,6 +345,11 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 
 	// 6. Build upstream request
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	cancelUpstream := func() {}
+	if clientStream {
+		upstreamCtx, cancelUpstream = context.WithCancel(upstreamCtx)
+	}
+	defer cancelUpstream()
 	var headerGuard *openAIFirstOutputHeaderGuard
 	if firstOutputOptions != nil {
 		upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(
@@ -375,7 +380,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 
 	// 7. Send request
 	proxyURL := ""
-	if account.Proxy != nil {
+	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
@@ -388,6 +393,8 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 			ctx,
 			c,
 			account,
+			opsUpstreamProxyID(account),
+			opsUpstreamProxyName(account),
 			firstOutputOptions.startTime,
 			firstOutputOptions.originalModel,
 			firstOutputOptions.reasoningEffort,
@@ -405,7 +412,10 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	if headerGuard != nil {
 		resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		cancelUpstream()
+		_ = resp.Body.Close()
+	}()
 
 	// 8. Handle error response with failover
 	if resp.StatusCode >= 400 {
@@ -564,6 +574,8 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 			c.Request.Context(),
 			c,
 			account,
+			opsUpstreamProxyID(account),
+			opsUpstreamProxyName(account),
 			firstOutputOptions.startTime,
 			firstOutputOptions.originalModel,
 			firstOutputOptions.reasoningEffort,
@@ -658,6 +670,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 
 	result := &OpenAIForwardResult{
 		RequestID:                     requestID,
+		UpstreamHeaders:               resp.Header,
 		Usage:                         usage,
 		Model:                         originalModel,
 		BillingModel:                  billingModel,
@@ -805,6 +818,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	resultWithUsage := func() *OpenAIForwardResult {
 		out := &OpenAIForwardResult{
 			RequestID:                     requestID,
+			UpstreamHeaders:               resp.Header,
 			Usage:                         usage,
 			Model:                         originalModel,
 			BillingModel:                  billingModel,
@@ -826,6 +840,8 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			c.Request.Context(),
 			c,
 			account,
+			opsUpstreamProxyID(account),
+			opsUpstreamProxyName(account),
 			firstOutputOptions.startTime,
 			firstOutputOptions.originalModel,
 			firstOutputOptions.reasoningEffort,
