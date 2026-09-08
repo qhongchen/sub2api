@@ -48,6 +48,7 @@ export interface UsageCleanupFilters {
   request_type?: UsageRequestType | null
   stream?: boolean | null
   billing_type?: number | null
+  native_compaction_v2?: boolean | null
 }
 
 export interface UsageCleanupTask {
@@ -119,6 +120,7 @@ export async function getStats(params: {
   model?: string
   request_type?: UsageRequestType
   stream?: boolean
+  native_compaction_v2?: boolean | null
   upstream_model_mismatch?: boolean
   period?: string
   start_date?: string

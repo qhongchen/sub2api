@@ -130,12 +130,14 @@
         :show-help="isAnthropic"
         :show-proxy-warning="isAnthropic"
         :show-cookie-option="isAnthropic"
+        :show-refresh-token-option="isOpenAI || isAntigravity || isGrok"
         :allow-multiple="false"
         :method-label="t('admin.accounts.inputMethod')"
         :platform="isOpenAI ? 'openai' : isGemini ? 'gemini' : isAntigravity ? 'antigravity' : isGrok ? 'grok' : 'anthropic'"
         :show-project-id="isGemini && geminiOAuthType === 'code_assist'"
         @generate-url="handleGenerateUrl"
         @cookie-auth="handleCookieAuth"
+        @validate-refresh-token="handleValidateRefreshToken"
       />
 
     </div>
@@ -281,8 +283,9 @@ const currentError = computed(() => {
 
 // Computed
 const isManualInputMethod = computed(() => {
-  // OpenAI/Gemini/Antigravity always use manual input (no cookie auth option)
-  return isOpenAILike.value || isGemini.value || isAntigravity.value || isGrok.value || oauthFlowRef.value?.inputMethod === 'manual'
+  const method = oauthFlowRef.value?.inputMethod
+  if (method === 'sso_cookie' || method === 'refresh_token') return false
+  return isOpenAILike.value || isGemini.value || isAntigravity.value || isGrok.value || method === 'manual'
 })
 
 const canExchangeCode = computed(() => {
@@ -572,6 +575,60 @@ const handleCookieAuth = async (sessionKey: string) => {
       error.response?.data?.detail || t('admin.accounts.oauth.cookieAuthFailed')
   } finally {
     claudeOAuth.loading.value = false
+  }
+}
+
+const handleValidateRefreshToken = async (refreshTokenInput: string) => {
+  if (!props.account) return
+  const refreshToken = refreshTokenInput
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+  if (!refreshToken) return
+
+  try {
+    if (isOpenAILike.value) {
+      const tokenInfo = await openaiOAuth.validateRefreshToken(refreshToken, props.account.proxy_id)
+      if (!tokenInfo) return
+      const updatedAccount = await adminAPI.accounts.applyOAuthCredentials(props.account.id, {
+        type: 'oauth',
+        credentials: openaiOAuth.buildCredentials(tokenInfo),
+        extra: openaiOAuth.buildExtraInfo(tokenInfo)
+      })
+      appStore.showSuccess(t('admin.accounts.reAuthorizedSuccess'))
+      emit('reauthorized', updatedAccount)
+      handleClose()
+      return
+    }
+
+    if (isAntigravity.value) {
+      const tokenInfo = await antigravityOAuth.validateRefreshToken(refreshToken, props.account.proxy_id)
+      if (!tokenInfo) return
+      const updatedAccount = await adminAPI.accounts.applyOAuthCredentials(props.account.id, {
+        type: 'oauth',
+        credentials: antigravityOAuth.buildCredentials(tokenInfo, refreshToken)
+      })
+      appStore.showSuccess(t('admin.accounts.reAuthorizedSuccess'))
+      emit('reauthorized', updatedAccount)
+      handleClose()
+      return
+    }
+
+    if (isGrok.value) {
+      const tokenInfo = await grokOAuth.validateRefreshToken(refreshToken, props.account.proxy_id)
+      if (!tokenInfo) return
+      const updatedAccount = await adminAPI.accounts.applyOAuthCredentials(props.account.id, {
+        type: 'oauth',
+        credentials: grokOAuth.buildCredentials(tokenInfo),
+        extra: grokOAuth.buildExtraInfo(tokenInfo)
+      })
+      appStore.showSuccess(t('admin.accounts.reAuthorizedSuccess'))
+      emit('reauthorized', updatedAccount)
+      handleClose()
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.detail || error.message || t('admin.accounts.oauth.authFailed')
+    appStore.showError(message)
   }
 }
 </script>

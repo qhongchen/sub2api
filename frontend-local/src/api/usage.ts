@@ -57,6 +57,7 @@ export interface TrendParams {
   start_date?: string
   end_date?: string
   granularity?: 'day' | 'hour'
+  native_compaction_v2?: boolean | null
 }
 
 export interface TrendResponse {

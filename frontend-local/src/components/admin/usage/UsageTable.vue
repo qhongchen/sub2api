@@ -318,8 +318,10 @@
                       </span>
                     </div>
                     <div v-if="row.reasoning_effort" class="mt-0.5 text-[10px] text-gray-500 dark:text-dark-400">
-                      {{ formatReasoningEffort(row.reasoning_effort) }}
+                      <span>{{ formatReasoningEffort(row.reasoning_effort) }}</span>
+                      <span v-if="hasReasoningEffortMapping(row)" class="ml-1">↳ {{ formatReasoningEffort(row.upstream_reasoning_effort) }}</span>
                     </div>
+                    <span v-if="row.native_compaction_v2" class="mt-0.5 inline-flex rounded bg-teal-100 px-1 py-px text-[10px] font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-200">{{ t('usage.nativeCompactionV2') }}</span>
                   </div>
                 </div>
               </template>
@@ -495,6 +497,7 @@
                   <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium" :class="getRequestTypeBadgeClass(row)">
                     {{ getRequestTypeLabel(row) }}
                   </span>
+                  <span v-if="row.native_compaction_v2" class="ml-1 inline-flex rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-200">{{ t('usage.nativeCompactionV2') }}</span>
                 </div>
               </template>
 
@@ -713,7 +716,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatDateTime, formatReasoningEffort } from '@/utils/format'
+import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
@@ -753,6 +756,12 @@ import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import type { AdminUsageLog, UsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
+
+const hasReasoningEffortMapping = (row: AdminUsageLog): boolean => {
+  const requested = row.reasoning_effort?.trim() || ''
+  const forwarded = row.upstream_reasoning_effort?.trim() || ''
+  return requested !== '' && forwarded !== '' && !reasoningEffortValuesEqual(requested, forwarded)
+}
 
 type UsageTableIdentity = {
   id: number

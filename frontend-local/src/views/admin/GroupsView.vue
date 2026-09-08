@@ -502,7 +502,7 @@
     <BaseDialog
       :show="showCreateModal"
       :title="t('admin.groups.createGroup')"
-      width="normal"
+      width="wide"
       @close="closeCreateModal"
     >
       <form
@@ -666,6 +666,7 @@
           id-prefix="create-group-reasoning"
           :platform="createForm.platform"
           v-model:max-effort="createForm.max_reasoning_effort"
+          v-model:over-limit="createForm.max_reasoning_effort_over_limit"
           v-model:mappings="createForm.reasoning_effort_mappings"
         />
         <div
@@ -1435,8 +1436,8 @@
         </div>
 
         <div class="mt-4 border-t border-gray-200 pt-4 dark:border-dark-400">
-          <div class="flex items-start justify-between gap-4">
-            <div>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ t("admin.groups.modelPricing.title") }}
               </h4>
@@ -1446,7 +1447,7 @@
             </div>
             <button
               type="button"
-              class="btn btn-secondary"
+              class="btn btn-secondary shrink-0 whitespace-nowrap"
               @click="addGroupPricing(createForm.model_pricing)"
             >
               <Icon name="plus" size="sm" class="mr-1" />
@@ -2091,7 +2092,7 @@
     <BaseDialog
       :show="showEditModal"
       :title="t('admin.groups.editGroup')"
-      width="normal"
+      width="wide"
       @close="closeEditModal"
     >
       <form
@@ -2255,6 +2256,7 @@
           id-prefix="edit-group-reasoning"
           :platform="editForm.platform"
           v-model:max-effort="editForm.max_reasoning_effort"
+          v-model:over-limit="editForm.max_reasoning_effort_over_limit"
           v-model:mappings="editForm.reasoning_effort_mappings"
         />
         <div v-if="editForm.subscription_type !== 'subscription'">
@@ -3023,8 +3025,8 @@
         </div>
 
         <div class="mt-4 border-t border-gray-200 pt-4 dark:border-dark-400">
-          <div class="flex items-start justify-between gap-4">
-            <div>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ t("admin.groups.modelPricing.title") }}
               </h4>
@@ -3034,7 +3036,7 @@
             </div>
             <button
               type="button"
-              class="btn btn-secondary"
+              class="btn btn-secondary shrink-0 whitespace-nowrap"
               @click="addGroupPricing(editForm.model_pricing)"
             >
               <Icon name="plus" size="sm" class="mr-1" />
@@ -4155,8 +4157,10 @@ import { createModelsListCandidatesTracker } from "./groupsModelsListCandidates"
 import { normalizeSupportedModelScopesForPlatform } from "./groupsSupportedModelScopes";
 import {
   normalizeReasoningEffortForPlatform,
+  normalizeReasoningEffortOverLimit,
   reasoningEffortMappingsToAPI,
   reasoningEffortMappingsToRows,
+  reasoningEffortOverLimitDowngrade,
   supportsReasoningEffortPolicyPlatform,
   type ReasoningEffortMappingRow,
 } from "./groupsReasoningEffort";
@@ -4180,6 +4184,7 @@ const emptyGroupPricing = (): PricingFormEntry => ({
   input_price: null,
   output_price: null,
   cache_write_price: null,
+  cache_write_1h_price: null,
   cache_read_price: null,
   image_input_price: null,
   image_output_price: null,
@@ -4201,6 +4206,7 @@ const groupPricingFromAPI = (
     input_price: perTokenToMTok(entry.input_price),
     output_price: perTokenToMTok(entry.output_price),
     cache_write_price: perTokenToMTok(entry.cache_write_price),
+    cache_write_1h_price: perTokenToMTok(entry.cache_write_1h_price),
     cache_read_price: perTokenToMTok(entry.cache_read_price),
     image_input_price: perTokenToMTok(entry.image_input_price),
     image_output_price: perTokenToMTok(entry.image_output_price),
@@ -4222,6 +4228,7 @@ const groupPricingToAPI = (
       input_price: mTokToPerToken(entry.input_price),
       output_price: mTokToPerToken(entry.output_price),
       cache_write_price: mTokToPerToken(entry.cache_write_price),
+      cache_write_1h_price: mTokToPerToken(entry.cache_write_1h_price),
       cache_read_price: mTokToPerToken(entry.cache_read_price),
       image_input_price: mTokToPerToken(entry.image_input_price),
       image_output_price: mTokToPerToken(entry.image_output_price),
@@ -4680,6 +4687,7 @@ const createForm = reactive({
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
   max_reasoning_effort: "",
+  max_reasoning_effort_over_limit: reasoningEffortOverLimitDowngrade,
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
 
@@ -5032,6 +5040,7 @@ const editForm = reactive({
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
   max_reasoning_effort: "",
+  max_reasoning_effort_over_limit: reasoningEffortOverLimitDowngrade,
   reasoning_effort_mappings: [] as ReasoningEffortMappingRow[],
 });
 
@@ -5445,6 +5454,7 @@ const closeCreateModal = () => {
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
   createForm.max_reasoning_effort = "";
+  createForm.max_reasoning_effort_over_limit = reasoningEffortOverLimitDowngrade;
   createForm.reasoning_effort_mappings = [];
   createReasoningEffortPolicyRef.value?.resetValidation();
   resetModelsListState(createModelsListState);
@@ -5576,7 +5586,7 @@ const handleCreateGroup = async () => {
     }
   } catch (error: any) {
     appStore.showError(
-      error.response?.data?.detail || t("admin.groups.failedToCreate"),
+      extractApiErrorMessage(error, t("admin.groups.failedToCreate")),
     );
     console.error("Error creating group:", error);
     // Don't advance tour on error
@@ -5654,6 +5664,9 @@ const handleEdit = async (group: AdminGroup) => {
     group.platform,
     group.max_reasoning_effort,
   );
+  editForm.max_reasoning_effort_over_limit = normalizeReasoningEffortOverLimit(
+    group.max_reasoning_effort_over_limit,
+  );
   editForm.reasoning_effort_mappings = reasoningEffortMappingsToRows(
     group.reasoning_effort_mappings,
     group.platform,
@@ -5675,6 +5688,7 @@ const closeEditModal = () => {
   showEditModal.value = false;
   editingGroup.value = null;
   editForm.max_reasoning_effort = "";
+  editForm.max_reasoning_effort_over_limit = reasoningEffortOverLimitDowngrade;
   editForm.reasoning_effort_mappings = [];
   editReasoningEffortPolicyRef.value?.resetValidation();
   editModelRoutingRules.value = [];
@@ -5801,7 +5815,7 @@ const handleUpdateGroup = async () => {
     void loadGroups();
   } catch (error: any) {
     appStore.showError(
-      error.response?.data?.detail || t("admin.groups.failedToUpdate"),
+      extractApiErrorMessage(error, t("admin.groups.failedToUpdate")),
     );
     console.error("Error updating group:", error);
   } finally {
@@ -6141,6 +6155,13 @@ watch(
       newVal,
       createForm.max_reasoning_effort,
     );
+    createForm.max_reasoning_effort_over_limit = supportsReasoningEffortPolicyPlatform(
+      newVal,
+    )
+      ? normalizeReasoningEffortOverLimit(
+          createForm.max_reasoning_effort_over_limit,
+        )
+      : reasoningEffortOverLimitDowngrade;
     createForm.reasoning_effort_mappings = reasoningEffortMappingsToRows(
       reasoningEffortMappingsToAPI(createForm.reasoning_effort_mappings),
       newVal,
@@ -6187,6 +6208,11 @@ watch(
       newVal,
       editForm.max_reasoning_effort,
     );
+    editForm.max_reasoning_effort_over_limit = supportsReasoningEffortPolicyPlatform(
+      newVal,
+    )
+      ? normalizeReasoningEffortOverLimit(editForm.max_reasoning_effort_over_limit)
+      : reasoningEffortOverLimitDowngrade;
     editForm.reasoning_effort_mappings = reasoningEffortMappingsToRows(
       reasoningEffortMappingsToAPI(editForm.reasoning_effort_mappings),
       newVal,

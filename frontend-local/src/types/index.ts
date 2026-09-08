@@ -480,7 +480,11 @@ export interface OpenAIMessagesDispatchModelConfig {
 export interface ReasoningEffortMapping {
   from: string
   to: string
+  match_type?: ReasoningEffortMatchType
+  model?: string
 }
+
+export type ReasoningEffortMatchType = 'exact' | 'prefix' | 'suffix'
 
 export interface Group {
   id: number
@@ -490,6 +494,7 @@ export interface Group {
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   max_reasoning_effort?: string
+  max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   is_exclusive: boolean
   status: 'active' | 'inactive'
@@ -721,6 +726,7 @@ export interface CreateGroupRequest {
   models_list_config?: ModelsListConfig
   allow_live?: boolean
   max_reasoning_effort?: string
+  max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
@@ -768,6 +774,7 @@ export interface UpdateGroupRequest {
   models_list_config?: ModelsListConfig
   allow_live?: boolean
   max_reasoning_effort?: string
+  max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
@@ -944,6 +951,18 @@ export interface UpstreamBillingProbeResult {
   account_id: number
   snapshot?: UpstreamBillingProbeSnapshot
   error?: string
+}
+
+export interface UpstreamBillingRateSnapshotItem {
+  account_id: number
+  snapshot?: UpstreamBillingProbeSnapshot | null
+}
+
+export interface UpstreamBillingRatesResponse {
+  items: UpstreamBillingRateSnapshotItem[]
+  total: number
+  page: number
+  page_size: number
 }
 
 export type OllamaCloudUsageStatus = 'ok' | 'unauthorized' | 'failed'
@@ -1514,6 +1533,7 @@ export interface UsageLog {
   model: string
   service_tier?: string | null
   reasoning_effort?: string | null
+  native_compaction_v2?: boolean
   inbound_endpoint?: string | null
   upstream_endpoint?: string | null
 
@@ -1577,6 +1597,7 @@ export interface UsageLogAccountSummary {
 }
 
 export interface AdminUsageLog extends UsageLog {
+  upstream_reasoning_effort?: string | null
   upstream_model?: string | null
   upstream_response_model?: string | null
   upstream_model_mismatch?: boolean | null
@@ -1937,6 +1958,7 @@ export interface UsageQueryParams {
   model?: string
   request_type?: UsageRequestType
   stream?: boolean
+  native_compaction_v2?: boolean | null
   billing_type?: number | null
   start_date?: string
   end_date?: string

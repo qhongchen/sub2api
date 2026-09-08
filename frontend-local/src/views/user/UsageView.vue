@@ -136,6 +136,15 @@
                   @change="applyFilters"
                 />
               </div>
+              <div class="min-w-[180px]">
+                <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+                <Select
+                  v-model="filters.native_compaction_v2"
+                  :options="compactionOptions"
+                  :placeholder="t('usage.allCompactionTypes')"
+                  @change="applyFilters"
+                />
+              </div>
             </template>
 
             <!-- Date Range Filter -->
@@ -793,6 +802,10 @@ const requestTypeOptions = computed<SelectOption[]>(() => [
   { value: 'sync', label: t('usage.sync') },
   { value: 'cyber', label: t('usage.cyber') },
 ])
+const compactionOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.allCompactionTypes') },
+  { value: true, label: t('usage.compactionOnly') },
+])
 
 const requestTypeFilter = computed({
   get: () => filters.value.request_type ?? null,
@@ -839,6 +852,7 @@ const endDate = ref(formatLocalDate(now))
 const filters = ref<UsageQueryParams>({
   api_key_id: undefined,
   request_type: undefined,
+  native_compaction_v2: null,
   start_date: undefined,
   end_date: undefined
 })
@@ -1084,6 +1098,7 @@ const resetFilters = () => {
   filters.value = {
     api_key_id: undefined,
     request_type: undefined,
+    native_compaction_v2: null,
     stream: undefined,
     start_date: undefined,
     end_date: undefined

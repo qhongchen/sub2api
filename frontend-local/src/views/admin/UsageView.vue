@@ -336,6 +336,11 @@
                   </label>
 
                   <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('usage.compactionFilter') }}</span>
+                    <Select v-model="filters.native_compaction_v2" :options="compactionOptions" />
+                  </label>
+
+                  <label class="block">
                     <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('admin.usage.group') }}</span>
                     <Select v-model="filters.group_id" :options="groupOptions" searchable />
                   </label>
@@ -602,6 +607,7 @@ const filters = ref<AdminUsageQueryParams>({
   group_id: undefined,
   model: undefined,
   request_type: undefined,
+  native_compaction_v2: null,
   billing_type: null,
   billing_mode: undefined,
   upstream_model_mismatch: undefined,
@@ -663,6 +669,11 @@ const requestTypeOptions = computed<SelectOption[]>(() => [
   { value: 'cyber', label: t('usage.cyber') },
 ])
 
+const compactionOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.allCompactionTypes') },
+  { value: true, label: t('usage.compactionOnly') },
+])
+
 const billingTypeOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allBillingTypes') },
   { value: 0, label: t('admin.usage.billingTypeBalance') },
@@ -690,6 +701,7 @@ const breakdownFilters = computed(() => {
   if (filters.value.account_id) f.account_id = filters.value.account_id
   if (filters.value.group_id) f.group_id = filters.value.group_id
   if (filters.value.request_type != null) f.request_type = filters.value.request_type
+  if (filters.value.native_compaction_v2 != null) f.native_compaction_v2 = filters.value.native_compaction_v2
   if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
   if (filters.value.upstream_model_mismatch != null) {
     f.upstream_model_mismatch = filters.value.upstream_model_mismatch
@@ -705,6 +717,7 @@ const activeFilterCount = computed(() => {
   if (filters.value.group_id) count += 1
   if (filters.value.model) count += 1
   if (filters.value.request_type) count += 1
+  if (filters.value.native_compaction_v2 != null) count += 1
   if (filters.value.billing_type != null) count += 1
   if (filters.value.billing_mode) count += 1
   if (filters.value.upstream_model_mismatch != null) count += 1
@@ -843,6 +856,7 @@ const buildUsageListParams = (
     exact_total: exactTotal,
     ...filters.value,
     stream: legacyStream === null ? undefined : legacyStream,
+    native_compaction_v2: filters.value.native_compaction_v2,
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order,
   }
@@ -881,6 +895,7 @@ const loadStats = async () => {
     const s = await adminAPI.usage.getStats({
       ...filters.value,
       stream: legacyStream === null ? undefined : legacyStream,
+      native_compaction_v2: filters.value.native_compaction_v2,
     })
     if (seq !== statsReqSeq) return
     usageStats.value = s
@@ -925,6 +940,7 @@ const loadModelStats = async (source: ModelDistributionSource, force = false) =>
       group_id: filters.value.group_id,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
+      native_compaction_v2: filters.value.native_compaction_v2,
       billing_type: filters.value.billing_type,
       upstream_model_mismatch: filters.value.upstream_model_mismatch,
     }
@@ -1013,6 +1029,7 @@ const resetFilters = () => {
     group_id: undefined,
     model: undefined,
     request_type: undefined,
+    native_compaction_v2: null,
     billing_type: null,
     billing_mode: undefined,
     upstream_model_mismatch: undefined,
@@ -1084,7 +1101,7 @@ const exportToExcel = async () => {
       t('usage.time'), t('admin.usage.user'), t('usage.apiKeyFilter'),
       t('admin.usage.account'), t('usage.requestedModel'), t('usage.sentUpstreamModel'),
       t('usage.upstreamResponseModel'), t('usage.upstreamModelMismatch'),
-      t('usage.reasoningEffort'), t('admin.usage.group'),
+      t('usage.requestedReasoningEffort'), t('usage.reasoningEffort'), t('admin.usage.group'),
       t('usage.inboundEndpoint'), t('usage.upstreamEndpoint'),
       t('usage.type'),
       t('admin.usage.inputTokens'), t('admin.usage.outputTokens'),
@@ -1110,7 +1127,7 @@ const exportToExcel = async () => {
         log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
         log.upstream_model || log.model, log.upstream_response_model || '',
         log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'),
-        formatReasoningEffort(log.reasoning_effort), log.group?.name || '',
+        formatReasoningEffort(log.reasoning_effort), formatReasoningEffort(log.upstream_reasoning_effort || log.reasoning_effort), log.group?.name || '',
         log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
         log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
         log.input_cost?.toFixed(6) || '0.000000', log.output_cost?.toFixed(6) || '0.000000',

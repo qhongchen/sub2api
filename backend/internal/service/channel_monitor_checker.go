@@ -281,7 +281,9 @@ var providerOpenAIResponsesAdapter = providerAdapter{
 
 func isOpenAIResponsesCodexMonitorModel(model string) bool {
 	m := strings.ToLower(strings.TrimSpace(model))
-	return m == "gpt-5" || strings.HasPrefix(m, "gpt-5.") || strings.Contains(m, "codex")
+	return m == "gpt-5" || strings.HasPrefix(m, "gpt-5.") ||
+		m == "gpt-6" || strings.HasPrefix(m, "gpt-6.") || strings.HasPrefix(m, "gpt-6-") ||
+		strings.Contains(m, "codex")
 }
 
 func buildOpenAIResponsesCodexMonitorBody(model, prompt string) map[string]any {
