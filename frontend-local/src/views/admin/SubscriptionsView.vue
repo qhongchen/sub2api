@@ -190,12 +190,15 @@
                   }}
                 </span>
               </div>
-              <span class="font-medium text-gray-900 dark:text-white">
+              <router-link
+                :to="{ path: '/admin/usage', query: { user_id: row.user_id } }"
+                class="font-medium text-gray-900 hover:text-primary-600 hover:underline dark:text-white dark:hover:text-primary-400"
+              >
                 {{ userColumnMode === 'email'
                   ? (row.user?.email || t('admin.redeem.userPrefix', { id: row.user_id }))
-                  : (row.user?.username || '-')
+                  : (row.user?.username || t('admin.redeem.userPrefix', { id: row.user_id }))
                 }}
-              </span>
+              </router-link>
             </div>
           </template>
 

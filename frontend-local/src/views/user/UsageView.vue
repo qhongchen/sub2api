@@ -1002,8 +1002,14 @@ const loadUsageLogs = async () => {
 
 const loadApiKeys = async () => {
   try {
-    const response = await keysAPI.list(1, 100)
-    apiKeys.value = response.items
+    const firstPage = await keysAPI.list(1, 100)
+    const keys = [...firstPage.items]
+    for (let page = 2; page <= firstPage.pages && keys.length > 0; page++) {
+      const response = await keysAPI.list(page, 100)
+      if (response.items.length === 0) break
+      keys.push(...response.items)
+    }
+    apiKeys.value = keys
   } catch (error) {
     console.error('Failed to load API keys:', error)
   }

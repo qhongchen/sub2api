@@ -127,6 +127,24 @@
             </div>
             <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
           </div>
+          <div v-if="hasColumn('upstream_request_id')" class="min-w-0">
+            <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.usage.upstreamRequestId') }}</div>
+            <div v-if="row.upstream_request_id" class="flex min-w-0 items-center gap-1.5">
+              <span class="truncate font-mono text-xs text-gray-700 dark:text-dark-200" :title="row.upstream_request_id">
+                {{ shortRequestId(row.upstream_request_id) }}
+              </span>
+              <button
+                type="button"
+                class="shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
+                :class="copiedRequestId === row.upstream_request_id ? 'text-green-500 hover:text-green-500' : ''"
+                :title="copiedRequestId === row.upstream_request_id ? t('keys.copied') : t('keys.copyToClipboard')"
+                @click="copyRequestId(row.upstream_request_id, 'admin.usage.upstreamRequestIdCopied')"
+              >
+                <Icon :name="copiedRequestId === row.upstream_request_id ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
+          </div>
           <div>
             <div class="text-xs text-gray-500 dark:text-dark-400">{{ t('usage.performance') }}</div>
             <div class="mt-1 flex items-stretch gap-2">
@@ -230,23 +248,23 @@
                 <span v-else class="text-sm text-gray-500 dark:text-dark-400">-</span>
               </template>
 
-              <template v-else-if="column.key === 'request_id'">
-                <div v-if="row.request_id" class="flex max-w-[180px] items-center gap-1.5">
+              <template v-else-if="column.key === 'request_id' || column.key === 'upstream_request_id'">
+                <div v-if="row[column.key]" class="flex max-w-[180px] items-center gap-1.5">
                   <span
                     class="min-w-0 truncate font-mono text-xs text-gray-700 dark:text-dark-200"
-                    @mouseenter="showLongTextTooltip($event, row.request_id, { force: true })"
+                    @mouseenter="showLongTextTooltip($event, row[column.key], { force: true })"
                     @mouseleave="hideLongTextTooltip"
                   >
-                    {{ shortRequestId(row.request_id) }}
+                    {{ shortRequestId(row[column.key]) }}
                   </span>
                   <button
                     type="button"
                     class="shrink-0 rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
-                    :class="copiedRequestId === row.request_id ? 'text-green-500 hover:text-green-500' : ''"
-                    :title="copiedRequestId === row.request_id ? t('keys.copied') : t('keys.copyToClipboard')"
-                    @click="copyRequestId(row.request_id)"
+                    :class="copiedRequestId === row[column.key] ? 'text-green-500 hover:text-green-500' : ''"
+                    :title="copiedRequestId === row[column.key] ? t('keys.copied') : t('keys.copyToClipboard')"
+                    @click="copyRequestId(row[column.key], column.key === 'upstream_request_id' ? 'admin.usage.upstreamRequestIdCopied' : 'admin.usage.requestIdCopied')"
                   >
-                    <Icon :name="copiedRequestId === row.request_id ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
+                    <Icon :name="copiedRequestId === row[column.key] ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
                   </button>
                 </div>
                 <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
@@ -978,11 +996,11 @@ const shortRequestId = (value?: string | null): string => {
   return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value
 }
 
-const copyRequestId = async (requestId?: string | null) => {
+const copyRequestId = async (requestId?: string | null, message = 'admin.usage.requestIdCopied') => {
   const value = requestId?.trim()
   if (!value) return
 
-  const copied = await copyToClipboard(value, t('admin.usage.requestIdCopied'))
+  const copied = await copyToClipboard(value, t(message))
   if (!copied) return
 
   copiedRequestId.value = value

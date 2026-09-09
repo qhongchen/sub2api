@@ -5,7 +5,7 @@
       v-if="!compact && windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
       class="mb-0.5 flex items-center"
     >
-      <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
+      <div class="flex flex-wrap items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
         <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
           {{ formatRequests }} req
         </span>
@@ -21,6 +21,13 @@
           :title="t('usage.userBilled')"
         >
           U ${{ formatUserCost }}
+        </span>
+        <span
+          v-if="estimatedTotalCost != null"
+          class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+          :title="t('admin.accounts.usageWindow.estimatedTotalCostTooltip')"
+        >
+          {{ t('admin.accounts.usageWindow.estimatedTotalCost', { cost: estimatedTotalCost.toFixed(2) }) }}
         </span>
       </div>
     </div>
@@ -58,6 +65,10 @@
       class="usage-progress-popover"
     >
       {{ formatRequests }} req · {{ formatTokens }} · A ${{ formatAccountCost }}<template v-if="windowStats.user_cost != null"> · U ${{ formatUserCost }}</template>
+      <span v-if="estimatedTotalCost != null" class="block">
+        {{ t('admin.accounts.usageWindow.estimatedTotalCost', { cost: estimatedTotalCost.toFixed(2) }) }}
+        <span class="block text-gray-300">{{ t('admin.accounts.usageWindow.estimatedTotalCostTooltip') }}</span>
+      </span>
     </span>
   </div>
 </template>
@@ -75,6 +86,7 @@ const props = defineProps<{
   resetsAt?: string | null
   color: 'indigo' | 'emerald' | 'purple' | 'amber'
   windowStats?: WindowStats | null
+  estimatedTotalCost?: number | null
   showNowWhenIdle?: boolean
   compact?: boolean
   remainingCapacity?: boolean

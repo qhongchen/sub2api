@@ -270,53 +270,55 @@ var providerOpenAIResponsesAdapter = providerAdapter{
 		if !isOpenAIResponsesCodexMonitorModel(model) {
 			return headers
 		}
-		headers["Accept"] = "text/event-stream"
-		headers["OpenAI-Beta"] = "responses=experimental"
-		headers["Originator"] = "codex_cli_rs"
-		headers["User-Agent"] = codexCLIUserAgent
-		headers["Version"] = codexCLIVersion
+
+		probeHeaders := make(http.Header)
+		applyOpenAICodexProbeHeaders(probeHeaders)
+		probeHeaders.Set("Authorization", "Bearer "+apiKey)
+		probeHeaders.Set("Accept", "text/event-stream")
+		// 探针使用合成会话身份，补齐 Codex 内部接口的头部要求。
 		sessionID := uuid.NewString()
-		headers["Session_ID"] = sessionID
-		headers["Conversation_ID"] = sessionID
+		probeHeaders.Set("Session_ID", sessionID)
+		probeHeaders.Set("Conversation_ID", sessionID)
+		for key, values := range probeHeaders {
+			if len(values) > 0 {
+				headers[key] = values[0]
+			}
+		}
 		return headers
 	},
 	textPath: "output.0.content.0.text",
 }
 
 func isOpenAIResponsesCodexMonitorModel(model string) bool {
-	m := strings.ToLower(strings.TrimSpace(model))
-	return m == "gpt-5" || strings.HasPrefix(m, "gpt-5.") ||
-		m == "gpt-6" || strings.HasPrefix(m, "gpt-6.") || strings.HasPrefix(m, "gpt-6-") ||
-		strings.Contains(m, "codex")
+	canonical := openai.CanonicalizeOpenAIModelAliasSpelling(model)
+	return canonical == "gpt-5" || strings.HasPrefix(canonical, "gpt-5.") ||
+		canonical == "gpt-6" || strings.HasPrefix(canonical, "gpt-6.") || strings.HasPrefix(canonical, "gpt-6-") ||
+		strings.Contains(canonical, "codex")
 }
 
 func buildOpenAIResponsesCodexMonitorBody(model, prompt string) map[string]any {
 	return map[string]any{
-		"model":               model,
-		"instructions":        openai.CodexBaseInstructionsForModel(model),
-		"input":               buildOpenAIResponsesMonitorInput(prompt),
-		"stream":              true,
-		"store":               false,
-		"prompt_cache_key":    buildOpenAIResponsesMonitorPromptCacheKey(model),
-		"tools":               buildOpenAIResponsesMonitorTools(),
-		"tool_choice":         "auto",
-		"parallel_tool_calls": true,
-		"reasoning":           map[string]any{"effort": "low", "summary": "auto"},
-		"text":                map[string]any{"verbosity": "low"},
-		"include":             []string{"reasoning.encrypted_content"},
+		"model":            model,
+		"instructions":     openai.CodexBaseInstructionsForModel(model),
+		"input":            buildOpenAIResponsesMonitorInput(prompt),
+		"stream":           true,
+		"store":            false,
+		"prompt_cache_key": buildOpenAIResponsesMonitorPromptCacheKey(model),
+		"reasoning":        map[string]any{"effort": "low", "summary": "auto"},
+		"text":             map[string]any{"verbosity": "low"},
+		"include":          []string{"reasoning.encrypted_content"},
 	}
 }
 
 func buildOpenAIResponsesMonitorInput(prompt string) []map[string]any {
-	return []map[string]any{
-		{
-			"type": "message",
-			"role": "user",
-			"content": []map[string]any{
-				{"type": "input_text", "text": prompt},
-			},
-		},
-	}
+	return []map[string]any{{
+		"type": "message",
+		"role": "user",
+		"content": []map[string]any{{
+			"type": "input_text",
+			"text": prompt,
+		}},
+	}}
 }
 
 func buildOpenAIResponsesMonitorPromptCacheKey(model string) string {
@@ -324,30 +326,12 @@ func buildOpenAIResponsesMonitorPromptCacheKey(model string) string {
 	if normalized == "" {
 		normalized = "unknown"
 	}
-	re := regexp.MustCompile(`[^a-z0-9._-]+`)
-	normalized = strings.Trim(re.ReplaceAllString(normalized, "-"), "-")
+	normalized = regexp.MustCompile(`[^a-z0-9._-]+`).ReplaceAllString(normalized, "-")
+	normalized = strings.Trim(normalized, "-")
 	if normalized == "" {
 		normalized = "unknown"
 	}
 	return "channel-monitor-" + normalized
-}
-
-func buildOpenAIResponsesMonitorTools() []map[string]any {
-	return []map[string]any{
-		{
-			"type":        "function",
-			"name":        "shell",
-			"description": "Run a shell command",
-			"parameters": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"cmd": map[string]any{"type": "string"},
-				},
-				"required": []string{"cmd"},
-			},
-			"strict": false,
-		},
-	}
 }
 
 // providerAdapterFor 按 provider + api_mode 选择具体 adapter。
@@ -364,7 +348,7 @@ func providerAdapterFor(provider, apiMode string) (providerAdapter, string, bool
 //
 // 返回值：
 //   - extractedText: 按 textPath 抽出的成功文本，仅在 status 2xx 时有意义；非 2xx 时通常为空串
-//   - rawBody: 完整响应体的字符串形式（已被 monitorResponseMaxBytes 截断），用于错误路径保留上游真实回包
+//   - rawBody: 限额内的完整响应体，用于错误路径保留上游真实回包
 //   - status: HTTP 状态码
 //   - err: 网络 / 序列化错误
 func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt string, opts *CheckOptions) (extractedText, rawBody string, status int, err error) {
@@ -382,12 +366,19 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 	}
 	headers := mergeHeaders(adapter.buildHeaders(apiKey, model), opts)
 	full := joinURL(endpoint, adapter.buildPath(model))
-	respBytes, status, err := postRawJSON(ctx, full, body, headers)
+	maxBytes := int64(monitorResponseMaxBytes)
+	isResponses := provider == MonitorProviderOpenAI && apiMode == MonitorAPIModeResponses
+	if isResponses {
+		// Codex SSE 包含 instructions 回显和 encrypted_content，不能按短答案限制整个流。
+		maxBytes = 2 << 20
+	}
+	respBytes, status, err := postRawJSON(ctx, full, body, headers, maxBytes)
 	if err != nil {
 		return "", "", status, err
 	}
-	if provider == MonitorProviderOpenAI && apiMode == MonitorAPIModeResponses {
-		return extractOpenAIResponsesText(respBytes), string(respBytes), status, nil
+	if isResponses && status >= 200 && status < 300 {
+		text, err := extractOpenAIResponsesText(respBytes)
+		return text, string(respBytes), status, err
 	}
 	return extractMonitorResponseText(adapter, respBytes), string(respBytes), status, nil
 }
@@ -422,28 +413,46 @@ func extractAnthropicMonitorText(respBytes []byte) string {
 // extractOpenAIResponsesText 聚合 Responses API 的最终 assistant 文本。
 // Responses 的 output 数组顺序由模型决定：reasoning / tool-call item 可能排在 message 前面，
 // 因此不能假设文本永远在 output.0.content.0.text。
-func extractOpenAIResponsesText(respBytes []byte) string {
-	if text := extractOpenAIResponsesTextFromSSE(respBytes); strings.TrimSpace(text) != "" {
-		return text
+func extractOpenAIResponsesText(respBytes []byte) (string, error) {
+	terminal, payload, hasTerminal := extractOpenAISSETerminalEvent(string(respBytes))
+	response := gjson.GetBytes(payload, "response")
+	if gjson.ValidBytes(respBytes) {
+		payload = respBytes
+		response = gjson.ParseBytes(respBytes)
+		terminal = response.Get("status").String()
+	} else if !hasTerminal {
+		return "", fmt.Errorf("upstream Responses stream ended without a terminal event (bytes=%d)", len(respBytes))
 	}
-	return extractOpenAIResponsesTextFromJSON(respBytes)
+	switch terminal {
+	case "response.failed", "response.incomplete", "response.cancelled", "response.canceled", "error",
+		"failed", "incomplete", "cancelled", "canceled":
+		return "", fmt.Errorf("upstream Responses %s: %s (reason=%s)", terminal,
+			extractOpenAISSEErrorMessage(payload), response.Get("incomplete_details.reason").String())
+	}
+	if upstreamErr := response.Get("error"); upstreamErr.Exists() && upstreamErr.Type != gjson.Null {
+		return "", fmt.Errorf("upstream Responses error: %s", extractOpenAISSEErrorMessage(payload))
+	}
+	if text := extractOpenAIResponsesTextFromSSE(respBytes); strings.TrimSpace(text) != "" {
+		return text, nil
+	}
+	if text := extractOpenAIResponsesTextFromJSON(respBytes); strings.TrimSpace(text) != "" {
+		return text, nil
+	}
+	return "", fmt.Errorf("upstream Responses empty text (terminal=%q, output_types=%s, bytes=%d)",
+		terminal, response.Get("output.#.type").String(), len(respBytes))
 }
 
 func extractOpenAIResponsesTextFromSSE(respBytes []byte) string {
 	var deltas []string
+	var doneTexts []string
+	var itemTexts []string
 	var completedText string
 
-	for _, rawLine := range strings.Split(string(respBytes), "\n") {
-		line := strings.TrimSpace(rawLine)
-		if !strings.HasPrefix(line, "data:") {
-			continue
+	forEachOpenAISSEFrame(string(respBytes), func(eventType string, data []byte) {
+		if !gjson.ValidBytes(data) {
+			return
 		}
-		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if payload == "" || payload == "[DONE]" || !gjson.Valid(payload) {
-			continue
-		}
-
-		eventType := gjson.Get(payload, "type").String()
+		payload := string(data)
 		switch eventType {
 		case "response.output_text.delta":
 			if delta := gjson.Get(payload, "delta").String(); delta != "" {
@@ -451,7 +460,11 @@ func extractOpenAIResponsesTextFromSSE(respBytes []byte) string {
 			}
 		case "response.output_text.done":
 			if text := gjson.Get(payload, "text").String(); strings.TrimSpace(text) != "" {
-				completedText = text
+				doneTexts = append(doneTexts, text)
+			}
+		case "response.output_item.done":
+			if item := gjson.Get(payload, "item"); item.IsObject() {
+				itemTexts = append(itemTexts, extractOpenAIResponsesTextFromJSON([]byte(`{"output":[`+item.Raw+`]}`)))
 			}
 		case "response.completed", "response.done":
 			if response := gjson.Get(payload, "response"); response.Exists() {
@@ -460,12 +473,18 @@ func extractOpenAIResponsesTextFromSSE(respBytes []byte) string {
 				}
 			}
 		}
-	}
+	})
 
+	if completedText != "" {
+		return completedText
+	}
+	if len(doneTexts) > 0 {
+		return strings.Join(doneTexts, "")
+	}
 	if len(deltas) > 0 {
 		return strings.Join(deltas, "")
 	}
-	return completedText
+	return strings.Join(itemTexts, "")
 }
 
 func extractOpenAIResponsesTextFromJSON(respBytes []byte) string {
@@ -662,7 +681,7 @@ func hasNonEmptyBodyValue(v any) bool {
 
 // postRawJSON 发送 POST + 已序列化好的 JSON 字节，限制响应体大小，返回响应字节、HTTP status、错误。
 // adapter 自行 marshal 是为了精确控制字段顺序与类型，所以这里直接收 []byte 而不是 any。
-func postRawJSON(ctx context.Context, fullURL string, payload []byte, headers map[string]string) ([]byte, int, error) {
+func postRawJSON(ctx context.Context, fullURL string, payload []byte, headers map[string]string, maxBytes int64) ([]byte, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(payload))
 	if err != nil {
 		return nil, 0, fmt.Errorf("build request: %w", err)
@@ -679,9 +698,12 @@ func postRawJSON(ctx context.Context, fullURL string, payload []byte, headers ma
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, monitorResponseMaxBytes))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("read body: %w", err)
+	}
+	if int64(len(respBody)) > maxBytes {
+		return nil, resp.StatusCode, fmt.Errorf("upstream HTTP %d: response body exceeds %d bytes", resp.StatusCode, maxBytes)
 	}
 	return respBody, resp.StatusCode, nil
 }

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 )
 
 // swapMonitorHTTPClient 临时替换 monitorHTTPClient 为不带 SSRF 校验的普通 client，
@@ -441,11 +443,11 @@ func TestRunCheckForModel_OpenAIResponses_CodexRequest(t *testing.T) {
 	if h.lastBody["prompt_cache_key"] != "channel-monitor-gpt-5.5" {
 		t.Errorf("unexpected prompt_cache_key: %v", h.lastBody["prompt_cache_key"])
 	}
-	if h.lastBody["tool_choice"] != "auto" {
-		t.Errorf("codex responses body should set tool_choice=auto, got %v", h.lastBody["tool_choice"])
+	if _, ok := h.lastBody["tool_choice"]; ok {
+		t.Error("codex responses monitor body must not set tool_choice")
 	}
-	if h.lastBody["parallel_tool_calls"] != true {
-		t.Errorf("codex responses body should enable parallel_tool_calls, got %v", h.lastBody["parallel_tool_calls"])
+	if _, ok := h.lastBody["parallel_tool_calls"]; ok {
+		t.Error("codex responses monitor body must not set parallel_tool_calls")
 	}
 	reasoning, ok := h.lastBody["reasoning"].(map[string]any)
 	if !ok {
@@ -457,9 +459,8 @@ func TestRunCheckForModel_OpenAIResponses_CodexRequest(t *testing.T) {
 	if !ok || strings.TrimSpace(stringFromAny(textCfg["verbosity"])) == "" {
 		t.Errorf("codex responses body should contain text config, got %v", h.lastBody["text"])
 	}
-	tools, ok := h.lastBody["tools"].([]any)
-	if !ok || len(tools) == 0 {
-		t.Fatalf("codex responses body should contain tools, got %T", h.lastBody["tools"])
+	if _, ok := h.lastBody["tools"]; ok {
+		t.Error("codex responses monitor body must not declare tools")
 	}
 	if h.lastHeaders.Get("Authorization") != "Bearer sk-openai" {
 		t.Errorf("expected bearer auth header, got %q", h.lastHeaders.Get("Authorization"))
@@ -470,8 +471,8 @@ func TestRunCheckForModel_OpenAIResponses_CodexRequest(t *testing.T) {
 	if h.lastHeaders.Get("Accept") != "text/event-stream" {
 		t.Errorf("expected event-stream accept header, got %q", h.lastHeaders.Get("Accept"))
 	}
-	if h.lastHeaders.Get("Originator") != "codex_cli_rs" {
-		t.Errorf("expected codex originator, got %q", h.lastHeaders.Get("Originator"))
+	if h.lastHeaders.Get("Originator") != openai.CodexDefaultOriginator {
+		t.Errorf("expected codex originator %q, got %q", openai.CodexDefaultOriginator, h.lastHeaders.Get("Originator"))
 	}
 	if h.lastHeaders.Get("User-Agent") != codexCLIUserAgent {
 		t.Errorf("expected codex user-agent, got %q", h.lastHeaders.Get("User-Agent"))

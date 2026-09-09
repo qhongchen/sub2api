@@ -477,6 +477,7 @@
                   :entry="entry"
                   :platform="section.platform"
                   enable-time-pricing
+                  enable-tier-multipliers
                   @update="updatePricingEntry(sIdx, idx, $event)"
                   @remove="removePricingEntry(sIdx, idx)"
                 />
@@ -669,6 +670,7 @@ import {
   findModelConflict,
   formIntervalsToAPI,
   formTimePricingToAPI,
+  isValidPositiveMultiplier,
   mTokToPerToken,
   perTokenToMTok,
   validateIntervals,
@@ -913,6 +915,9 @@ function addPricingEntry(sectionIdx: number) {
     cache_write_price: null,
     cache_write_1h_price: null,
     cache_read_price: null,
+    fast_multiplier: null,
+    flex_multiplier: null,
+    max_reasoning_effort_multiplier: null,
     image_input_price: null,
     image_output_price: null,
     per_request_price: null,
@@ -948,6 +953,9 @@ async function syncLatestModels(sectionIdx: number) {
       cache_write_price: null,
       cache_write_1h_price: null,
       cache_read_price: null,
+      fast_multiplier: null,
+      flex_multiplier: null,
+      max_reasoning_effort_multiplier: null,
       image_input_price: null,
       image_output_price: null,
       per_request_price: null,
@@ -1176,6 +1184,9 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
         cache_write_price: mTokToPerToken(entry.cache_write_price),
         cache_write_1h_price: mTokToPerToken(entry.cache_write_1h_price),
         cache_read_price: mTokToPerToken(entry.cache_read_price),
+        fast_multiplier: entry.fast_multiplier != null && entry.fast_multiplier !== '' ? Number(entry.fast_multiplier) : null,
+        flex_multiplier: entry.flex_multiplier != null && entry.flex_multiplier !== '' ? Number(entry.flex_multiplier) : null,
+        max_reasoning_effort_multiplier: entry.max_reasoning_effort_multiplier != null && entry.max_reasoning_effort_multiplier !== '' ? Number(entry.max_reasoning_effort_multiplier) : null,
         image_input_price: mTokToPerToken(entry.image_input_price),
         image_output_price: mTokToPerToken(entry.image_output_price),
         per_request_price: entry.per_request_price != null && entry.per_request_price !== '' ? Number(entry.per_request_price) : null,
@@ -1276,6 +1287,9 @@ function apiToForm(channel: Channel): PlatformSection[] {
         cache_write_price: perTokenToMTok(p.cache_write_price),
         cache_write_1h_price: perTokenToMTok(p.cache_write_1h_price),
         cache_read_price: perTokenToMTok(p.cache_read_price),
+        fast_multiplier: p.fast_multiplier,
+        flex_multiplier: p.flex_multiplier,
+        max_reasoning_effort_multiplier: p.max_reasoning_effort_multiplier,
         image_input_price: perTokenToMTok(p.image_input_price),
         image_output_price: perTokenToMTok(p.image_output_price),
         per_request_price: p.per_request_price,
@@ -1584,7 +1598,33 @@ async function handleSubmit() {
   // 校验区间合法性（范围、重叠等）
   for (const section of form.platforms.filter(s => s.enabled)) {
     for (const entry of section.model_pricing) {
+      if (!isValidPositiveMultiplier(entry.fast_multiplier) ||
+          !isValidPositiveMultiplier(entry.flex_multiplier) ||
+          !isValidPositiveMultiplier(entry.max_reasoning_effort_multiplier)) {
+        const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
+        const modelLabel = entry.models.join(', ') || t('admin.channels.form.unnamed')
+        appStore.showError(`${platformLabel} - ${modelLabel}: ${t('admin.channels.form.multiplierPositive')}`)
+        activeTab.value = section.platform
+        return
+      }
       if (!entry.intervals || entry.intervals.length === 0) continue
+      for (const [index, interval] of entry.intervals.entries()) {
+        const multipliers = [
+          ['inputMultiplier', interval.input_multiplier],
+          ['outputMultiplier', interval.output_multiplier],
+          ['cacheWriteMultiplier', interval.cache_write_multiplier],
+          ['cacheReadMultiplier', interval.cache_read_multiplier]
+        ] as const
+        for (const [field, value] of multipliers) {
+          if (isValidPositiveMultiplier(value)) continue
+          appStore.showError(t('admin.channels.intervalValidation.multiplierPositive', {
+            index: index + 1,
+            field: t(`admin.channels.form.${field}`)
+          }))
+          activeTab.value = section.platform
+          return
+        }
+      }
       const intervalErr = validateIntervals(entry.intervals, entry.billing_mode)
       if (intervalErr) {
         const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)

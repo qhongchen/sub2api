@@ -738,6 +738,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
   { key: 'account', label: t('admin.usage.account'), sortable: false },
   { key: 'request_id', label: t('usage.requestId'), sortable: false },
+  { key: 'upstream_request_id', label: t('admin.usage.upstreamRequestId'), sortable: false },
   { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
   { key: 'model', label: t('usage.model'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
@@ -748,8 +749,10 @@ const allColumns = computed<Column[]>(() => [
 ])
 
 const ALWAYS_VISIBLE = ['time', 'user', 'account']
-const DEFAULT_HIDDEN_COLUMNS = ['endpoint', 'cache']
+const DEFAULT_HIDDEN_COLUMNS = ['endpoint', 'cache', 'upstream_request_id']
 const HIDDEN_COLUMNS_KEY = 'admin-usage-hidden-columns-v2'
+const HIDDEN_COLUMNS_VERSION_KEY = 'admin-usage-hidden-columns-version'
+const HIDDEN_COLUMNS_CURRENT_VERSION = 'upstream-request-id-hidden-by-default'
 const hiddenColumns = reactive<Set<string>>(new Set())
 const toggleableColumns = computed(() => allColumns.value.filter(col => !ALWAYS_VISIBLE.includes(col.key)))
 const visibleColumns = computed(() => allColumns.value.filter(col => ALWAYS_VISIBLE.includes(col.key) || !hiddenColumns.has(col.key)))
@@ -1110,7 +1113,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
       t('usage.firstToken'), t('usage.duration'),
-      t('admin.usage.requestId'), t('usage.userAgent'), t('admin.usage.ipAddress'),
+      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress'),
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
@@ -1135,7 +1138,7 @@ const exportToExcel = async () => {
         log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
         log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
         ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
-        log.request_id || '', log.user_agent || '', log.ip_address || '',
+        log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || '',
       ])
       if (rows.length) XLSX.utils.sheet_add_aoa(ws, rows, { origin: -1 })
       exportedCount += rows.length
@@ -1180,9 +1183,14 @@ const loadSavedColumns = () => {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
     if (saved) {
       (JSON.parse(saved) as string[]).forEach((key) => hiddenColumns.add(key))
+      if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
+        hiddenColumns.add('upstream_request_id')
+        localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
+      }
     } else {
       DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
     }
+    localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
   } catch {
     DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
   }
