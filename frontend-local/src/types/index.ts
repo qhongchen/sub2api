@@ -211,6 +211,7 @@ export interface PublicSettings {
   channel_monitor_default_interval_seconds: number
   channel_monitor_hide_throughput?: boolean
   channel_monitor_show_quota?: boolean
+  channel_monitor_hide_user_ranking?: boolean
   available_channels_enabled: boolean
   service_quota_enabled: boolean
   affiliate_enabled: boolean
@@ -1366,6 +1367,15 @@ export interface UpdateAccountRequest {
   upstream_billing_probe_enabled?: boolean
   upstream_billing_rate_sync_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
+}
+
+export type GrokMediaEligibilityMode = 'auto' | 'enabled' | 'disabled'
+
+export interface GrokMediaEligibilityState {
+  account_id: number
+  mode: GrokMediaEligibilityMode
+  eligible: boolean
+  reason: string
 }
 
 export interface CheckMixedChannelRequest {

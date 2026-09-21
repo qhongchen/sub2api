@@ -4403,6 +4403,30 @@ export default {
         title: 'Client tool cache (may change automatic tool selection)',
         hint: 'Applies only to Grok OAuth accounts identified as Free. By default, client function-tool requests for Codex, Trae, and similar clients enable upstream prompt caching; turn this off to opt out of automatic tool-selection behavior.'
       },
+      grokMediaEligibility: {
+        title: 'Media Generation Eligibility',
+        hint: 'Controls whether this Grok OAuth account may be selected for image and video generation.',
+        auto: 'Automatic detection',
+        enabled: 'Force enable',
+        disabled: 'Force disable',
+        current: 'Current decision:',
+        eligible: 'Eligible',
+        ineligible: 'Not eligible',
+        loading: 'Loading eligibility...',
+        loadFailed: 'Unable to load media eligibility',
+        autoHint: 'Automatic detection only clears the manual override; it does not trigger a media request.',
+        forceEnableWarning: 'Force enable bypasses automatic eligibility checks. Use only for accounts confirmed to support image/video generation.',
+        partialSave: 'Other account settings may have been saved, but media eligibility was not updated. Please retry.',
+        reasons: {
+          eligible: 'Paid entitlement confirmed',
+          billing_inconclusive: 'Billing information inconclusive',
+          billing_forbidden: 'Billing endpoint forbidden',
+          billing_free_tier: 'Free tier account',
+          billing_unobserved: 'Billing not observed yet',
+          override_enabled: 'Manually forced enabled',
+          override_disabled: 'Manually forced disabled'
+        }
+      },
       grokCustomBaseUrl: {
         title: 'Custom Upstream URL',
         hint: 'When enabled, account traffic is forwarded to the specified address. OAuth authorization and token refresh remain on the official endpoints.',
@@ -5866,6 +5890,11 @@ export default {
     ops: {
       title: 'Ops Monitoring',
       description: 'Operational monitoring and troubleshooting',
+      systemLogs: {
+        retentionDaysHint: 'Applied by the scheduled data cleanup job.',
+        persistAccessLogs: 'Persist access logs to database',
+        persistAccessLogsHint: 'Disabled by default because access logs add an indexed database record for every request. Warning, error and audit logs are always retained.'
+      },
       // Dashboard
       systemHealth: 'System Health',
       overview: 'Overview',
@@ -6695,6 +6724,8 @@ export default {
           hideThroughputHint: 'When on, the user Channel Monitor page and user APIs omit RPM and TPM so fleet volume cannot be reverse-estimated from rates × window. Admins still see full metrics. Error rates, latency, and cache rates remain visible.',
           showQuota: 'Show channel usage/balance to users',
           showQuotaHint: 'When on, quota-mode channel monitors expose the linked account usage windows/balance on the user Channel Status page. Disabled by default; admins always see it.',
+          hideUserRanking: 'Hide user ranking from users',
+          hideUserRankingHint: 'When enabled, the user-facing Channel Monitor V2 hides the user ranking tab and user APIs return no ranking data. Admins can still view it.',
         },
         availableChannels: {
           title: 'Available Channels',
