@@ -61,6 +61,23 @@
         </svg>
         {{ t('admin.accounts.openaiQuotaReset.reset') }}
       </button>
+
+      <button
+        type="button"
+        data-testid="codex-credits"
+        class="inline-flex max-w-full items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+        :disabled="loading || resetting"
+        :title="creditsButtonTitle"
+        @click="handleQuery"
+      >
+        {{ t('admin.accounts.openaiQuotaReset.points') }}
+        <span class="truncate tabular-nums">{{ creditsDisplay }}</span>
+      </button>
+      <OpenAIReferralCell :account="props.account" />
+    </div>
+
+    <div v-if="creditsCacheWarning" class="text-[10px] text-amber-600 dark:text-amber-400">
+      {{ t('admin.accounts.openaiQuotaReset.pointsCachePersistFailed') }}
     </div>
 
     <div v-if="autoResetState" class="flex flex-wrap items-center gap-1 text-[10px]" data-testid="auto-reset-credit-state">
@@ -161,6 +178,7 @@ import {
   type OpenAIQuotaResetResult
 } from '@/api/admin/accounts'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import OpenAIReferralCell from '@/components/account/OpenAIReferralCell.vue'
 
 const props = defineProps<{
   account: Account
@@ -184,6 +202,37 @@ const resetMessage = ref<string | null>(null)
 const resetWarning = ref<string | null>(null)
 const showResetConfirm = ref(false)
 const showResetCreditDetails = ref(false)
+const creditsCacheWarning = ref(false)
+
+const readCachedCredits = (account: Account) => {
+  const snapshot = account.extra?.codex_credits_snapshot
+  const credits = snapshot?.credits
+  if (!credits || typeof credits.has_credits !== 'boolean' || typeof credits.unlimited !== 'boolean') return null
+  if (credits.balance != null && typeof credits.balance !== 'string') return null
+  return { credits, fetched_at: snapshot.fetched_at }
+}
+const creditsData = ref(readCachedCredits(props.account))
+const creditsDisplay = computed(() => {
+  const credits = creditsData.value?.credits
+  if (!credits) return '—'
+  if (credits.unlimited) return t('admin.accounts.openaiQuotaReset.pointsUnlimited')
+  if (!credits.has_credits) return '0'
+  const balance = credits.balance?.trim()
+  if (balance && Number.isFinite(Number(balance)) && Number(balance) >= 0) return balance
+  return t('admin.accounts.openaiQuotaReset.pointsAvailable')
+})
+const creditsButtonTitle = computed(() => {
+  const fetchedAt = creditsData.value?.fetched_at
+  const refresh = t('admin.accounts.openaiQuotaReset.pointsTooltip')
+  if (!fetchedAt || !Number.isFinite(fetchedAt)) return refresh
+  return `${refresh}\n${t('admin.accounts.openaiQuotaReset.pointsUpdatedAt', {
+    time: new Date(fetchedAt * 1000).toLocaleString()
+  })}`
+})
+
+const updateCredits = (usage: OpenAIQuotaUsage | null) => {
+  creditsData.value = usage?.credits ? { credits: usage.credits, fetched_at: usage.fetched_at } : null
+}
 
 type AutoResetCreditState = NonNullable<NonNullable<Account['extra']>['codex_auto_reset_credit_state']>
 const validAutoResetStatuses = new Set(['checking', 'available', 'resetting', 'success', 'no_credit', 'failed'])
@@ -351,14 +400,19 @@ const toggleResetCreditDetails = () => {
 }
 
 const handleQuery = async () => {
-  if (loading.value) return
+  if (loading.value || resetting.value) return
+  const accountID = props.account.id
   loading.value = true
+  creditsCacheWarning.value = false
   error.value = null
   resetMessage.value = null
   resetWarning.value = null
   showResetCreditDetails.value = false
   try {
-    const result = await refreshOpenAIQuota(props.account.id)
+    const result = await refreshOpenAIQuota(accountID)
+    if (props.account.id !== accountID) return
+    updateCredits(result)
+    creditsCacheWarning.value = result.credits_cache_persisted === false
     data.value = result
     if (result.cache_persisted) {
       cachedData.value = result
@@ -366,9 +420,10 @@ const handleQuery = async () => {
       resetWarning.value = t('admin.accounts.openaiQuotaReset.refreshCachePersistFailed')
     }
   } catch (e) {
+    if (props.account.id !== accountID) return
     error.value = extractErrorMessage(e)
   } finally {
-    loading.value = false
+    if (props.account.id === accountID) loading.value = false
   }
 }
 
@@ -389,11 +444,15 @@ const confirmReset = async () => {
     return
   }
   resetting.value = true
+  const accountID = props.account.id
+  creditsCacheWarning.value = false
   error.value = null
   resetMessage.value = null
   resetWarning.value = null
   try {
-    const result: OpenAIQuotaResetResult = await resetOpenAIQuota(props.account.id)
+    const result: OpenAIQuotaResetResult = await resetOpenAIQuota(accountID)
+    if (props.account.id !== accountID) return
+    updateCredits(result.quota ?? null)
     showResetCreditDetails.value = false
     if (result.cache_refreshed && result.quota) {
       data.value = result.quota
@@ -416,9 +475,10 @@ const confirmReset = async () => {
       })
     }
   } catch (e) {
+    if (props.account.id !== accountID) return
     error.value = extractErrorMessage(e)
   } finally {
-    resetting.value = false
+    if (props.account.id === accountID) resetting.value = false
   }
 }
 
@@ -427,6 +487,8 @@ watch(
   () => {
     cachedData.value = readCachedResetCredits(props.account)
     data.value = cachedData.value
+    creditsData.value = readCachedCredits(props.account)
+    creditsCacheWarning.value = false
     error.value = null
     resetMessage.value = null
     resetWarning.value = null

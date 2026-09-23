@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
-import { onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import AdminComplianceDialog from '@/components/admin/AdminComplianceDialog.vue'
@@ -9,6 +9,7 @@ import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 import { updateFavicon } from '@/utils/branding'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 
 const router = useRouter()
 const route = useRoute()
@@ -64,6 +65,21 @@ function onAdminComplianceRequired(event: Event) {
   adminComplianceStore.requireAcknowledgement(detail)
 }
 
+const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
+
+function startSubscriptionSync() {
+  subscriptionStore.fetchActiveSubscriptions().catch((error) => {
+    console.error('Failed to preload subscriptions:', error)
+  })
+  subscriptionStore.startPolling()
+}
+
+watch(subscriptionFeatureEnabled, (enabled) => {
+  if (!authStore.isAuthenticated) return
+  if (enabled) startSubscriptionSync()
+  else subscriptionStore.clear()
+})
+
 watch(
   () => authStore.isAuthenticated,
   (isAuthenticated, oldValue) => {
@@ -75,10 +91,9 @@ watch(
       }
 
       // User logged in: preload subscriptions and start polling
-      subscriptionStore.fetchActiveSubscriptions().catch((error) => {
-        console.error('Failed to preload subscriptions:', error)
-      })
-      subscriptionStore.startPolling()
+      if (subscriptionFeatureEnabled.value) {
+        startSubscriptionSync()
+      }
 
       // Announcements: new login vs page refresh restore
       if (oldValue === false) {

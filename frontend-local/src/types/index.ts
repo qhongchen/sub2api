@@ -143,6 +143,7 @@ export interface CustomMenuItem {
   icon_svg: string
   url: string
   page_slug?: string
+  hide_open_button?: boolean
   visibility: 'user' | 'admin'
   sort_order: number
 }
@@ -213,6 +214,8 @@ export interface PublicSettings {
   channel_monitor_show_quota?: boolean
   channel_monitor_hide_user_ranking?: boolean
   available_channels_enabled: boolean
+  subscription_enabled?: boolean
+  payment_balance_disabled?: boolean
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
@@ -1054,6 +1057,11 @@ export interface Account {
       available_count?: number
       credits?: { expires_at?: string }[]
     }
+    codex_credits_snapshot?: {
+      credits: { has_credits: boolean; unlimited: boolean; balance: string | null } | null
+      fetched_at: number
+    }
+    codex_referral_snapshot?: import('./openaiReferrals').OpenAIReferralEligibility | null
     auto_reset_credit_enabled?: boolean
     auto_reset_credit_5h_threshold?: number
     auto_reset_credit_7d_threshold?: number

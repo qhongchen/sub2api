@@ -165,6 +165,32 @@
             </button>
           </div>
         </div>
+        <div
+          v-if="selectedCount > 0"
+          class="mt-3 space-y-2 rounded-xl border border-primary-200 bg-primary-50 p-3 dark:border-primary-800 dark:bg-primary-900/20"
+          data-test="subscription-bulk-actions"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="mr-2 text-sm font-medium text-primary-800 dark:text-primary-200">
+              {{ t('admin.subscriptions.bulk.selected', { count: selectedCount }) }}
+            </span>
+            <button
+              v-for="action in bulkActions"
+              :key="action"
+              type="button"
+              :class="action === 'revoke' ? 'btn btn-danger btn-sm' : 'btn btn-secondary btn-sm'"
+              :data-test="`bulk-${action}`"
+              :disabled="loading || bulkTargets[action].length === 0"
+              @click="openBulkAction(action)"
+            >
+              {{ t(`admin.subscriptions.bulk.${action}`) }} ({{ bulkTargets[action].length }})
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="clearSelection">
+              {{ t('admin.subscriptions.bulk.clearSelection') }}
+            </button>
+          </div>
+          <p class="text-xs text-gray-600 dark:text-gray-400">{{ t('admin.subscriptions.bulk.selectionHint') }}</p>
+        </div>
       </template>
 
       <!-- Subscriptions Table -->
@@ -178,6 +204,26 @@
           default-sort-order="desc"
           @sort="handleSort"
         >
+          <template #header-select>
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="allVisibleSelected"
+              :disabled="subscriptions.length === 0"
+              :aria-label="t('admin.subscriptions.bulk.selected', { count: selectedCount })"
+              @change="toggleVisible(($event.target as HTMLInputElement).checked)"
+            />
+          </template>
+          <template #cell-select="{ row }">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="isSelected(row.id)"
+              :aria-label="t('admin.subscriptions.bulk.selectSubscription', { id: row.id })"
+              @click.stop
+              @change="toggle(row.id)"
+            />
+          </template>
           <template #cell-user="{ row }">
             <div class="flex items-center gap-2">
               <div
@@ -760,6 +806,15 @@
         </div>
       </transition>
     </teleport>
+
+    <BulkSubscriptionActionDialog
+      v-if="bulkAction !== null"
+      :show="true"
+      :action="bulkAction"
+      :subscriptions="bulkSubscriptions"
+      @close="bulkAction = null"
+      @completed="handleBulkCompleted"
+    />
   </AppLayout>
 </template>
 
@@ -770,6 +825,9 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
+import type { SubscriptionBulkAction, SubscriptionBulkActionResult } from '@/api/admin/subscriptions'
+import { useTableSelection } from '@/composables/useTableSelection'
+import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -843,6 +901,7 @@ const setUserColumnMode = (mode: 'email' | 'username') => {
 
 // All available columns
 const allColumns = computed<Column[]>(() => [
+  { key: 'select', label: '' },
   {
     key: 'user',
     label: userColumnMode.value === 'email'
@@ -859,7 +918,7 @@ const allColumns = computed<Column[]>(() => [
 
 // Columns that can be toggled (exclude user and actions which are always visible)
 const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'user' && col.key !== 'actions')
+  allColumns.value.filter(col => col.key !== 'select' && col.key !== 'user' && col.key !== 'actions')
 )
 
 // Hidden columns set
@@ -912,7 +971,7 @@ const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 // Filtered columns for display
 const columns = computed<Column[]>(() =>
   allColumns.value.filter(col =>
-    col.key === 'user' || col.key === 'actions' || !hiddenColumns.has(col.key)
+    col.key === 'select' || col.key === 'user' || col.key === 'actions' || !hiddenColumns.has(col.key)
   )
 )
 
@@ -929,8 +988,42 @@ const statusOptions = computed(() => [
 ])
 
 const subscriptions = ref<UserSubscription[]>([])
-const groups = ref<Group[]>([])
 const loading = ref(false)
+const {
+  selectedIds,
+  selectedCount,
+  allVisibleSelected,
+  isSelected,
+  toggle,
+  toggleVisible,
+  clear: clearSelection,
+  removeMany: removeSelectedIds
+} = useTableSelection<UserSubscription>({
+  rows: subscriptions,
+  getId: (subscription) => subscription.id
+})
+const bulkActions: SubscriptionBulkAction[] = ['extend', 'reset_quota', 'revoke', 'restore']
+const bulkAction = ref<SubscriptionBulkAction | null>(null)
+const bulkSubscriptions = ref<UserSubscription[]>([])
+const bulkTargets = computed(() => {
+  const selected = subscriptions.value.filter((subscription) => selectedIds.value.includes(subscription.id))
+  return {
+    extend: selected.filter((subscription) => ['active', 'expired'].includes(subscription.status)),
+    reset_quota: selected.filter((subscription) => subscription.status === 'active'),
+    revoke: selected.filter((subscription) => subscription.status === 'active'),
+    restore: selected.filter((subscription) => subscription.status === 'revoked')
+  }
+})
+const openBulkAction = (action: SubscriptionBulkAction) => {
+  if (loading.value || bulkTargets.value[action].length === 0) return
+  bulkSubscriptions.value = [...bulkTargets.value[action]]
+  bulkAction.value = action
+}
+const handleBulkCompleted = async (result: SubscriptionBulkActionResult) => {
+  removeSelectedIds(result.results.filter((item) => item.success).map((item) => item.subscription_id))
+  await loadSubscriptions()
+}
+const groups = ref<Group[]>([])
 let abortController: AbortController | null = null
 
 // Toolbar user filter (fuzzy search -> select user_id)
@@ -1017,6 +1110,7 @@ const subscriptionGroupOptions = computed(() =>
 )
 
 const applyFilters = () => {
+  clearSelection()
   pagination.page = 1
   loadSubscriptions()
 }
@@ -1048,6 +1142,8 @@ const loadSubscriptions = async () => {
     )
     if (signal.aborted || abortController !== requestController) return
     subscriptions.value = response.items
+    const visibleIds = new Set(response.items.map((subscription) => subscription.id))
+    removeSelectedIds(selectedIds.value.filter((id) => !visibleIds.has(id)))
     pagination.total = response.total
     pagination.pages = response.pages
   } catch (error: any) {
@@ -1171,17 +1267,20 @@ const clearUserSelection = () => {
 }
 
 const handlePageChange = (page: number) => {
+  clearSelection()
   pagination.page = page
   loadSubscriptions()
 }
 
 const handlePageSizeChange = (pageSize: number) => {
+  clearSelection()
   pagination.page_size = pageSize
   pagination.page = 1
   loadSubscriptions()
 }
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
+  clearSelection()
   sortState.sort_by = key
   sortState.sort_order = order
   pagination.page = 1

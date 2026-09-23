@@ -244,7 +244,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'My Subscriptions',
       titleKey: 'userSubscriptions.title',
-      descriptionKey: 'userSubscriptions.description'
+      descriptionKey: 'userSubscriptions.description',
+      requiresSubscription: true
     }
   },
   {
@@ -384,7 +385,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: true,
       title: 'Subscription Management',
       titleKey: 'admin.subscriptions.title',
-      descriptionKey: 'admin.subscriptions.description'
+      descriptionKey: 'admin.subscriptions.description',
+      requiresSubscription: true
     }
   },
   {
@@ -656,6 +658,15 @@ router.beforeEach(async (to, _from, next) => {
     appStore.cachedPublicSettings?.risk_control_enabled === false
   ) {
     next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+    return
+  }
+
+  if (
+    to.meta.requiresSubscription &&
+    appStore.publicSettingsLoaded &&
+    appStore.cachedPublicSettings?.subscription_enabled === false
+  ) {
+    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     return
   }
 

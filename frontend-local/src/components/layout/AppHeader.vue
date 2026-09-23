@@ -253,6 +253,7 @@ const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
+const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
@@ -321,7 +322,7 @@ const accountDropdownItems = computed(() => finalizeNav([
   { path: '/usage', label: t('nav.usage'), icon: 'chart', hideInSimpleMode: true },
   { path: '/available-channels', label: t('nav.availableChannels'), icon: 'server', hideInSimpleMode: true, featureFlag: flagAvailableChannels },
   { path: '/monitor', label: t('nav.channelStatus'), icon: 'server', featureFlag: flagChannelMonitor },
-  { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard', hideInSimpleMode: true },
+  { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: 'creditCard', hideInSimpleMode: true, featureFlag: flagSubscription },
   ...customMenuItems.value
 ]))
 

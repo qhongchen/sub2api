@@ -13,6 +13,23 @@ import type {
   PaginatedResponse
 } from '@/types'
 
+export type SubscriptionBulkAction = 'extend' | 'reset_quota' | 'revoke' | 'restore'
+
+export interface SubscriptionBulkActionRequest {
+  subscription_ids: number[]
+  action: SubscriptionBulkAction
+  days?: number
+  daily?: boolean
+  weekly?: boolean
+  monthly?: boolean
+}
+
+export interface SubscriptionBulkActionResult {
+  success_count: number
+  failed_count: number
+  results: Array<{ subscription_id: number; success: boolean; error?: string }>
+}
+
 /**
  * List all subscriptions with pagination
  * @param page - Page number (default: 1)
@@ -90,6 +107,18 @@ export async function bulkAssign(
   const { data } = await apiClient.post<UserSubscription[]>(
     '/admin/subscriptions/bulk-assign',
     request
+  )
+  return data
+}
+
+export async function bulkAction(
+  request: SubscriptionBulkActionRequest,
+  idempotencyKey: string
+): Promise<SubscriptionBulkActionResult> {
+  const { data } = await apiClient.post<SubscriptionBulkActionResult>(
+    '/admin/subscriptions/bulk-action',
+    request,
+    { headers: { 'Idempotency-Key': idempotencyKey } }
   )
   return data
 }
@@ -194,6 +223,7 @@ export const subscriptionsAPI = {
   getProgress,
   assign,
   bulkAssign,
+  bulkAction,
   extend,
   revoke,
   restore,
