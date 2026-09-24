@@ -8,6 +8,7 @@ export { apiClient } from './client'
 
 // Auth API
 export { authAPI, isTotp2FARequired, type LoginResponse } from './auth'
+export { passkeyAPI, type PasskeyCredentialSummary } from './passkey'
 
 // User APIs
 export { keysAPI } from './keys'

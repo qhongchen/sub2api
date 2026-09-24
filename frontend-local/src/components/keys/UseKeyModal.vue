@@ -1027,6 +1027,7 @@ function generateRoutedCodexFiles(
     kimi: 'kimi-k2.5',
     zhipu: 'glm-4.7',
     deepseek: 'deepseek-v4-pro',
+    opencode_go: 'grok-4.6',
     composite: 'gpt-5.5'
   }
   const model = selectCodexCatalogModel(preferredModels[platform] || '')
@@ -1039,6 +1040,7 @@ function generateRoutedCodexFiles(
     kimi: 'Kimi',
     zhipu: 'Zhipu',
     deepseek: 'DeepSeek',
+    opencode_go: 'OpenCode',
     composite: 'Composite'
   }
   const label = labels[platform]

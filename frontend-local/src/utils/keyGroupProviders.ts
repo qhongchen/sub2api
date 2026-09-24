@@ -10,6 +10,7 @@ const PROVIDER_BY_PLATFORM: Record<GroupPlatform, KeyGroupProvider> = {
   kimi: 'domestic',
   zhipu: 'domestic',
   deepseek: 'domestic',
+  opencode_go: 'other',
   gemini: 'other',
   grok: 'other',
   antigravity: 'other',

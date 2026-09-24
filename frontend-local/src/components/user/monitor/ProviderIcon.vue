@@ -37,6 +37,7 @@ const supportedProviders = new Set<GroupPlatform>([
   'kimi',
   'zhipu',
   'deepseek',
+  'opencode_go',
 ])
 
 const normalizedProvider = computed<GroupPlatform | undefined>(() =>

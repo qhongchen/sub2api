@@ -452,6 +452,10 @@ export default {
     signInToAccount: 'Sign in to your account to continue',
     signIn: 'Sign In',
     signingIn: 'Signing in...',
+    passkeySignIn: 'Sign in with a passkey',
+    passkeySigningIn: 'Waiting for passkey...',
+    passkeyCancelled: 'Passkey sign-in was cancelled.',
+    passkeyFailed: 'Passkey sign-in failed. Please try again.',
     createAccount: 'Create Account',
     signUpToStart: 'Sign up to start using {siteName}',
     signUp: 'Sign up',
@@ -1201,7 +1205,8 @@ export default {
       antigravity: 'Antigravity',
       kimi: 'Kimi',
       zhipu: 'Zhipu GLM',
-      deepseek: 'DeepSeek'
+      deepseek: 'DeepSeek',
+      opencode_go: 'OpenCode'
     },
     checkMode: {
       probe: 'Probe',
@@ -1511,6 +1516,31 @@ export default {
       sendCode: 'Send Code',
       codeSent: 'Verification code sent to your email',
       sendCodeFailed: 'Failed to send verification code'
+    },
+    passkey: {
+      title: 'Passkeys',
+      description: 'Use Face ID, Touch ID, Windows Hello, or a security key to sign in without a password.',
+      add: 'Add passkey',
+      continue: 'Create passkey',
+      name: 'Passkey name',
+      namePlaceholder: 'For example, MacBook Touch ID',
+      passwordPlaceholder: 'Enter your current password to confirm',
+      empty: 'No passkeys are registered yet.',
+      synced: 'Synced',
+      createdAt: 'Created {date}',
+      lastUsed: 'Last used {date}',
+      featureDisabled: 'Passkeys have not been configured by the administrator.',
+      unsupported: 'This browser or device does not support passkeys.',
+      loadFailed: 'Failed to load passkeys.',
+      added: 'Passkey added.',
+      addFailed: 'Failed to add passkey.',
+      renamePrompt: 'Enter a new name for this passkey',
+      renamed: 'Passkey renamed.',
+      renameFailed: 'Failed to rename passkey.',
+      deleteTitle: 'Delete passkey',
+      deleteConfirm: 'Delete “{name}”? You will no longer be able to sign in with it.',
+      deleted: 'Passkey deleted.',
+      deleteFailed: 'Failed to delete passkey.'
     },
     balanceNotify: {
       title: 'Balance Low Notification',
@@ -2711,6 +2741,7 @@ export default {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        opencode_go: 'OpenCode',
         composite: 'Composite',
       },
       deleteConfirm:
@@ -3807,6 +3838,24 @@ export default {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        opencode_go: 'OpenCode',
+      },
+      opencodeGo: {
+        accountMode: {
+          zen: 'Zen',
+          zenDesc: 'Pay-as-you-go gateway. Consumes account credits, billed per token.',
+          go: 'GO',
+          goDesc: 'Subscription gateway, rate-limited by 5-hour / weekly / monthly usage windows.'
+        },
+        protocolRules: {
+          title: 'Model protocol routing',
+          hint: 'In adaptive mode, the first matching rule wins. Use an exact ID or a trailing * glob; unmatched models use Chat Completions.',
+          patternPlaceholder: 'grok-* or deepseek-v4-flash',
+          add: 'Add rule',
+          remove: 'Remove rule',
+          restoreDefaults: 'Restore defaults',
+          fallback: 'Unmatched models → Chat Completions (/v1/chat/completions)'
+        }
       },
       cnProviders: {
         accountMode: {
@@ -6795,6 +6844,14 @@ export default {
         payment: 'Payment',
       },
       security: {
+        passkey: 'Passkey Sign-in',
+        passkeyHint: 'Allow passwordless sign-in and user-managed passkeys when the relying party configuration is valid.',
+        passkeyConfigured: 'WebAuthn relying party configuration is valid.',
+        passkeyNotConfigured: 'Configure a valid RP ID and allowed HTTPS origins before enabling passkey sign-in.',
+        passkeyRPID: 'RP ID',
+        passkeyOrigins: 'Allowed HTTPS origins',
+        passkeyValueNotConfigured: 'Not configured',
+        passkeyDeploymentHint: 'Ask the server operator to set webauthn.enabled to true, configure webauthn.rp_id (domain only) and webauthn.rp_origins (full HTTPS origins), then restart the service.',
         stepUp: 'Step-up 2FA for Sensitive Operations',
         stepUpHint: 'When enabled, sensitive operations such as account exports, backup operations, S3 configuration changes, and administrator promotion require a recent TOTP verification.',
         stepUpEnableRequiresTotp: 'Enable 2FA (TOTP) for your own account in Profile before turning on step-up verification.',

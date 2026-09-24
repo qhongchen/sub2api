@@ -452,6 +452,10 @@ export default {
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
     signingIn: '登录中...',
+    passkeySignIn: '使用 Passkey 登录',
+    passkeySigningIn: '等待 Passkey 验证...',
+    passkeyCancelled: 'Passkey 登录已取消。',
+    passkeyFailed: 'Passkey 登录失败，请重试。',
     createAccount: '创建账户',
     signUpToStart: '注册以开始使用 {siteName}',
     signUp: '注册',
@@ -1205,7 +1209,8 @@ export default {
       antigravity: 'Antigravity',
       kimi: 'Kimi',
       zhipu: '智谱 GLM',
-      deepseek: 'DeepSeek'
+      deepseek: 'DeepSeek',
+      opencode_go: 'OpenCode'
     },
     checkMode: {
       probe: '探活',
@@ -1515,6 +1520,31 @@ export default {
       sendCode: '发送验证码',
       codeSent: '验证码已发送到您的邮箱',
       sendCodeFailed: '发送验证码失败'
+    },
+    passkey: {
+      title: 'Passkey',
+      description: '使用 Face ID、Touch ID、Windows Hello 或安全密钥，无需密码即可登录。',
+      add: '添加 Passkey',
+      continue: '创建 Passkey',
+      name: 'Passkey 名称',
+      namePlaceholder: '例如：MacBook Touch ID',
+      passwordPlaceholder: '请输入当前密码确认',
+      empty: '尚未注册 Passkey。',
+      synced: '已同步',
+      createdAt: '创建于 {date}',
+      lastUsed: '最近使用于 {date}',
+      featureDisabled: '管理员尚未配置 Passkey。',
+      unsupported: '当前浏览器或设备不支持 Passkey。',
+      loadFailed: '加载 Passkey 失败。',
+      added: 'Passkey 添加成功。',
+      addFailed: '添加 Passkey 失败。',
+      renamePrompt: '请输入新的 Passkey 名称',
+      renamed: 'Passkey 已重命名。',
+      renameFailed: 'Passkey 重命名失败。',
+      deleteTitle: '删除 Passkey',
+      deleteConfirm: '确定删除“{name}”吗？删除后将无法使用它登录。',
+      deleted: 'Passkey 已删除。',
+      deleteFailed: '删除 Passkey 失败。'
     },
     balanceNotify: {
       title: '余额不足提醒',
@@ -2679,6 +2709,7 @@ export default {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        opencode_go: 'OpenCode',
         composite: 'Composite',
       },
       saving: '保存中...',
@@ -4020,6 +4051,24 @@ export default {
         kimi: 'Kimi',
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
+        opencode_go: 'OpenCode',
+      },
+      opencodeGo: {
+        accountMode: {
+          zen: 'Zen',
+          zenDesc: '按量付费网关，消耗账户余额，按 Token 计费。',
+          go: 'GO',
+          goDesc: '订阅制网关，按 5 小时 / 周 / 月滚动用量窗口限流。'
+        },
+        protocolRules: {
+          title: '模型协议分流',
+          hint: '自适应模式下按模型匹配上游协议。支持精确 ID 或末尾 * 通配；自上而下第一条命中生效；未命中走 Chat Completions。',
+          patternPlaceholder: 'grok-* 或 deepseek-v4-flash',
+          add: '添加规则',
+          remove: '删除规则',
+          restoreDefaults: '恢复默认',
+          fallback: '未命中规则 → Chat Completions（/v1/chat/completions）'
+        }
       },
       cnProviders: {
         accountMode: {
@@ -6885,6 +6934,14 @@ export default {
         payment: '支付设置',
       },
       security: {
+        passkey: 'Passkey 登录',
+        passkeyHint: '当 WebAuthn 依赖方配置有效时，允许用户免密码登录并自行管理 Passkey。',
+        passkeyConfigured: 'WebAuthn 依赖方配置有效。',
+        passkeyNotConfigured: '请配置有效的 RP ID 和 HTTPS 来源后再启用 Passkey 登录。',
+        passkeyRPID: 'RP ID',
+        passkeyOrigins: '允许的 HTTPS 来源',
+        passkeyValueNotConfigured: '未配置',
+        passkeyDeploymentHint: '请让服务端配置 webauthn.enabled=true、webauthn.rp_id（仅域名）和 webauthn.rp_origins（完整 HTTPS 来源），然后重启服务。',
         stepUp: '敏感操作二次验证（step-up 2FA）',
         stepUpHint: '开启后，账号导出、备份操作、S3 配置修改、提升管理员等敏感操作需要先完成近期 TOTP 二次验证。',
         stepUpEnableRequiresTotp: '开启敏感操作二次验证前，请先在个人资料中为当前账号启用 2FA（TOTP）。',

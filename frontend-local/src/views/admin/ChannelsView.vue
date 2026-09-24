@@ -813,7 +813,8 @@ const platformOrder: GroupPlatform[] = [
   'grok',
   'kimi',
   'zhipu',
-  'deepseek'
+  'deepseek',
+  'opencode_go'
 ]
 const compositePlatforms: GroupPlatform[] = [...platformOrder]
 
