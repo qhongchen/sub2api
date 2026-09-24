@@ -83,19 +83,19 @@ func TestGetUserErrorRequestDetail_OwnershipEnforced(t *testing.T) {
 
 	detail := &OpsErrorLogDetail{
 		OpsErrorLog: OpsErrorLog{
-			ID:              42,
-			Phase:           "upstream",
-			Type:            "api_error",
-			Model:           "gpt-4",
-			RequestedModel:  "gpt-4-turbo",
-			InboundEndpoint: "/v1/chat/completions",
-			StatusCode:      502,
-			Platform:        "openai",
-			Message:         "upstream failed",
-			UserID:          &ownerUID,
+			ID:                 42,
+			Phase:              "upstream",
+			Type:               "api_error",
+			Model:              "gpt-4",
+			RequestedModel:     "gpt-4-turbo",
+			InboundEndpoint:    "/v1/chat/completions",
+			StatusCode:         502,
+			Platform:           "openai",
+			Message:            "upstream failed",
+			UserID:             &ownerUID,
+			UpstreamStatusCode: &upstreamStatus,
 		},
-		ErrorBody:          `{"error":"upstream"}`,
-		UpstreamStatusCode: &upstreamStatus,
+		ErrorBody: `{"error":"upstream"}`,
 	}
 
 	stub := &stubOpsRepoForUserErr{detailToReturn: detail}
