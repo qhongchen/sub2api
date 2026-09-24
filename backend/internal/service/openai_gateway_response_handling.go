@@ -245,8 +245,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	errorEventSent := false
 	clientDisconnected := false // 客户端断开后继续 drain 上游以收集 usage
 	sawTerminalEvent := false
-	terminalUsageReceived := false
-	terminalUsagePending := false
 	sawFailedEvent := false
 	sawBareError := false
 	sawResponseFailed := false
@@ -317,17 +315,19 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		eventStartsTTFTOutput = false
 		eventShouldFlush = false
 	}
-	sendErrorEvent := func(reason string) {
+	sendErrorEvent := func(code, message string) {
 		if errorEventSent || clientDisconnected || failureDelivered {
 			return
 		}
 		errorEventSent = true
-		payload := `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(reason) + `,"code":` + strconv.Quote(reason) + `}}`
+		// Responses error events use top-level code/message/param fields. A nested
+		// Chat Completions error envelope loses the classification in strict clients.
+		payload := `{"type":"error","sequence_number":0,"code":` + strconv.Quote(code) + `,"message":` + strconv.Quote(message) + `,"param":null}`
 		if err := flushBuffered(); err != nil {
 			clientDisconnected = true
 			return
 		}
-		if _, err := writePendingString("data: " + payload + "\n\n"); err != nil {
+		if _, err := writePendingString("event: error\ndata: " + payload + "\n\n"); err != nil {
 			clientDisconnected = true
 			return
 		}
@@ -337,6 +337,8 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		}
 		clientOutputStarted = true
 		lastDownstreamWriteAt = time.Now()
+		// The handler must not append its generic failure after this error event.
+		MarkResponseCommitted(c)
 	}
 
 	needModelReplace := originalModel != mappedModel
@@ -413,15 +415,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
 		return resultWithUsage(), nil
 	}
-	finalizeTerminalUsage := func() (*openaiStreamingResult, error) {
-		if !clientDisconnected && !guardFirstOutput {
-			if _, err := bufferedWriter.WriteString("\n"); err != nil {
-				clientDisconnected = true
-				logger.LegacyPrintf("service.openai_gateway", "Client disconnected while finalizing terminal SSE frame, returning collected usage")
-			}
-		}
-		return finalizeStream()
-	}
 	handleScanErr := func(scanErr error) (*openaiStreamingResult, error, bool) {
 		if scanErr == nil {
 			return nil, nil, false
@@ -462,7 +455,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		}
 		if errors.Is(scanErr, bufio.ErrTooLong) {
 			logger.LegacyPrintf("service.openai_gateway", "SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, scanErr)
-			sendErrorEvent("response_too_large")
+			sendErrorEvent("response_too_large", "Upstream response exceeded the size limit")
 			return resultWithUsage(), scanErr, true
 		}
 		if !openAIStreamClientOutputStarted(c, clientOutputStarted) && !eventShouldFlush {
@@ -477,7 +470,8 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete after disconnect: %w", scanErr), true
 		}
 		s.recordOpenAIProxyStreamDisconnect(account, scanErr, upstreamRequestID)
-		sendErrorEvent("stream_read_error")
+		code, message := classifyOpenAIUpstreamStreamReadError(scanErr)
+		sendErrorEvent(code, message)
 		return resultWithUsage(), fmt.Errorf("stream read error: %w", scanErr), true
 	}
 	processSSELine := func(line string, queueDrained bool) {
@@ -728,16 +722,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				NotifyFirstToken(c.Request.Context(), ms)
 				stopFirstOutputTimer()
 			}
-			if eventType == "response.completed" || eventType == "response.done" {
-				_, hasTerminalUsage := extractOpenAIUsageFromJSONBytes(dataBytes)
-				if hasTerminalUsage {
-					if guardFirstOutput {
-						terminalUsagePending = true
-					} else {
-						terminalUsageReceived = true
-					}
-				}
-			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
 			return
 		}
@@ -769,10 +753,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			if streamEarlyErr == nil {
 				completeGuardedEvent(queueDrained)
-				if terminalUsagePending {
-					terminalUsageReceived = true
-					terminalUsagePending = false
-				}
 			}
 			if terminalFailurePending && streamEarlyErr == nil {
 				terminalFailurePending = false
@@ -827,14 +807,17 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		defer putSSEScannerBuf64K(scanBuf)
 		for documentScanner.Scan() {
 			processSSELine(documentScanner.Text(), true)
-			if streamEarlyErr != nil {
-				return resultWithUsage(), streamEarlyErr
-			}
-			if terminalUsageReceived {
-				return finalizeTerminalUsage()
-			}
+		if streamEarlyErr != nil {
+			return resultWithUsage(), streamEarlyErr
 		}
-		if result, err, done := handleScanErr(documentScanner.Err()); done {
+		// Terminal 事件完整写出后直接结束，不等上游 EOF（见下方异步循环同款说明）。
+		// Codex bare error 序列（error 后可能跟 response.failed 或翻盘的 completed）
+		// 必须继续读取，不适用提前结束。
+		if sawTerminalEvent && !eventInProgress && (!codexFailureTerminal || !sawBareError) {
+			return finalizeStream()
+		}
+	}
+	if result, err, done := handleScanErr(documentScanner.Err()); done {
 			return result, err
 		}
 		return finalizeStream()
@@ -912,8 +895,14 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			if streamEarlyErr != nil {
 				return resultWithUsage(), streamEarlyErr
 			}
-			if terminalUsageReceived {
-				return finalizeTerminalUsage()
+			// Terminal 事件（response.completed 等）已完整写出后不再等上游 EOF：
+			// 上游在 keep-alive/HTTP2 复用连接上可能拖延关闭连接，空等期间只能
+			// 靠 keepalive 维持，白白拉长尾延迟。usage 已在 terminal 事件中解析。
+			// Codex bare error 序列（error 后可能跟 response.failed 或翻盘的 completed）
+			// 必须继续读取，不适用提前结束。
+			if sawTerminalEvent && !eventInProgress && (!codexFailureTerminal || !sawBareError) {
+				_ = resp.Body.Close()
+				return finalizeStream()
 			}
 
 		case <-intervalCh:
@@ -946,7 +935,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 					return resultWithUsage(), grokStreamIdleFailoverError(account, streamInterval)
 				}
 			}
-			sendErrorEvent("stream_timeout")
+			sendErrorEvent("stream_timeout", "Upstream response stream timed out")
 			return resultWithUsage(), fmt.Errorf("stream data interval timeout")
 
 		case <-firstOutputCh:
