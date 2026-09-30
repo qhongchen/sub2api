@@ -473,7 +473,12 @@
 
     <!-- CN providers (Kimi / Zhipu / DeepSeek): coding-plan quota or payg balance -->
     <template v-else-if="account.platform === 'kimi' || account.platform === 'zhipu' || account.platform === 'deepseek' || account.platform === 'opencode_go'">
-      <div class="space-y-1">
+      <OpenCodeGoUsageCell
+        v-if="account.opencode_go_usage?.eligible"
+        :account="account"
+        @updated="handleOpenCodeGoUsageUpdated"
+      />
+      <div v-else class="space-y-1">
         <div
           v-if="!cnQuotaCellVisible && !cnBalanceCellVisible"
           class="text-xs text-gray-400"
@@ -611,6 +616,11 @@
         v-if="account.ollama_cloud_usage?.eligible"
         :account="account"
         @updated="handleOllamaCloudUsageUpdated"
+      />
+      <OpenCodeGoUsageCell
+        v-else-if="account.opencode_go_usage?.eligible"
+        :account="account"
+        @updated="handleOpenCodeGoUsageUpdated"
       />
       <!-- Today stats row (requests, tokens, cost, user_cost) -->
       <div
@@ -1581,6 +1591,10 @@ const handleGrokProbed = (result: GrokQuotaProbeResult) => {
 
 const handleOllamaCloudUsageUpdated = (state: NonNullable<Account['ollama_cloud_usage']>) => {
   emit('account-updated', { ...props.account, ollama_cloud_usage: state })
+}
+
+const handleOpenCodeGoUsageUpdated = (state: NonNullable<Account['opencode_go_usage']>) => {
+  emit('account-updated', { ...props.account, opencode_go_usage: state })
 }
 
 // ===== API Key quota progress bars =====

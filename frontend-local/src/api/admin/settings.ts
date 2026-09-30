@@ -490,6 +490,7 @@ export interface SystemSettings {
   // Claude Code version check
   min_claude_code_version: string;
   max_claude_code_version: string;
+  claude_code_version_auto_sync_enabled: boolean;
 
   // 分组隔离
   allow_ungrouped_key_scheduling: boolean;
@@ -766,6 +767,7 @@ export interface UpdateSettingsRequest {
   ops_metrics_interval_seconds?: number;
   min_claude_code_version?: string;
   max_claude_code_version?: string;
+  claude_code_version_auto_sync_enabled?: boolean;
   allow_ungrouped_key_scheduling?: boolean;
   openai_ttft_mode?: string;
   enable_fingerprint_unification?: boolean;

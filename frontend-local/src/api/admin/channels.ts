@@ -51,6 +51,7 @@ export interface ChannelModelPricing {
   fast_multiplier?: number | null
   flex_multiplier?: number | null
   max_reasoning_effort_multiplier?: number | null
+  reasoning_effort_multipliers?: Record<string, number> | null
   image_input_price: number | null
   image_output_price: number | null
   per_request_price: number | null
@@ -181,6 +182,7 @@ export interface ModelDefaultPricing {
   image_input_price?: number
   image_output_price?: number
   max_reasoning_effort_multiplier?: number | null
+  reasoning_effort_multipliers?: Record<string, number> | null
 }
 
 export async function getModelDefaultPricing(model: string): Promise<ModelDefaultPricing> {
